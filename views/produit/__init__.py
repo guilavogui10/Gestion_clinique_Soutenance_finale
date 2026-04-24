@@ -1,0 +1,1 @@
+from .vue_gestion_panier import GestionProduitsView

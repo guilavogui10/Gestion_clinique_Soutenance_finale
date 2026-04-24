@@ -1,0 +1,41 @@
+/* Fond de l'application */
+QWidget {
+    background-color: #F8F9FA;
+    font-family: "Segoe UI", sans-serif;
+}
+
+
+
+/* Dans ton fichier .qss */
+QFrame#StatCard, QFrame#cardFrame {
+    background-color: white;
+    border-radius: 15px;
+    border: 1px solid #E0E0E0;
+    /* On ne met pas de :hover ici pour laisser Python gérer l'animation de mouvement */
+}
+
+/* Le tableau moderne */
+QTableWidget {
+    background-color: white;
+    border-radius: 10px;
+    gridline-color: #F0F0F0;
+    selection-background-color: #E8F5E9;
+    color: #333;
+}
+
+QHeaderView::section {
+    background-color: white;
+    padding: 10px;
+    border: none;
+    border-bottom: 2px solid #003f20;
+    font-weight: bold;
+}
+
+/* Bouton Ajouter */
+QPushButton#BtnAdd {
+    background-color: #003f20;
+    color: white;
+    border-radius: 8px;
+    padding: 8px 15px;
+    font-weight: bold;
+}

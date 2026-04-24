@@ -1,0 +1,1 @@
+from .patient.vue_facture_patient import FacturePatientView
