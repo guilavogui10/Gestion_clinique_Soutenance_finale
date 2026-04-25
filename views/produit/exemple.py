@@ -26,7 +26,7 @@ from .produit_form import ProduitFormDialog
 class GestionProduitsView(QWidget):
     """
     Vue principale pour la gestion des produits et du panier d approvisionnement.
-    Interface uniquement – contrôleurs à brancher ultérieurement.
+    Interface uniquement â€” contrÃ´leurs Ã  brancher ultÃ©rieurement.
     """
 
 
@@ -43,9 +43,9 @@ class GestionProduitsView(QWidget):
         self.apply_theme()
         theme_manager.theme_changed.connect(self.apply_theme)
         
-        # ══════════════════════════════════════════════════════════════════
-        # PANNEAUX LATÉRAUX (Stock + Factures)
-        # ══════════════════════════════════════════════════════════════════
+        # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        # PANNEAUX LATÃ‰RAUX (Stock + Factures)
+        # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         from views.facturation.fournisseur.panneaux import PanneauStockProduits, PanneauFactures
         from controllers.controleur_panierFourni import PanierFactureFourniControleur
         from controllers.controleur_factureFournisseur import FactureFournisseurControleur
@@ -60,7 +60,7 @@ class GestionProduitsView(QWidget):
         # Panneau Factures
         self.panneau_factures = PanneauFactures(self, facture_ctrl, panier_ctrl)
         
-        # Badge de notification (sera mis à jour automatiquement)
+        # Badge de notification (sera mis Ã  jour automatiquement)
         self._badge_notification = None
 
     def apply_theme(self):
@@ -208,7 +208,7 @@ class GestionProduitsView(QWidget):
 
         # Filtre par type
         self.combo_filtre = QComboBox()
-        self.combo_filtre.addItems(["Tous les types", "Liquide", "Pommade", "Comprimé"])
+        self.combo_filtre.addItems(["Tous les types", "Liquide", "Pommade", "ComprimÃ©"])
         self.combo_filtre.setFixedHeight(42)
         self.combo_filtre.setFixedWidth(160)
         c_combo = theme_manager.colors()
@@ -230,6 +230,9 @@ class GestionProduitsView(QWidget):
         self.btn_add.setMinimumWidth(155)
         self.btn_add.setStyleSheet(ProduitStyles.button_primary())
         self.btn_add.setCursor(Qt.PointingHandCursor)
+        # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        # CONNEXION : Bouton "Nouveau Produit" â†’ Formulaire de crÃ©ation
+        # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         self.btn_add.clicked.connect(self.ouvrir_formulaire_nouveau_produit)
 
         # Bouton Modifier
@@ -244,8 +247,12 @@ class GestionProduitsView(QWidget):
             "border-radius: 12px; font-weight: bold; font-size: 12px;"
         )
         self.btn_modifier.setCursor(Qt.PointingHandCursor)
+        # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        # CONNEXION : Bouton "Modifier" â†’ Formulaire de modification
+        # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        # self.btn_modifier.clicked.connect(self.ouvrir_formulaire_modifier_produit)
 
-        # Boutons icônes (export, import, notification, stock)
+        # Boutons icÃ´nes (export, import, notification, stock)
         _ct = theme_manager.colors()
         self.btn_export_csv = self._creer_btn_icone(
             "fa5s.file-csv",    _ct['primary'], "Exporter CSV")
@@ -255,12 +262,15 @@ class GestionProduitsView(QWidget):
             "fa5s.file-import", _ct['accent'],            "Importer")
         self.btn_notification = self._creer_btn_icone(
             "fa5s.bell",        _ct['warning'],            "Notifications")
+        # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        # CONNEXION : Bouton Notification â†’ Ouvre le panneau factures
+        # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         self.btn_notification.clicked.connect(self._ouvrir_panneau_factures)
         self._creer_badge_notification()
         
-        # ══════════════════════════════════════════════════════════════════
-        # BOUTONS PANNEAUX LATÉRAUX
-        # ══════════════════════════════════════════════════════════════════
+        # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        # BOUTONS PANNEAUX LATÃ‰RAUX
+        # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         self.btn_stock = self._creer_btn_icone(
             "fa5s.boxes",       _ct['primary'],  "Gestion du Stock")
         self.btn_stock.clicked.connect(self._ouvrir_panneau_stock)
@@ -297,9 +307,10 @@ class GestionProduitsView(QWidget):
     
     def _creer_badge_notification(self):
         """
-        Crée un badge de notification sur le bouton notification.
+        CrÃ©e un badge de notification sur le bouton notification.
         Le badge affiche le nombre de factures.
         """
+        # CrÃ©er le badge
         self._badge_notification = QLabel("0")
         self._badge_notification.setFixedSize(18, 18)
         self._badge_notification.setAlignment(Qt.AlignCenter)
@@ -310,7 +321,7 @@ class GestionProduitsView(QWidget):
         )
         self._badge_notification.hide()
         
-        # Positionner le badge en haut à droite du bouton
+        # Positionner le badge en haut Ã  droite du bouton
         self._badge_notification.setParent(self.btn_notification)
         self._badge_notification.move(28, -2)
         self._badge_notification.raise_()
@@ -322,13 +333,14 @@ class GestionProduitsView(QWidget):
     
     def _mettre_a_jour_badge_notification(self):
         """
-        Met à jour le badge de notification avec le nombre de factures.
-        Appelé automatiquement lors du chargement des données.
+        Met Ã  jour le badge de notification avec le nombre de factures.
+        AppelÃ© automatiquement lors du chargement des donnÃ©es.
         """
         if not self._badge_notification or not self.code_session:
             return
         
         try:
+            # RÃ©cupÃ©rer le nombre de factures de la session
             from controllers.controleur_factureFournisseur import FactureFournisseurControleur
             facture_ctrl = FactureFournisseurControleur()
             nb_factures = facture_ctrl.obtenir_total_factures_session(self.code_session)
@@ -350,23 +362,25 @@ class GestionProduitsView(QWidget):
                     f"background:{c_n['bg_card']}; border:1px solid {c_n['border']}; border-radius:12px;"
                 )
         except Exception as e:
-            print(f"[GestionProduitsView] Erreur mise à jour badge: {e}")
+            print(f"[GestionProduitsView] Erreur mise Ã  jour badge: {e}")
 
     # =========================================================================
     # STATISTIQUES ET GRAPHES
     # =========================================================================
 
     def _setup_statistiques(self):
-        """Utilisation du composant statistiques modulaire avec injection du contrôleur."""
+        """Utilisation du composant statistiques modulaire avec injection du contrÃ´leur."""
+        # CrÃ©er le contrÃ´leur panier pour les statistiques
         from controllers.controleur_panierFourni import PanierFactureFourniControleur
         panier_ctrl = PanierFactureFourniControleur()
         
+        # CrÃ©er le widget avec injection du contrÃ´leur
         self.statistiques_widget = StatistiquesStockWidget(
             panier_ctrl=panier_ctrl,
             show_stock_detail=False
         )
         
-        # Exposition des widgets pour compatibilité
+        # Exposition des widgets pour compatibilitÃ©
         self.card_expires = self.statistiques_widget.card_expires
         self.card_bientot = self.statistiques_widget.card_bientot
         self.card_valides = self.statistiques_widget.card_valides
@@ -392,6 +406,10 @@ class GestionProduitsView(QWidget):
             "Mouvements de Stock", "fa5s.exchange-alt")
         self._setup_table_mouvements()
 
+        # Utilisation du composant panier modulaire
+        # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        # INJECTION DES CONTRÃ”LEURS DANS LE WIDGET PANIER
+        # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         from controllers.controleur_panierFourni import PanierFactureFourniControleur
         from controllers.controleur_fournisseur import FournisseurControleur
         from controllers.controleur_factureFournisseur import FactureFournisseurControleur
@@ -409,22 +427,26 @@ class GestionProduitsView(QWidget):
         )
         
         # Connecter le signal de finalisation pour actualiser les statistiques ET le tableau
+        # Surcharger la mÃ©thode _finaliser_facture du panier_widget
         original_finaliser = self.panier_widget._finaliser_facture
         
         def finaliser_avec_actualisation():
+            # Appeler la mÃ©thode originale
             original_finaliser()
-            print("[GestionProduitsView] Actualisation des statistiques après finalisation...")
+            # Actualiser les statistiques
+            print("[GestionProduitsView] Actualisation des statistiques aprÃ¨s finalisation...")
             if hasattr(self, 'statistiques_widget') and self.statistiques_widget:
                 self.statistiques_widget.actualiser()
                 self._charger_stock_detail_liste(self.code_session)
             
+            # Actualiser le tableau des mouvements
             print("[GestionProduitsView] Actualisation du tableau des mouvements...")
             if hasattr(self, 'table_mouvements') and self.table_mouvements and self.code_session:
                 self._charger_mouvements_stock(self.code_session)
         
         self.panier_widget._finaliser_facture = finaliser_avec_actualisation
         
-        # Exposition des widgets du panier pour compatibilité
+        # Exposition des widgets du panier pour compatibilitÃ©
         self.combo_fournisseur = self.panier_widget.combo_fournisseur
         self.combo_produit = self.panier_widget.combo_produit
         self.input_designation = self.panier_widget.input_designation
@@ -447,7 +469,7 @@ class GestionProduitsView(QWidget):
         bottom_layout.addWidget(self.frame_stock_detail, 3)
         self.main_layout.addLayout(bottom_layout)
 
-    # ─── Cadre générique arrondi ─────────────────────────────────────────────
+    # â”€â”€â”€ Cadre gÃ©nÃ©rique arrondi â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _creer_cadre_arrondi(self, titre: str, icone_name: str) -> AnimatedFrame:
         c = theme_manager.colors()
@@ -540,6 +562,7 @@ class GestionProduitsView(QWidget):
         """)
         scroll_area.verticalScrollBar().setStyleSheet(ProduitStyles.scrollbar())
         
+        # Container pour la grille de cards
         container = QWidget()
         container.setStyleSheet("background: transparent;")
         self.grid_produits = QGridLayout(container)
@@ -557,7 +580,7 @@ class GestionProduitsView(QWidget):
         return frame
 
     def _setup_panier_overlay(self) -> None:
-        """Prépare le panneau panier glissant (overlay) pleine largeur."""
+        """PrÃ©pare le panneau panier glissant (overlay) pleine largeur."""
         self.panel_panier_overlay = QFrame(self)
         self.panel_panier_overlay.setAttribute(Qt.WA_StyledBackground, True)
         c_ov = theme_manager.colors()
@@ -596,13 +619,14 @@ class GestionProduitsView(QWidget):
         self._overlay_sep = sep
         overlay_layout.addWidget(sep)
 
+        # Panier produit (large et espacÃ©)
         overlay_layout.addWidget(self.panier_widget, 1)
 
         self.panel_panier_overlay.raise_()
         self.panel_panier_overlay.hide()
         self._ajuster_panier_overlay()
         
-        # Créer aussi l'overlay de paiement
+        # Créer aussi l\'overlay de paiement
         self._setup_payment_overlay()
 
     def _ajuster_panier_overlay(self) -> None:
@@ -629,7 +653,6 @@ class GestionProduitsView(QWidget):
             self.panel_panier_overlay.move(x, y)
         else:
             self.panel_panier_overlay.move(x - w, y)
-
     def _setup_payment_overlay(self) -> None:
         """Prépare le panneau de paiement glissant (overlay) pleine largeur."""
         from views.facturation.patient.panier.components.payment_slide_panel import PaymentSlidePanel
@@ -646,7 +669,8 @@ class GestionProduitsView(QWidget):
         overlay_layout.setContentsMargins(0, 0, 0, 0)
         overlay_layout.setSpacing(0)
 
-        self._payment_panel = PaymentSlidePanel(self.panel_payment_overlay)
+        # Créer le panneau de paiement DIRECTEMENT dans l'overlay
+        self._payment_panel = PaymentSlidePanel(self)
         overlay_layout.addWidget(self._payment_panel)
 
         self.panel_payment_overlay.raise_()
@@ -656,7 +680,7 @@ class GestionProduitsView(QWidget):
 
 
     def _overlay_top_y(self) -> int:
-        """Calcule la position Y de l'overlay (niveau 2ème ligne des cards)."""
+        """Calcule la position Y de l'overlay (niveau 2Ã¨me ligne des cards)."""
         try:
             if hasattr(self, 'statistiques_widget') and self.statistiques_widget:
                 cards = [
@@ -677,9 +701,11 @@ class GestionProduitsView(QWidget):
                             rows.append(y)
                     if len(rows) >= 2:
                         return rows[1]
+                    # Une seule ligne de cards
                     return self.statistiques_widget.geometry().bottom() + 8
         except Exception:
             pass
+        # Fallback: en dessous des statistiques si prÃ©sent
         if hasattr(self, 'statistiques_widget') and self.statistiques_widget:
             return self.statistiques_widget.geometry().bottom() + 8
         return 0
@@ -755,6 +781,7 @@ class GestionProduitsView(QWidget):
             self.panel_payment_overlay.show()
             self.panel_payment_overlay.raise_()
             print("[GestionProduitsView] panel_payment_overlay.show() et raise_() appeles")
+            # Afficher aussi le contenu du panneau
             self._payment_panel.show()
             print("[GestionProduitsView] _payment_panel.show() appele")
             start_pos = QPoint(x - w, y)
@@ -774,25 +801,15 @@ class GestionProduitsView(QWidget):
         self._payment_anim.setEndValue(end_pos)
 
         if not ouvrir:
-            # ✅ FIX : Toute l'actualisation se fait ICI, après la fin de l'animation,
-            # pour éviter la race condition entre l'animation (320ms) et le rechargement.
+            # ✅ CORRECTION: S'assurer que le panneau est bien caché après l'animation
             def hide_panel_completely():
                 print("[GestionProduitsView] Animation terminée - Masquage du panneau")
                 self.panel_payment_overlay.hide()
                 self._payment_panel.hide()
+                # Forcer le rafraîchissement de l'interface
                 self.update()
                 self.repaint()
-
-                # Actualisation déclenchée uniquement une fois le panneau invisible
-                if hasattr(self, 'code_session') and self.code_session:
-                    print("[GestionProduitsView] Actualisation de l'interface après fermeture du paiement")
-                    if hasattr(self, 'statistiques_widget') and self.statistiques_widget:
-                        self.statistiques_widget.actualiser()
-                    if hasattr(self, 'table_mouvements') and self.table_mouvements:
-                        self._charger_mouvements_stock(self.code_session)
-                    self._charger_stock_detail_liste(self.code_session)
-                    self._mettre_a_jour_badge_notification()
-
+            
             self._payment_anim.finished.connect(hide_panel_completely)
 
         self._payment_anim.start()
@@ -804,35 +821,43 @@ class GestionProduitsView(QWidget):
         self._animer_payment_overlay(True)
 
     def _fermer_payment_overlay(self) -> None:
-        """Ferme le panneau de paiement avec animation.
-        
-        ✅ FIX : On se contente de lancer l'animation.
-        L'actualisation de l'interface est gérée dans le callback
-        finished de l'animation (hide_panel_completely), pour éviter
-        toute race condition.
-        """
+        """Ferme le panneau de paiement avec animation."""
         print("[GestionProduitsView] _fermer_payment_overlay appelé")
         self._animer_payment_overlay(False)
+        
+        # ✅ CORRECTION: Actualiser l'interface après fermeture
+        if hasattr(self, 'code_session') and self.code_session:
+            print("[GestionProduitsView] Actualisation de l'interface après fermeture du paiement")
+            # Actualiser les statistiques
+            if hasattr(self, 'statistiques_widget') and self.statistiques_widget:
+                self.statistiques_widget.actualiser()
+            # Actualiser le tableau des mouvements
+            if hasattr(self, 'table_mouvements') and self.table_mouvements:
+                self._charger_mouvements_stock(self.code_session)
+            # Actualiser la liste des produits
+            self._charger_stock_detail_liste(self.code_session)
+            # Mettre à jour le badge de notification
+            self._mettre_a_jour_badge_notification()
 
 
-    # ─── Table mouvements de stock ───────────────────────────────────────────
+    # â”€â”€â”€ Table mouvements de stock â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _setup_table_mouvements(self):
         """Configure le tableau des mouvements d'approvisionnement du stock."""
         self.table_mouvements = QTableWidget(0, 5)
         self.table_mouvements.setHorizontalHeaderLabels([
-            "Code", "Produit", "Type", "Date Expiration", "Quantité Entrée"
+            "Code", "Produit", "Type", "Date Expiration", "QuantitÃ© EntrÃ©e"
         ])
         self.table_mouvements.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table_mouvements.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._appliquer_style_scrollbar(self.table_mouvements)
 
         header = self.table_mouvements.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.Stretch)
-        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(4, QHeaderView.Fixed)
+        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)  # Code
+        header.setSectionResizeMode(1, QHeaderView.Stretch)           # Produit (extensible)
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # Type
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # Date Expiration
+        header.setSectionResizeMode(4, QHeaderView.Fixed)             # QuantitÃ© EntrÃ©e
         self.table_mouvements.setColumnWidth(4, 120)
 
         self.table_mouvements.setStyleSheet(ProduitStyles.table())
@@ -844,31 +869,42 @@ class GestionProduitsView(QWidget):
     def _charger_mouvements_stock(self, code_session: str):
         """
         Charge les mouvements d'approvisionnement du stock dans le tableau.
+        Utilise la mÃ©thode lister_par_session du contrÃ´leur panier.
+        
+        Args:
+            code_session: Code de la session active
         """
         if not code_session:
             print("[GestionProduitsView] Code session invalide pour charger les mouvements")
             return
         
+        # RÃ©cupÃ©rer le contrÃ´leur panier
         from controllers.controleur_panierFourni import PanierFactureFourniControleur
         panier_ctrl = PanierFactureFourniControleur()
         
+        # RÃ©cupÃ©rer les mouvements
         mouvements = panier_ctrl.lister_par_session(code_session)
         
-        print(f"[GestionProduitsView] {len(mouvements)} mouvements récupérés")
+        print(f"[GestionProduitsView] {len(mouvements)} mouvements rÃ©cupÃ©rÃ©s")
         
+        # Vider le tableau
         self.table_mouvements.setRowCount(0)
         
         if not mouvements:
-            print("[GestionProduitsView] Aucun mouvement à afficher")
+            print("[GestionProduitsView] Aucun mouvement Ã  afficher")
             return
         
+        # Remplir le tableau
         for mouvement in mouvements:
             row_position = self.table_mouvements.rowCount()
             self.table_mouvements.insertRow(row_position)
             
+            # Colonne 0 : Code produit
             code_produit = mouvement.code_produit if hasattr(mouvement, 'code_produit') else ''
             self.table_mouvements.setItem(row_position, 0, QTableWidgetItem(code_produit))
             
+            # Colonne 1 : Libelle (nom du produit)
+            # La mÃ©thode retourne des objets avec attributs supplÃ©mentaires via jointure
             libelle = ''
             if hasattr(mouvement, 'designation'):
                 libelle = mouvement.designation
@@ -876,16 +912,19 @@ class GestionProduitsView(QWidget):
                 libelle = mouvement.libelle
             self.table_mouvements.setItem(row_position, 1, QTableWidgetItem(libelle))
             
+            # Colonne 2 : Type
             type_produit = ''
             if hasattr(mouvement, 'type'):
                 type_produit = mouvement.type
             self.table_mouvements.setItem(row_position, 2, QTableWidgetItem(type_produit))
             
+            # Colonne 3 : Date expiration
             date_exp = ''
             if hasattr(mouvement, 'date_expiration') and mouvement.date_expiration:
                 date_exp = mouvement.date_expiration.strftime('%d/%m/%Y') if hasattr(mouvement.date_expiration, 'strftime') else str(mouvement.date_expiration)
             self.table_mouvements.setItem(row_position, 3, QTableWidgetItem(date_exp))
             
+            # Colonne 4 : QuantitÃ© entrÃ©e
             quantite = '0'
             if hasattr(mouvement, 'quantite_four'):
                 quantite = str(mouvement.quantite_four)
@@ -893,17 +932,17 @@ class GestionProduitsView(QWidget):
             item_qte.setTextAlignment(Qt.AlignCenter)
             self.table_mouvements.setItem(row_position, 4, item_qte)
         
-        print(f"[GestionProduitsView] ✅ Tableau rempli avec {self.table_mouvements.rowCount()} lignes")
+        print(f"[GestionProduitsView] âœ… Tableau rempli avec {self.table_mouvements.rowCount()} lignes")
 
     # =========================================================================
-    # MÉTHODE UTILITAIRE POUR CRÉER LIGNE PANIER (délégation au widget)
+    # MÃ‰THODE UTILITAIRE POUR CRÃ‰ER LIGNE PANIER (dÃ©lÃ©gation au widget)
     # =========================================================================
 
     def _creer_ligne_panier(self, designation: str, quantite: int,
                             prix: float, date_exp: str) -> QFrame:
         """
-        Crée une ligne visuelle dans la liste du panier.
-        Délègue au composant PanierProduitWidget.
+        CrÃ©e une ligne visuelle dans la liste du panier.
+        DÃ©lÃ¨gue au composant PanierProduitWidget.
         """
         return self.panier_widget.creer_ligne_panier(designation, quantite, prix, date_exp)
 
@@ -914,52 +953,70 @@ class GestionProduitsView(QWidget):
     def _appliquer_style_scrollbar(self, widget):
         widget.verticalScrollBar().setStyleSheet(ProduitStyles.scrollbar())
 
-    # =========================================================================
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     # GESTION DES FORMULAIRES PRODUITS (Pattern MVC)
-    # =========================================================================
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     def ouvrir_formulaire_nouveau_produit(self):
         
+        # VÃ©rification de l'injection du contrÃ´leur
         if not self.controleur:
             QMessageBox.warning(
                 self, 
                 "Erreur", 
-                "Le contrôleur n'est pas initialisé. Impossible d'ouvrir le formulaire."
+                "Le contrÃ´leur n'est pas initialisÃ©. Impossible d'ouvrir le formulaire."
             )
             return
         
+        # CrÃ©ation du formulaire en mode "Nouveau produit" (produit_obj=None)
         formulaire = ProduitFormDialog(
             controleur=self.controleur,
-            produit_obj=None,
+            produit_obj=None,  # None = Mode crÃ©ation
             parent=self
         )
         
+        # Ouverture modale du formulaire
+        # exec() bloque l'exÃ©cution jusqu'Ã  la fermeture du formulaire
         resultat = formulaire.exec()
         
+        # Si l'utilisateur a validÃ© (cliquÃ© sur "Enregistrer")
         if resultat == ProduitFormDialog.Accepted:
-            print("[INFO] Nouveau produit créé avec succès")
-            # TODO: Appeler votre méthode de rafraîchissement ici
+            # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+            # RAFRAÃŽCHISSEMENT DE LA VUE
+            # Ici, vous devez appeler votre mÃ©thode de rafraÃ®chissement
+            # Exemples possibles :
+            # - self.charger_liste_produits()
+            # - self.actualiser_table_produits()
+            # - self.rafraichir_donnees()
+            # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+            print("[INFO] Nouveau produit crÃ©Ã© avec succÃ¨s")
+            # TODO: Appeler votre mÃ©thode de rafraÃ®chissement ici
             # self.charger_liste_produits()
 
-    # =========================================================================
-    # CHARGEMENT DES DONNÉES
-    # =========================================================================
+    
+
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    # CHARGEMENT DES DONNÃ‰ES
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     def _charger_stock_detail_liste(self, code_session: str) -> None:
         """Charge la liste des produits (cards en grille) dans le panneau droit."""
         if not self.panier_ctrl or not hasattr(self, 'grid_produits'):
             return
         try:
+            # Vider la grille
             while self.grid_produits.count():
                 item = self.grid_produits.takeAt(0)
                 if item.widget():
                     item.widget().deleteLater()
             
+            # Récupérer les produits
             produits = self.panier_ctrl.obtenir_stock_detaille(code_session, limite=30)
             
             if not produits:
                 return
             
+            # Afficher les produits en grille (2 colonnes)
             row = 0
             col = 0
             for produit in produits:
@@ -971,7 +1028,7 @@ class GestionProduitsView(QWidget):
                 self.grid_produits.addWidget(card, row, col)
                 
                 col += 1
-                if col >= 2:
+                if col >= 2:  # 2 colonnes
                     col = 0
                     row += 1
                     
@@ -980,46 +1037,58 @@ class GestionProduitsView(QWidget):
 
     def charger_donnees(self, code_session=None):
         """
-        Charge les données de la page (produits, statistiques, panier, mouvements).
-        Appelé depuis le dashboard lors de l'affichage de la page.
+        Charge les donnÃ©es de la page (produits, statistiques, panier, mouvements).
+        AppelÃ© depuis le dashboard lors de l'affichage de la page.
+        
+        Args:
+            code_session: Code de la session active (optionnel)
         """
         if code_session:
             self.code_session = code_session
         
-        print(f"[GestionProduitsView] Chargement des données pour la session: {code_session}")
+        print(f"[GestionProduitsView] Chargement des donnÃ©es pour la session: {code_session}")
         
+        # Charger les statistiques du stock
         if hasattr(self, 'statistiques_widget') and self.statistiques_widget:
             print("[GestionProduitsView] Chargement des statistiques...")
             succes = self.statistiques_widget.charger_statistiques(code_session)
             if succes:
-                print("[GestionProduitsView] ✅ Statistiques chargées avec succès")
+                print("[GestionProduitsView] âœ… Statistiques chargÃ©es avec succÃ¨s")
             else:
-                print("[GestionProduitsView] ❌ Échec du chargement des statistiques")
+                print("[GestionProduitsView] âŒ Ã‰chec du chargement des statistiques")
         
+        # Charger la liste des produits (panneau droit)
         self._charger_stock_detail_liste(code_session)
 
+        # Charger les donnÃ©es du panier
         if hasattr(self, 'panier_widget') and self.panier_widget:
             print("[GestionProduitsView] Chargement du panier...")
             self.panier_widget.charger_donnees(code_session)
         
+        # Charger les mouvements de stock dans le tableau
         if hasattr(self, 'table_mouvements') and self.table_mouvements:
             print("[GestionProduitsView] Chargement des mouvements de stock...")
             self._charger_mouvements_stock(code_session)
         
-        print(f"[GestionProduitsView] ✅ Données chargées pour la session: {code_session}")
+        print(f"[GestionProduitsView] âœ… DonnÃ©es chargÃ©es pour la session: {code_session}")
         
+        # Mettre Ã  jour le badge de notification
         self._mettre_a_jour_badge_notification()
         
+        # Actualiser le panneau factures si ouvert
         if hasattr(self, 'panneau_factures') and self.panneau_factures._ouvert:
             print("[GestionProduitsView] Actualisation du panneau factures...")
             self.panneau_factures.actualiser(code_session)
     
-    # =========================================================================
-    # GESTION DES PANNEAUX LATÉRAUX
-    # =========================================================================
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    # GESTION DES PANNEAUX LATÃ‰RAUX
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     
     def _ouvrir_panneau_stock(self):
-        """Ouvre le panneau latéral de gestion du stock."""
+        """
+        Ouvre le panneau latÃ©ral de gestion du stock.
+        Charge les donnÃ©es pour la session en cours.
+        """
         if self.code_session:
             print(f"[GestionProduitsView] Ouverture du panneau stock pour session: {self.code_session}")
             self.panneau_stock.actualiser(self.code_session)
@@ -1027,12 +1096,15 @@ class GestionProduitsView(QWidget):
         else:
             QMessageBox.warning(
                 self,
-                "Session non définie",
-                "Aucune session active. Veuillez d'abord charger les données."
+                "Session non dÃ©finie",
+                "Aucune session active. Veuillez d'abord charger les donnÃ©es."
             )
     
     def _ouvrir_panneau_factures(self):
-        """Ouvre le panneau latéral des factures fournisseurs."""
+        """
+        Ouvre le panneau latÃ©ral des factures fournisseurs.
+        Charge les donnÃ©es pour la session en cours.
+        """
         if self.code_session:
             print(f"[GestionProduitsView] Ouverture du panneau factures pour session: {self.code_session}")
             self.panneau_factures.actualiser(self.code_session)
@@ -1040,45 +1112,53 @@ class GestionProduitsView(QWidget):
         else:
             QMessageBox.warning(
                 self,
-                "Session non définie",
-                "Aucune session active. Veuillez d'abord charger les données."
+                "Session non dÃ©finie",
+                "Aucune session active. Veuillez d'abord charger les donnÃ©es."
             )
     
     def _ouvrir_panneau_alertes(self):
-        """Ouvre le panneau stock sur l'onglet Rupture pour afficher les alertes."""
+        """
+        Ouvre le panneau stock sur l'onglet Rupture pour afficher les alertes.
+        Le panneau stock contient maintenant tous les onglets d'alertes.
+        """
         if self.code_session:
             print(f"[GestionProduitsView] Ouverture du panneau alertes (onglet Rupture) pour session: {self.code_session}")
             self.panneau_stock.actualiser(self.code_session)
+            # Ouvrir directement sur l'onglet Rupture
             self.panneau_stock._aller_onglet("rupture")
             self.panneau_stock.ouvrir()
         else:
             QMessageBox.warning(
                 self,
-                "Session non définie",
-                "Aucune session active. Veuillez d'abord charger les données."
+                "Session non dÃ©finie",
+                "Aucune session active. Veuillez d'abord charger les donnÃ©es."
             )
 
     
     def show_payment_panel(self):
-        """Affiche le panneau de paiement après fermeture du panier."""
+        """Affiche le panneau de paiement apres fermeture du panier."""
         print("[GestionProduitsView] show_payment_panel appele")
         
+        # Verifier que les donnees sont disponibles
         if not hasattr(self.panier_widget, '_payment_facture_data'):
-            print("[GestionProduitsView] Erreur: Données de paiement non disponibles")
+            print("[GestionProduitsView] Erreur: Donnees de paiement non disponibles")
             from PySide6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "Erreur", "Données de paiement non disponibles")
+            QMessageBox.warning(self, "Erreur", "Donnees de paiement non disponibles")
             return
         
-        print("[GestionProduitsView] Chargement des données dans le panneau")
+        # Charger les donnees dans le panneau de paiement
+        print("[GestionProduitsView] Chargement des donnees dans le panneau")
         self._payment_panel.load_data(
             self.panier_widget._payment_facture_data,
             self.panier_widget._payment_produits_data,
             self.panier_widget._payment_fournisseur_data
         )
         
+        # Fermer le panier d'abord
         if self._panier_overlay_visible:
             print("[GestionProduitsView] Fermeture du panier")
             self._fermer_panier_overlay()
         
+        # Ouvrir le panneau de paiement immediatement (pas de timer)
         print("[GestionProduitsView] Ouverture du panneau de paiement")
         self._ouvrir_payment_overlay()

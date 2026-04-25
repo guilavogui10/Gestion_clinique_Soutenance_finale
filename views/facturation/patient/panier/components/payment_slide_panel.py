@@ -665,8 +665,13 @@ class PaymentSlidePanel(QFrame):
         self._visible = True
 
     def close_panel(self):
-        if self.parent() and hasattr(self.parent(), '_fermer_payment_overlay'):
-            self.parent()._fermer_payment_overlay()
+        # Remonter la hiérarchie pour trouver la vraie vue
+        p = self.parent()
+        while p and not hasattr(p, '_fermer_payment_overlay'):
+            p = p.parent()
+        
+        if p:
+            p._fermer_payment_overlay()
         else:
             self.hide()
         self._visible = False
@@ -717,11 +722,11 @@ class PaymentSlidePanel(QFrame):
             ModernMessageBox.success(self, "Succès", "Facture finalisée avec succès !", theme_manager.colors()['primary'])
             # ✅ CORRECTION: Fermer le panneau et actualiser l'interface parente
             self.close_panel()
-            # Forcer l'actualisation de la vue parente
-            if self.parent() and hasattr(self.parent(), 'charger_donnees'):
-                print("[PaymentSlidePanel] Actualisation de la vue parente")
-                parent = self.parent()
-                if hasattr(parent, 'code_session') and parent.code_session:
-                    parent.charger_donnees(parent.code_session)
+            # # Forcer l'actualisation de la vue parente
+            # if self.parent() and hasattr(self.parent(), 'charger_donnees'):
+            #     print("[PaymentSlidePanel] Actualisation de la vue parente")
+            #     parent = self.parent()
+            #     if hasattr(parent, 'code_session') and parent.code_session:
+            #         parent.charger_donnees(parent.code_session)
         else:
             ModernMessageBox.error(self, "Erreur", f"Erreur lors de la finalisation : {msg}", theme_manager.colors()['primary'])
