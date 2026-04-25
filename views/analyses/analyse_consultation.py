@@ -105,7 +105,7 @@ class BaseGraph(FigureCanvas):
         self.axes.tick_params(
             colors=self.theme.COLORS["subtext"], labelsize=9, length=0, pad=8
         )
-        self.fig.subplots_adjust(left=0.12, right=0.95, top=0.9, bottom=0.15)
+        self.fig.subplots_adjust(left=0.08, right=0.98, top=0.95, bottom=0.12)
 
     def _draw_smooth_curve(self, x, y, color, label, linestyle="-", alpha=0.9):
         if len(y) < 2 or float(np.sum(y)) == 0.0:
@@ -216,7 +216,6 @@ class BaseGraph(FigureCanvas):
         self.axes.yaxis.set_major_locator(MaxNLocator(integer=True, nbins=6))
 
     def _finalize(self):
-        self.fig.tight_layout()
         self.draw()
 
     def _style_legend(self, ax=None):
@@ -415,7 +414,6 @@ class SemiCircleGauge(FigureCanvas):
 
         self.axes.set_xlim(-1.25, 1.25)
         self.axes.set_ylim(-1.28, 1.2)
-        self.fig.tight_layout(pad=0.2)
         self.draw()
 
 
@@ -1356,7 +1354,6 @@ class ServiceDonutGraph(FigureCanvas):
         self.axes.text(0, -0.14, "services", ha="center", va="center", fontsize=9, color=c["text_secondary"])
         self.axes.set_xticks([])
         self.axes.set_yticks([])
-        self.fig.tight_layout(pad=0.3)
         self.draw()
 
 
@@ -1585,21 +1582,21 @@ class AnalyseConsultationView(QWidget):
         panel_grid.setColumnStretch(2, 3)
 
         self.panel_nombre = DashboardSectionCard("Nombre de consultations par mois")
-        self.graph_nombre = MonthlyConsultationBarGraph(width=2.5, height=1.4)
+        self.graph_nombre = MonthlyConsultationBarGraph(width=4, height=2.5)
         self.graph_nombre.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.graph_nombre.setMinimumHeight(0)
+        self.graph_nombre.setMinimumHeight(200)
         self.panel_nombre.body.addWidget(self.graph_nombre)
 
         self.panel_montant = DashboardSectionCard("Montant des consultations par mois (GNF)")
-        self.graph_montant = MonthlyRevenueLineGraph(width=2.5, height=1.4)
+        self.graph_montant = MonthlyRevenueLineGraph(width=4, height=2.5)
         self.graph_montant.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.graph_montant.setMinimumHeight(0)
+        self.graph_montant.setMinimumHeight(200)
         self.panel_montant.body.addWidget(self.graph_montant)
 
         self.panel_moyenne = DashboardSectionCard("Moyenne journaliere (par mois)")
-        self.graph_moyenne = MonthlyAverageDualGraph(width=2.5, height=1.4)
+        self.graph_moyenne = MonthlyAverageDualGraph(width=4, height=2.5)
         self.graph_moyenne.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.graph_moyenne.setMinimumHeight(0)
+        self.graph_moyenne.setMinimumHeight(200)
         self.panel_moyenne.body.addWidget(self.graph_moyenne)
 
         self.panel_services = DashboardSectionCard("Taux de conversion par services")
@@ -1681,9 +1678,9 @@ class AnalyseConsultationView(QWidget):
         self.panel_services_today.body.addLayout(services_today_layout)
 
         self.panel_daily = DashboardSectionCard("Consultations par jour")
-        self.graph_daily = DailyConsultationBarGraph(width=2.5, height=1.4)
+        self.graph_daily = DailyConsultationBarGraph(width=4, height=2.5)
         self.graph_daily.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.graph_daily.setMinimumHeight(0)
+        self.graph_daily.setMinimumHeight(200)
         self.panel_daily.body.addWidget(self.graph_daily)
 
         panel_grid.addWidget(self.panel_nombre, 0, 0)

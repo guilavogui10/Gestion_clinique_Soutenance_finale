@@ -120,8 +120,8 @@ class FacturePatientPaymentDialog(QDialog):
         self.mode_paiement = self.combo_mode.currentText()
         self.telephone = self.input_tel.text().strip()
         if self.mode_paiement == "Mobile Money" and not self.telephone:
-            from .modern_message_box import ModernMessageBox
-            ModernMessageBox.warning(
+            from views.shared.message_box import CustomMessageBox
+            CustomMessageBox.warning(
                 self, "Attention", "Telephone requis pour Mobile Money",
                 FacturePatientStyles.BLEU_PRINCIPAL
             )

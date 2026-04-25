@@ -1,52 +1,332 @@
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, QFrame, QGridLayout
-from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, QFrame, QGridLayout, QGraphicsDropShadowEffect
+from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve
+from PySide6.QtGui import QColor, QPainter
 import qtawesome as qta
 from views.shared.theme_manager import theme_manager
 from views.shared.styles import Styles
 
 
 class CustomMessageBox(QDialog):
-    def __init__(self, title, message, is_success=True, parent=None):
+    """
+    Boîte de dialogue moderne avec design épuré.
+    Supporte 3 types : success, error, info
+    S'adapte automatiquement aux thèmes (clair/sombre/ocean)
+    Avec overlay semi-transparent pour se démarquer de l'interface
+    """
+    
+    def __init__(self, title, message, msg_type="success", show_cancel=False, parent=None, is_success=None):
+        """
+        Args:
+            title: Titre de la boîte (peut être vide)
+            message: Message principal
+            msg_type: "success", "error", "warning", "info"
+            show_cancel: Si True, affiche le bouton Annuler
+            parent: Widget parent
+            is_success: (DEPRECATED) Utiliser msg_type à la place. Gardé pour rétrocompatibilité.
+        """
         super().__init__(parent)
+        
+        # Rétrocompatibilité avec l'ancien paramètre is_success
+        if is_success is not None:
+            self.msg_type = "success" if is_success else "error"
+        else:
+            self.msg_type = msg_type
+        
+        self.show_cancel = show_cancel
+        self.result_value = False
+        
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
         self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setModal(True)
+        self.setMinimumWidth(500)
         
-        s = Styles.message_box(is_success)
+        self._build_ui(title, message)
+        theme_manager.theme_changed.connect(self._apply_theme)
+        self._apply_theme()
         
-        layout = QVBoxLayout(self)
+        # Animation d'entrée
+        self._animate_in()
+    
+    def paintEvent(self, event):
+        """Dessine l'overlay semi-transparent avec bords arrondis derrière la boîte."""
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
         
+        # Calculer la taille et position de l'overlay arrondi
+        # L'overlay doit être plus grand que la boîte blanche
+        overlay_width = 560
+        overlay_height = self.frame.height() + 80
+        overlay_x = (self.width() - overlay_width) // 2
+        overlay_y = (self.height() - overlay_height) // 2
+        
+        # Dessiner l'overlay gris avec bords arrondis
+        overlay_color = QColor(0, 0, 0, 120)  # Noir avec 47% d'opacité
+        painter.setBrush(overlay_color)
+        painter.setPen(Qt.NoPen)
+        painter.drawRoundedRect(overlay_x, overlay_y, overlay_width, overlay_height, 24, 24)
+        
+        painter.end()
+    
+    def _animate_in(self):
+        """Animation d'apparition de la boîte."""
+        self.frame.setGraphicsEffect(None)  # Retire temporairement l'ombre
+        
+        # Animation d'échelle (zoom in)
+        self.frame.setStyleSheet(self.frame.styleSheet() + "QFrame#MessageBoxFrame { transform: scale(0.8); }")
+        
+        # Réappliquer l'ombre après un court délai
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(50, self._restore_shadow)
+    
+    def _restore_shadow(self):
+        """Restaure l'ombre après l'animation."""
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(40)
+        shadow.setOffset(0, 10)
+        shadow.setColor(QColor(0, 0, 0, 100))
+        self.frame.setGraphicsEffect(shadow)
+    
+    def _build_ui(self, title, message):
+        """Construit l'interface de la boîte de dialogue."""
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(40, 40, 40, 40)
+        main_layout.setAlignment(Qt.AlignCenter)
+        
+        # Frame principal avec ombre
         self.frame = QFrame()
-        self.frame.setStyleSheet(s["frame"])
-        frame_layout = QVBoxLayout(self.frame)
-        frame_layout.setContentsMargins(20, 20, 20, 20)
-        frame_layout.setSpacing(15)
-
-        icon_code = "fa5s.check-circle" if is_success else "fa5s.exclamation-triangle"
-        self.lbl_icon = QLabel()
-        self.lbl_icon.setPixmap(qta.icon(icon_code, color=s["accent"]).pixmap(50, 50))
-        self.lbl_icon.setAlignment(Qt.AlignCenter)
+        self.frame.setObjectName("MessageBoxFrame")
+        self.frame.setFixedWidth(480)
         
-        self.lbl_title = QLabel(title)
-        self.lbl_title.setStyleSheet(s["title"])
-        self.lbl_title.setAlignment(Qt.AlignCenter)
-
+        # Ombre portée douce et prononcée
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(40)
+        shadow.setOffset(0, 10)
+        shadow.setColor(QColor(0, 0, 0, 100))
+        self.frame.setGraphicsEffect(shadow)
+        
+        frame_layout = QVBoxLayout(self.frame)
+        frame_layout.setContentsMargins(40, 40, 40, 40)
+        frame_layout.setSpacing(20)
+        
+        # Icône circulaire en haut
+        self.icon_container = QFrame()
+        self.icon_container.setFixedSize(80, 80)
+        self.icon_container.setObjectName("IconContainer")
+        icon_container_layout = QVBoxLayout(self.icon_container)
+        icon_container_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.lbl_icon = QLabel()
+        self.lbl_icon.setAlignment(Qt.AlignCenter)
+        icon_container_layout.addWidget(self.lbl_icon)
+        
+        icon_wrapper = QHBoxLayout()
+        icon_wrapper.addStretch()
+        icon_wrapper.addWidget(self.icon_container)
+        icon_wrapper.addStretch()
+        frame_layout.addLayout(icon_wrapper)
+        
+        # Zone de message avec fond subtil
+        self.message_container = QFrame()
+        self.message_container.setObjectName("MessageContainer")
+        message_layout = QVBoxLayout(self.message_container)
+        message_layout.setContentsMargins(24, 20, 24, 20)
+        message_layout.setSpacing(8)
+        
+        # Titre (optionnel)
+        if title:
+            self.lbl_title = QLabel(title)
+            self.lbl_title.setObjectName("MessageTitle")
+            self.lbl_title.setAlignment(Qt.AlignCenter)
+            self.lbl_title.setWordWrap(True)
+            message_layout.addWidget(self.lbl_title)
+        else:
+            self.lbl_title = None
+        
+        # Message principal
         self.lbl_message = QLabel(message)
-        self.lbl_message.setStyleSheet(s["message"])
+        self.lbl_message.setObjectName("MessageText")
         self.lbl_message.setAlignment(Qt.AlignCenter)
         self.lbl_message.setWordWrap(True)
-
-        self.btn_ok = QPushButton("D'accord")
-        self.btn_ok.setFixedSize(120, 35)
-        self.btn_ok.setCursor(Qt.PointingHandCursor)
-        self.btn_ok.setStyleSheet(s["button"])
-        self.btn_ok.clicked.connect(self.accept)
-
-        frame_layout.addWidget(self.lbl_icon)
-        frame_layout.addWidget(self.lbl_title)
-        frame_layout.addWidget(self.lbl_message)
-        frame_layout.addWidget(self.btn_ok, 0, Qt.AlignCenter)
+        message_layout.addWidget(self.lbl_message)
         
-        layout.addWidget(self.frame)
+        frame_layout.addWidget(self.message_container)
+        frame_layout.addSpacing(10)
+        
+        # Boutons
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setSpacing(12)
+        buttons_layout.addStretch()
+        
+        if self.show_cancel:
+            self.btn_cancel = QPushButton("Annuler")
+            self.btn_cancel.setObjectName("CancelButton")
+            self.btn_cancel.setFixedSize(140, 45)
+            self.btn_cancel.setCursor(Qt.PointingHandCursor)
+            self.btn_cancel.clicked.connect(self.reject)
+            buttons_layout.addWidget(self.btn_cancel)
+        
+        self.btn_ok = QPushButton("OK")
+        self.btn_ok.setObjectName("OkButton")
+        self.btn_ok.setFixedSize(140, 45)
+        self.btn_ok.setCursor(Qt.PointingHandCursor)
+        self.btn_ok.clicked.connect(self._on_accept)
+        buttons_layout.addWidget(self.btn_ok)
+        
+        buttons_layout.addStretch()
+        frame_layout.addLayout(buttons_layout)
+        
+        main_layout.addWidget(self.frame)
+    
+    def _on_accept(self):
+        """Gère l'acceptation de la boîte."""
+        self.result_value = True
+        self.accept()
+    
+    def _get_icon_config(self):
+        """Retourne l'icône et la couleur selon le type de message."""
+        c = theme_manager.colors()
+        configs = {
+            "success": ("fa5s.check-circle", c['success']),
+            "error": ("fa5s.times-circle", c['danger']),
+            "warning": ("fa5s.exclamation-triangle", c['warning']),
+            "info": ("fa5s.info-circle", c['info']),
+        }
+        return configs.get(self.msg_type, configs["info"])
+    
+    def _apply_theme(self):
+        """Applique le thème actif à la boîte de dialogue."""
+        c = theme_manager.colors()
+        icon_name, accent_color = self._get_icon_config()
+        
+        # Frame principal - Toujours blanc/clair pour contraster avec l'overlay
+        frame_bg = "#FFFFFF" if theme_manager.current != "sombre" else "#1C2430"
+        self.frame.setStyleSheet(f"""
+            QFrame#MessageBoxFrame {{
+                background-color: {frame_bg};
+                border-radius: 20px;
+                border: none;
+            }}
+        """)
+        
+        # Conteneur icône circulaire
+        self.icon_container.setStyleSheet(f"""
+            QFrame#IconContainer {{
+                background-color: transparent;
+                border: 3px solid {accent_color};
+                border-radius: 40px;
+            }}
+        """)
+        
+        # Icône
+        self.lbl_icon.setPixmap(qta.icon(icon_name, color=accent_color).pixmap(40, 40))
+        self.lbl_icon.setStyleSheet("background: transparent; border: none;")
+        
+        # Conteneur message - Fond subtil
+        msg_bg = "#F5F7FA" if theme_manager.current != "sombre" else "#0F1419"
+        self.message_container.setStyleSheet(f"""
+            QFrame#MessageContainer {{
+                background-color: {msg_bg};
+                border-radius: 12px;
+                border: none;
+            }}
+        """)
+        
+        # Titre
+        title_color = "#1A2E35" if theme_manager.current != "sombre" else c['text_primary']
+        if self.lbl_title:
+            self.lbl_title.setStyleSheet(f"""
+                QLabel#MessageTitle {{
+                    color: {title_color};
+                    font-size: 16px;
+                    font-weight: 700;
+                    background: transparent;
+                    border: none;
+                }}
+            """)
+        
+        # Message
+        text_color = "#5F7A84" if theme_manager.current != "sombre" else c['text_secondary']
+        self.lbl_message.setStyleSheet(f"""
+            QLabel#MessageText {{
+                color: {text_color};
+                font-size: 14px;
+                font-weight: 500;
+                background: transparent;
+                border: none;
+                line-height: 1.5;
+            }}
+        """)
+        
+        # Bouton OK (primaire)
+        self.btn_ok.setStyleSheet(f"""
+            QPushButton#OkButton {{
+                background-color: {accent_color};
+                color: #FFFFFF;
+                border: none;
+                border-radius: 12px;
+                font-size: 14px;
+                font-weight: 700;
+            }}
+            QPushButton#OkButton:hover {{
+                background-color: {c['primary_hover']};
+            }}
+            QPushButton#OkButton:pressed {{
+                background-color: {c['primary_hover']};
+            }}
+        """)
+        
+        # Bouton Annuler (secondaire)
+        cancel_text = "#5F7A84" if theme_manager.current != "sombre" else c['text_secondary']
+        cancel_border = "#D8E2E0" if theme_manager.current != "sombre" else c['border']
+        if self.show_cancel:
+            self.btn_cancel.setStyleSheet(f"""
+                QPushButton#CancelButton {{
+                    background-color: transparent;
+                    color: {cancel_text};
+                    border: 2px solid {cancel_border};
+                    border-radius: 12px;
+                    font-size: 14px;
+                    font-weight: 600;
+                }}
+                QPushButton#CancelButton:hover {{
+                    background-color: {msg_bg};
+                    border-color: {cancel_text};
+                    color: {title_color};
+                }}
+                QPushButton#CancelButton:pressed {{
+                    background-color: {cancel_border};
+                }}
+            """)
+    
+    @staticmethod
+    def show_success(message, title="Succès", show_cancel=False, parent=None):
+        """Affiche une boîte de succès."""
+        dialog = CustomMessageBox(title, message, "success", show_cancel, parent)
+        return dialog.exec() == QDialog.Accepted
+    
+    @staticmethod
+    def show_error(message, title="Erreur", show_cancel=False, parent=None):
+        """Affiche une boîte d'erreur."""
+        dialog = CustomMessageBox(title, message, "error", show_cancel, parent)
+        return dialog.exec() == QDialog.Accepted
+    
+    @staticmethod
+    def show_warning(message, title="Attention", show_cancel=False, parent=None):
+        """Affiche une boîte d'avertissement."""
+        dialog = CustomMessageBox(title, message, "warning", show_cancel, parent)
+        return dialog.exec() == QDialog.Accepted
+    
+    @staticmethod
+    def show_info(message, title="Information", show_cancel=False, parent=None):
+        """Affiche une boîte d'information."""
+        dialog = CustomMessageBox(title, message, "info", show_cancel, parent)
+        return dialog.exec() == QDialog.Accepted
+    
+    @staticmethod
+    def show_question(message, title="Confirmation", parent=None):
+        """Affiche une boîte de confirmation avec boutons OK/Annuler."""
+        dialog = CustomMessageBox(title, message, "info", show_cancel=True, parent=parent)
+        return dialog.exec() == QDialog.Accepted
 
 
 

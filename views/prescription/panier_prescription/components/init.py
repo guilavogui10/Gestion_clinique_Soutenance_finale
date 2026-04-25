@@ -7,7 +7,7 @@ from .prescription_footer        import PrescriptionFooter
 from .prescription_ligne_items    import PrescriptionLigneItem
 from .modern_quantity_spinner    import ModernQuantitySpinner
 from .modern_price_input         import ModernPriceInput
-from .modern_message_box         import ModernMessageBox
+from views.shared.message_box    import CustomMessageBox
 
 __all__ = [
     'AnimatedFrame',
@@ -17,5 +17,5 @@ __all__ = [
     'PrescriptionLigneItem',
     'ModernQuantitySpinner',
     'ModernPriceInput',
-    'ModernMessageBox',
+    'CustomMessageBox',
 ]

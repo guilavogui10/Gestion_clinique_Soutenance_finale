@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QButtonGroup, QRadioButton, QSizePolicy
 )
 from views.shared.theme_manager import theme_manager
-from .modern_message_box import ModernMessageBox
+from views.shared.message_box import CustomMessageBox
 
 
 class NetworkCard(QFrame):
@@ -682,12 +682,12 @@ class PaymentSlidePanel(QFrame):
 
     def process_payment(self):
         if not self.facture_data:
-            ModernMessageBox.error(self, "Erreur", "Aucune facture à finaliser.", theme_manager.colors()['primary'])
+            CustomMessageBox.show_error("Aucune facture à finaliser.", "Erreur", parent=self)
             return
 
         telephone = self.input_phone.text().strip()
         if not telephone or len(telephone) < 8 or not telephone.isdigit():
-            ModernMessageBox.warning(self, "Attention", "Le numéro de téléphone est invalide.", theme_manager.colors()['primary'])
+            CustomMessageBox.show_warning("Le numéro de téléphone est invalide.", "Attention", parent=self)
             return
 
         # ── MODIF : Mapping propre pour Espèces, MTN et Orange Money
@@ -695,9 +695,10 @@ class PaymentSlidePanel(QFrame):
         modes = ["especes", "orange money", "mtn mobile money"]
         mode_paiement = modes[selected_id] if 0 <= selected_id < len(modes) else "especes"
 
-        confirmed = ModernMessageBox.question(
-            self, "Confirmation",
-            f"Confirmer le paiement de {self.lbl_montant_total.text()} ?\n\nMode : {mode_paiement.title()}\nTéléphone : {self.combo_indicatif.currentText()} {telephone}"
+        confirmed = CustomMessageBox.show_question(
+            f"Confirmer le paiement de {self.lbl_montant_total.text()} ?\n\nMode : {mode_paiement.title()}\nTéléphone : {self.combo_indicatif.currentText()} {telephone}",
+            "Confirmation",
+            parent=self
         )
         if not confirmed: return
 
@@ -719,14 +720,8 @@ class PaymentSlidePanel(QFrame):
         ok, msg = facture_ctrl.finaliser_facture(facture)
 
         if ok:
-            ModernMessageBox.success(self, "Succès", "Facture finalisée avec succès !", theme_manager.colors()['primary'])
+            CustomMessageBox.show_success("Facture finalisée avec succès !", "Succès", parent=self)
             # ✅ CORRECTION: Fermer le panneau et actualiser l'interface parente
             self.close_panel()
-            # # Forcer l'actualisation de la vue parente
-            # if self.parent() and hasattr(self.parent(), 'charger_donnees'):
-            #     print("[PaymentSlidePanel] Actualisation de la vue parente")
-            #     parent = self.parent()
-            #     if hasattr(parent, 'code_session') and parent.code_session:
-            #         parent.charger_donnees(parent.code_session)
         else:
-            ModernMessageBox.error(self, "Erreur", f"Erreur lors de la finalisation : {msg}", theme_manager.colors()['primary'])
+            CustomMessageBox.show_error(f"Erreur lors de la finalisation : {msg}", "Erreur", parent=self)

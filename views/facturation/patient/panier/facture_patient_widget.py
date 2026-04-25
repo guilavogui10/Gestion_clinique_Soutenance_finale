@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 from .components.animated_frame import AnimatedFrame
 from .components.facture_patient_row import FacturePatientRowItem
 from .components.facture_patient_line_dialog import FacturePatientLineDialog
-from .components.modern_message_box import ModernMessageBox
+from views.shared.message_box import CustomMessageBox
 from .handlers.facture_patient_data_loader import FacturePatientDataLoader
 from .handlers.facture_patient_operations import FacturePatientOperations
 from .styles.facture_patient_styles import FacturePatientStyles
@@ -325,7 +325,7 @@ class FacturePatientWidget(AnimatedFrame):
             self.code_visite, patient.get("telephone", ""), creer_panier=False
         )
         if not ok:
-            ModernMessageBox.error(self, "Erreur", msg, FacturePatientStyles.BLEU_PRINCIPAL)
+            CustomMessageBox.error(self, "Erreur", msg, FacturePatientStyles.BLEU_PRINCIPAL)
             self._reset_view()
             return
 
@@ -416,10 +416,10 @@ class FacturePatientWidget(AnimatedFrame):
             self._recalculer_total()
             if self.facture_ctrl and self.code_facture:
                 self.facture_ctrl.recalculer_montant_facture(self.code_facture)
-            ModernMessageBox.success(self, "Succes", msg, FacturePatientStyles.BLEU_PRINCIPAL)
+            CustomMessageBox.success(self, "Succes", msg, FacturePatientStyles.BLEU_PRINCIPAL)
         else:
             if msg != "Suppression annulee":
-                ModernMessageBox.error(self, "Erreur", msg, FacturePatientStyles.BLEU_PRINCIPAL)
+                CustomMessageBox.error(self, "Erreur", msg, FacturePatientStyles.BLEU_PRINCIPAL)
 
     def _modifier_ligne(self, ligne_widget) -> None:
         data = {
@@ -451,9 +451,9 @@ class FacturePatientWidget(AnimatedFrame):
             total = new_data["quantite"] * new_data["prix"]
             ligne_widget.lbl_total.setText(f"{total:,.0f} GNF".replace(",", " "))
             self._recalculer_total()
-            ModernMessageBox.success(self, "Succes", msg, FacturePatientStyles.BLEU_PRINCIPAL)
+            CustomMessageBox.success(self, "Succes", msg, FacturePatientStyles.BLEU_PRINCIPAL)
         else:
-            ModernMessageBox.error(self, "Erreur", msg, FacturePatientStyles.BLEU_PRINCIPAL)
+            CustomMessageBox.error(self, "Erreur", msg, FacturePatientStyles.BLEU_PRINCIPAL)
 
     # =========================================================================
     # FACTURE
@@ -466,7 +466,7 @@ class FacturePatientWidget(AnimatedFrame):
             self.code_facture, self, patient_info=self._patient_data
         )
         if ok:
-            ModernMessageBox.success(self, "Succes", msg, FacturePatientStyles.BLEU_PRINCIPAL)
+            CustomMessageBox.success(self, "Succes", msg, FacturePatientStyles.BLEU_PRINCIPAL)
             self._reset_view()
             if self.code_session:
                 self.charger_donnees(self.code_session)
@@ -474,21 +474,21 @@ class FacturePatientWidget(AnimatedFrame):
             self.facture_mise_a_jour.emit()
         else:
             if msg != "Paiement annule":
-                ModernMessageBox.error(self, "Erreur", msg, FacturePatientStyles.BLEU_PRINCIPAL)
+                CustomMessageBox.error(self, "Erreur", msg, FacturePatientStyles.BLEU_PRINCIPAL)
 
     def _annuler_facture(self) -> None:
         if not self.code_facture:
             return
         ok, msg = self.operations.annuler_facture(self.code_facture, self)
         if ok:
-            ModernMessageBox.success(self, "Succes", msg, FacturePatientStyles.BLEU_PRINCIPAL)
+            CustomMessageBox.success(self, "Succes", msg, FacturePatientStyles.BLEU_PRINCIPAL)
             self._reset_view()
             if self.code_session:
                 self.charger_donnees(self.code_session)
             self.facture_mise_a_jour.emit()
         else:
             if msg != "Annulation annulee":
-                ModernMessageBox.error(self, "Erreur", msg, FacturePatientStyles.BLEU_PRINCIPAL)
+                CustomMessageBox.error(self, "Erreur", msg, FacturePatientStyles.BLEU_PRINCIPAL)
 
     # =========================================================================
     # UI HELPERS

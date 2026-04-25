@@ -1,0 +1,46 @@
+{
+  "types_visite": {
+    "Contrôle": {
+      "tarif": 0.0,
+      "description": "Visite de contrôle gratuite",
+      "actif": true
+    },
+    "VIP": {
+      "tarif": 1000.0,
+      "description": "Visite VIP avec service premium",
+      "actif": true
+    },
+    "RDV": {
+      "tarif": 8000.0,
+      "description": "Visite sur rendez-vous",
+      "actif": true
+    },
+    "Urgence": {
+      "tarif": 12000.0,
+      "description": "Visite d'urgence",
+      "actif": true
+    }
+  },
+  "durees_services": {
+    "consultation": {
+      "duree_normale_minutes": 35,
+      "duree_maximale_minutes": 68,
+      "description": ""
+    },
+    "examen": {
+      "duree_normale_minutes": 25,
+      "duree_maximale_minutes": 45,
+      "description": ""
+    },
+    "autre": {
+      "duree_normale_minutes": 18,
+      "duree_maximale_minutes": 36,
+      "description": ""
+    }
+  },
+  "duree_parcours_patient": {
+    "duree_normale_totale_minutes": 90,
+    "duree_maximale_totale_minutes": 180,
+    "description": ""
+  }
+}

@@ -30,7 +30,7 @@ from .components.prescription_header     import PrescriptionHeader
 from .components.prescription_form       import PrescriptionForm
 from .components.prescription_footer     import PrescriptionFooter
 from .components.prescription_ligne_items import PrescriptionLigneItem
-from .components.modern_message_box      import ModernMessageBox
+from views.shared.message_box import CustomMessageBox
 
 # Handlers mÃ©tier
 from .handlers.data_loader             import PrescriptionDataLoader
@@ -480,7 +480,7 @@ class PrescriptionWidget(AnimatedFrame):
 
     def _afficher_message(self, titre: str, message: str, succes: bool) -> None:
         """
-        Affiche un message Ã  l'utilisateur via ModernMessageBox.
+        Affiche un message Ã  l'utilisateur via CustomMessageBox.
 
         Args:
             titre  : Titre du dialogue
@@ -488,11 +488,11 @@ class PrescriptionWidget(AnimatedFrame):
             succes : True â†’ vert (succÃ¨s), False â†’ rouge (erreur)
         """
         if succes:
-            ModernMessageBox.success(
+            CustomMessageBox.success(
                 self, titre, message, theme_manager.colors()['primary']
             )
         else:
-            ModernMessageBox.error(
+            CustomMessageBox.error(
                 self, titre, message, theme_manager.colors()['primary']
             )
 

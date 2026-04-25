@@ -14,7 +14,7 @@ from .components.panier_header import PanierHeader
 from .components.panier_form import PanierForm
 from .components.panier_footer import PanierFooter
 from .components.panier_ligne_item import PanierLigneItem
-from .components.modern_message_box import ModernMessageBox
+from views.shared.message_box import CustomMessageBox
 
 # Handlers métier
 from .handlers.data_loader import DataLoader
@@ -418,6 +418,6 @@ class PanierProduitWidget(AnimatedFrame):
     def _afficher_message(self, titre: str, message: str, succes: bool) -> None:
         """Affiche un message à l'utilisateur."""
         if succes:
-            ModernMessageBox.success(self, titre, message, theme_manager.colors()['primary'])
+            CustomMessageBox.success(self, titre, message, theme_manager.colors()['primary'])
         else:
-            ModernMessageBox.error(self, titre, message, theme_manager.colors()['primary'])
+            CustomMessageBox.error(self, titre, message, theme_manager.colors()['primary'])

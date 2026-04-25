@@ -391,16 +391,16 @@ class FacturePatientInvoiceDialog(QDialog):
         self.mode_paiement = self.combo_mode.currentText()
         self.telephone = self.input_tel.text().strip()
         if self.mode_paiement == "Mobile Money" and not self.telephone:
-            from .modern_message_box import ModernMessageBox
-            ModernMessageBox.warning(
+            from views.shared.message_box import CustomMessageBox
+            CustomMessageBox.warning(
                 self, "Attention", "Telephone requis pour Mobile Money",
                 FacturePatientStyles.BLEU_PRINCIPAL
             )
             return
         # Demander si l'utilisateur veut imprimer
         if self.pdf_exporter:
-            from .modern_message_box import ModernMessageBox
-            if ModernMessageBox.question(
+            from views.shared.message_box import CustomMessageBox
+            if CustomMessageBox.question(
                 self, "Impression", "Voulez-vous imprimer la facture ?",
                 FacturePatientStyles.BLEU_PRINCIPAL
             ):
@@ -426,8 +426,8 @@ class FacturePatientInvoiceDialog(QDialog):
         if not path.lower().endswith(".pdf"):
             path = f"{path}.pdf"
         ok, msg = self.pdf_exporter(path)
-        from .modern_message_box import ModernMessageBox
+        from views.shared.message_box import CustomMessageBox
         if ok:
-            ModernMessageBox.success(self, "PDF", msg, FacturePatientStyles.BLEU_PRINCIPAL)
+            CustomMessageBox.success(self, "PDF", msg, FacturePatientStyles.BLEU_PRINCIPAL)
         else:
-            ModernMessageBox.error(self, "PDF", msg, FacturePatientStyles.BLEU_PRINCIPAL)
+            CustomMessageBox.error(self, "PDF", msg, FacturePatientStyles.BLEU_PRINCIPAL)

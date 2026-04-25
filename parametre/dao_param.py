@@ -17,13 +17,14 @@ class CabinetDAO:
             return None
         try:
             with conn.cursor(DictCursor) as cursor:
-                sql = "SELECT nom_cabinet, logo, adresse FROM cabinet LIMIT 1"
+                sql = """SELECT nom_cabinet, logo, adresse, email, telephone, 
+                         devise, fuseau_horaire, format_date, format_heure, notes, date_creation 
+                         FROM cabinet LIMIT 1"""
                 cursor.execute(sql)
                 return cursor.fetchone()
         except pymysql.MySQLError as e:
             print(f"Erreur DAO Cabinet: {e}")
             return None
-        # ❌ NE PAS FERMER LA CONNEXION
 
 
     
@@ -44,13 +45,22 @@ class CabinetDAO:
                     return False, "Les informations du cabinet existent déjà. Utilisez update_info_cabinet pour les modifier."
 
                 sql = """
-                    INSERT INTO cabinet (nom_cabinet, logo, adresse)
-                    VALUES (%s, %s, %s)
+                    INSERT INTO cabinet (nom_cabinet, logo, adresse, email, telephone, 
+                                       devise, fuseau_horaire, format_date, format_heure, notes, date_creation)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 cursor.execute(sql, (
                     cabinet_obj.get_nom_cabinet(),
                     cabinet_obj.get_logo(),
-                    cabinet_obj.get_adresse()
+                    cabinet_obj.get_adresse(),
+                    cabinet_obj.get_email(),
+                    cabinet_obj.get_telephone(),
+                    cabinet_obj.get_devise(),
+                    cabinet_obj.get_fuseau_horaire(),
+                    cabinet_obj.get_format_date(),
+                    cabinet_obj.get_format_heure(),
+                    cabinet_obj.get_notes(),
+                    cabinet_obj.get_date_creation()
                 ))
                 conn.commit()
                 return True, "Informations du cabinet insérées avec succès."
@@ -70,22 +80,31 @@ class CabinetDAO:
             with conn.cursor(DictCursor) as cursor:
 
                 # Vérifie qu’il existe bien une ligne avec id = 1
-                cursor.execute("SELECT id FROM cabinet WHERE id = 1")
+                cursor.execute("SELECT id FROM cabinet WHERE id = 0")
                 existe = cursor.fetchone()
 
                 if not existe:
-                    return False, "Impossible de mettre à jour : aucune ligne avec id = 1."
+                    return False, "Impossible de mettre à jour : aucune ligne avec id = 0."
 
                 sql = """
                     UPDATE cabinet
-                    SET nom_cabinet = %s, logo = %s, adresse = %s
-                    WHERE id = 1
+                    SET nom_cabinet = %s, logo = %s, adresse = %s, email = %s, telephone = %s,
+                        devise = %s, fuseau_horaire = %s, format_date = %s, format_heure = %s, notes = %s, date_creation = %s
+                    WHERE id = 0
                 """
 
                 cursor.execute(sql, (
                     cabinet_obj.get_nom_cabinet(),
                     cabinet_obj.get_logo(),
-                    cabinet_obj.get_adresse()
+                    cabinet_obj.get_adresse(),
+                    cabinet_obj.get_email(),
+                    cabinet_obj.get_telephone(),
+                    cabinet_obj.get_devise(),
+                    cabinet_obj.get_fuseau_horaire(),
+                    cabinet_obj.get_format_date(),
+                    cabinet_obj.get_format_heure(),
+                    cabinet_obj.get_notes(),
+                    cabinet_obj.get_date_creation()
                 ))
 
                 conn.commit()

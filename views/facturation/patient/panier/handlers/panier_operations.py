@@ -9,7 +9,7 @@ from typing import Tuple, Dict, Any
 from datetime import datetime
 from PySide6.QtWidgets import QDialog
 from PySide6.QtCore import Qt
-from ..components.modern_message_box import ModernMessageBox
+from views.shared.message_box import CustomMessageBox
 from ..components.payment_slide_panel import PaymentSlidePanel
 
 
@@ -166,7 +166,7 @@ class PanierOperations:
             tuple: (succès, message)
         """
         # Confirmation utilisateur avec dialogue moderne
-        confirmed = ModernMessageBox.question(
+        confirmed = CustomMessageBox.question(
             parent_widget,
             "Confirmation",
             "Voulez-vous vraiment supprimer cette ligne du panier ?"
@@ -235,7 +235,7 @@ class PanierOperations:
             tuple: (succès, message)
         """
         # Confirmation avec dialogue moderne
-        confirmed = ModernMessageBox.question(
+        confirmed = CustomMessageBox.question(
             parent_widget,
             "Confirmation",
             "Voulez-vous vraiment annuler cette facture ?\nToutes les lignes seront supprimées."

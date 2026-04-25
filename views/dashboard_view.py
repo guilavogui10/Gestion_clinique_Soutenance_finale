@@ -20,6 +20,7 @@ from views.prescription import PrescriptionView
 from views.fournisseur import FournisseurView
 from views.personnel import PersonnelView
 from views.admin import AdminView
+from views.settings.vue_parametre import ParametreView
 
 
 class DashboardView(QWidget):
@@ -99,13 +100,14 @@ class DashboardView(QWidget):
         self.btn_personnel = self.create_nav_btn("Personnel", 'fa5s.user-md')
         self.btn_stats = self.create_nav_btn("Statistiques", 'fa5s.chart-pie')
         self.btn_admin = self.create_nav_btn("Administration", 'fa5s.user-shield')
+        self.btn_settings = self.create_nav_btn("Paramètres", 'fa5s.cogs')
 
         # AJOUT AU GROUPE (Une fois qu'ils sont créés)
         self.nav_group = QButtonGroup(self)
         for btn in [self.btn_patients, self.btn_visites, self.btn_rendez_vous, self.btn_consults, self.btn_examens,
                     self.btn_chirurgies, self.btn_lunettes, self.btn_panier,
                     self.btn_prescription, self.btn_facturation, self.btn_fournisseurs,
-                    self.btn_personnel, self.btn_stats, self.btn_admin]:
+                    self.btn_personnel, self.btn_stats,     self.btn_admin, self.btn_settings]:
             self.nav_group.addButton(btn)
             sidebar_layout.addWidget(btn, 0, Qt.AlignCenter)
         self.nav_group.setExclusive(True)
@@ -167,7 +169,7 @@ class DashboardView(QWidget):
         self.page_examens = ExamenView(self.examen_ctrl)
         self.page_lunettes = CommandeLunetteView(self.commande_lunette_ctrl)
         self.page_prescription = PrescriptionView(self.prescription_ctrl)
-        
+        self.page_settings = ParametreView()
         # Import du contrôleur produit
         from controllers.controleur_produit import ProduitControleur
         self.produit_ctrl = ProduitControleur()
@@ -187,6 +189,9 @@ class DashboardView(QWidget):
         self.fournisseur_ctrl = FournisseurControleur()
         self.page_fournisseurs = FournisseurView(self.fournisseur_ctrl)
 
+        # Paramètres
+        self.page_settings = ParametreView()
+        
         # Personnel
         from controllers.controleur_personnel import ControllerPersonnel
         self.personnel_ctrl = ControllerPersonnel()
@@ -210,6 +215,7 @@ class DashboardView(QWidget):
         self.workspace_stack.addWidget(self.page_fournisseurs)  # Index 11
         self.workspace_stack.addWidget(self.page_personnel)  # Index 12
         self.workspace_stack.addWidget(self.page_admin)  # Index 13
+        self.workspace_stack.addWidget(self.page_settings)  # Index 14
 
         self.content_layout.addWidget(self.header_frame)
         self.content_layout.addWidget(self.workspace_stack)
@@ -272,13 +278,14 @@ class DashboardView(QWidget):
         self.btn_fournisseurs.clicked.connect(self.show_fournisseurs)
         self.btn_personnel.clicked.connect(self.show_personnel)
         self.btn_admin.clicked.connect(self.show_admin)
+        self.btn_settings.clicked.connect(self.show_settings)
         self.btn_theme.clicked.connect(self.toggle_theme)
         
         # Connecter tous les boutons pour mettre à jour les indicateurs
         for btn in [self.btn_patients, self.btn_visites, self.btn_rendez_vous, self.btn_consults, self.btn_examens,
                     self.btn_chirurgies, self.btn_lunettes, self.btn_panier,
                     self.btn_prescription, self.btn_facturation, self.btn_fournisseurs,
-                    self.btn_personnel, self.btn_admin, self.btn_stats, self.btn_logout]:
+                    self.btn_personnel, self.btn_admin, self.btn_stats, self.btn_logout, self.btn_settings]:
             btn.clicked.connect(self._update_nav_indicators)
 
     def _update_nav_indicators(self):
@@ -368,7 +375,7 @@ class DashboardView(QWidget):
                     self.btn_chirurgies, self.btn_lunettes, self.btn_panier,
                     self.btn_prescription, self.btn_facturation, self.btn_fournisseurs,
                     self.btn_personnel, self.btn_admin,
-                    self.btn_stats, self.btn_logout]:
+                    self.btn_stats, self.btn_logout, self.btn_settings]:
             
             is_checked = btn.isChecked()
             
@@ -534,3 +541,8 @@ class DashboardView(QWidget):
         actif, code_session = self.visite_ctrl.verifier_session_active()
         if actif:
             self.page_consultation.charger_consultations(code_session)
+
+    # show_settings est appelé par le bouton "Paramètres" dans la sidebar
+    def show_settings(self):
+        self.lbl_page_title.setText("Paramètres de l'Application")
+        self.workspace_stack.setCurrentIndex(14)

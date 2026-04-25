@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from typing import Tuple, Dict, Any
 
-from ..components.modern_message_box import ModernMessageBox
+from views.shared.message_box import CustomMessageBox
 from ..components.facture_patient_invoice_dialog import FacturePatientInvoiceDialog
 from models.modele_panier_facture import PanierFacture
 
@@ -66,7 +66,7 @@ class FacturePatientOperations:
     def supprimer_ligne(self, code_paniere: str, parent_widget) -> Tuple[bool, str]:
         if not self.panier_ctrl:
             return False, "Controleur panier non initialise"
-        confirmed = ModernMessageBox.question(
+        confirmed = CustomMessageBox.question(
             parent_widget,
             "Confirmation",
             "Supprimer cette ligne du panier ?",
@@ -84,7 +84,7 @@ class FacturePatientOperations:
     def annuler_facture(self, code_facture: str, parent_widget) -> Tuple[bool, str]:
         if not self.facture_ctrl:
             return False, "Controleur facture non initialise"
-        confirmed = ModernMessageBox.question(
+        confirmed = CustomMessageBox.question(
             parent_widget,
             "Confirmation",
             "Annuler cette facture ? Les lignes seront effacees et la facture restera en attente.",

@@ -275,8 +275,8 @@ class ModernPaymentDialog(QDialog):
         
         # Validation basique
         if not self.telephone:
-            from .modern_message_box import ModernMessageBox
-            ModernMessageBox.warning(
+            from views.shared.message_box import CustomMessageBox
+            CustomMessageBox.warning(
                 self,
                 "Attention",
                 "Veuillez entrer un numéro de téléphone",
@@ -285,8 +285,8 @@ class ModernPaymentDialog(QDialog):
             return
         
         if len(self.telephone) != 9:
-            from .modern_message_box import ModernMessageBox
-            ModernMessageBox.warning(
+            from views.shared.message_box import CustomMessageBox
+            CustomMessageBox.warning(
                 self,
                 "Attention",
                 "Le numéro de téléphone doit contenir exactement 9 chiffres",

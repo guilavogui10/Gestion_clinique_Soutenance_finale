@@ -15,7 +15,7 @@ Différences vs PanierOperations :
 import logging
 from typing import Tuple, Dict, Any
 
-from ..components.modern_message_box import ModernMessageBox
+from views.shared.message_box import CustomMessageBox
 
 
 class PrescriptionOperations:
@@ -152,7 +152,7 @@ class PrescriptionOperations:
         Returns:
             Tuple[bool, str]: (succès, message)
         """
-        confirmed = ModernMessageBox.question(
+        confirmed = CustomMessageBox.question(
             parent_widget,
             "Confirmation",
             "Voulez-vous supprimer ce produit de la prescription ?"
@@ -191,7 +191,7 @@ class PrescriptionOperations:
         if not code_visite:
             return False, "Aucune visite active."
 
-        confirmed = ModernMessageBox.question(
+        confirmed = CustomMessageBox.question(
             parent_widget,
             "Confirmation",
             "Confirmer la prescription ?\n"
@@ -227,7 +227,7 @@ class PrescriptionOperations:
         if not lignes_prescriptions:
             return False, "Aucune ligne à annuler."
 
-        confirmed = ModernMessageBox.question(
+        confirmed = CustomMessageBox.question(
             parent_widget,
             "Confirmation",
             f"Supprimer les {len(lignes_prescriptions)} ligne(s) de la prescription ?\n"

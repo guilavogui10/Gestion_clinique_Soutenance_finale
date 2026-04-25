@@ -8,7 +8,7 @@ from .panier_ligne_item import PanierLigneItem
 from .modern_quantity_spinner import ModernQuantitySpinner
 from .modern_date_picker import ModernDatePicker
 from .modern_price_input import ModernPriceInput
-from .modern_message_box import ModernMessageBox
+from views.shared.message_box import CustomMessageBox
 from .modern_payment_dialog import ModernPaymentDialog
 
 __all__ = [
@@ -20,6 +20,6 @@ __all__ = [
     'ModernQuantitySpinner',
     'ModernDatePicker',
     'ModernPriceInput',
-    'ModernMessageBox',
+    'CustomMessageBox',
     'ModernPaymentDialog'
 ]

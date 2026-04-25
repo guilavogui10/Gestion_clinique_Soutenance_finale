@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QButtonGroup, QRadioButton, QSizePolicy
 )
 from views.shared.theme_manager import theme_manager
-from .modern_message_box import ModernMessageBox
+from views.shared.message_box import CustomMessageBox
 
 
 # =============================================================================
@@ -831,7 +831,7 @@ class PaymentSlidePanel(QFrame):
 
     def process_payment(self):
         if not self.facture_data:
-            ModernMessageBox.error(
+            CustomMessageBox.error(
                 self, "Erreur", "Aucune facture à finaliser",
                 theme_manager.colors()['primary']
             )
@@ -839,7 +839,7 @@ class PaymentSlidePanel(QFrame):
 
         telephone = self.input_phone.text().strip()
         if not telephone:
-            ModernMessageBox.warning(
+            CustomMessageBox.warning(
                 self, "Attention", "Veuillez entrer un numéro de téléphone.",
                 theme_manager.colors()['primary']
             )
@@ -855,7 +855,7 @@ class PaymentSlidePanel(QFrame):
         elif self.btn_bank.isChecked():
             mode_paiement = "virement"
 
-        confirmed = ModernMessageBox.question(
+        confirmed = CustomMessageBox.question(
             self, "Confirmation",
             f"Confirmer le paiement de {self.lbl_montant_total.text()} ?\n\n"
             f"Mode : {mode_paiement.title()}\n"
@@ -882,7 +882,7 @@ class PaymentSlidePanel(QFrame):
         ok, msg = facture_ctrl.finaliser_facture(facture)
 
         if ok:
-            ModernMessageBox.success(
+            CustomMessageBox.success(
                 self, "Succès", "Facture finalisée avec succès !",
                 theme_manager.colors()['primary']
             )
@@ -894,7 +894,7 @@ class PaymentSlidePanel(QFrame):
                     break
                 p = p.parent() if hasattr(p, 'parent') else None
         else:
-            ModernMessageBox.error(
+            CustomMessageBox.error(
                 self, "Erreur", f"Erreur lors de la finalisation : {msg}",
                 theme_manager.colors()['primary']
             )
