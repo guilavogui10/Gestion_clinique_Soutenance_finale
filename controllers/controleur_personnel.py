@@ -1,12 +1,14 @@
 # fichier: personnel/controller_personnel.py
 
 from service_metier.personnel_service import PersonnelService
+from controllers.controleur_user import UserController
 
 
 class ControllerPersonnel:
     def __init__(self):
         self.service = PersonnelService()
         self.dao = self.service.dao
+        self.user_ctrl = UserController()  # Contrôleur pour créer les comptes utilisateurs
 
     def _modele_vers_dict(self, personnel):
         return self.service._modele_vers_dict(personnel)
@@ -33,7 +35,37 @@ class ControllerPersonnel:
         return self.service.valider_champs(data)
 
     def ajouter_personnel(self, data):
-        return self.service.ajouter_personnel(data)
+        """Ajoute un personnel et crée son compte utilisateur si demandé"""
+        # Ajouter le personnel
+        succes, message = self.service.ajouter_personnel(data)
+        
+        if not succes:
+            return succes, message
+        
+        # Extraire le code du personnel du message (ex: "Personnel enregistré avec code P0001.")
+        code_personnel = None
+        if "code" in message:
+            import re
+            match = re.search(r'code ([A-Z0-9]+)', message)
+            if match:
+                code_personnel = match.group(1)
+        
+        # Créer le compte utilisateur si demandé
+        if data.get("creer_compte") and code_personnel:
+            mdp = data.get("mot_de_passe", "")
+            role = data.get("role", data.get("fonction", ""))
+            
+            if mdp and role:
+                # Créer le compte utilisateur via UserController
+                result = self.user_ctrl.gerer_creation(mdp, role, code_personnel)
+                
+                if result.get('status') == 'success':
+                    code_user = result.get('code', '')
+                    message += f" Compte utilisateur {code_user} créé avec succès."
+                else:
+                    message += f" Attention: {result.get('message', 'Le compte utilisateur n\'a pas pu être créé.')}"
+        
+        return succes, message
 
     def modifier_personnel(self, code, data):
         return self.service.modifier_personnel(code, data)
@@ -85,3 +117,54 @@ class ControllerPersonnel:
 
     def delete_personnel(self, mail):
         return self.supprimer_par_mail(mail)
+
+    def get_responsable(self, fonction: str) -> dict | None:
+        """
+        Retourne le nom et mail du responsable d'une fonction.
+        Utilisé par Vault pour envoyer le code OTP par email.
+        """
+        return self.service.get_responsable(fonction)
+    
+    def compter_par_fonction(self) -> dict:
+        """
+        Compte le nombre de personnels par fonction.
+        Retourne un dictionnaire {fonction: nombre}
+        """
+        return self.service.compter_par_fonction()
+    
+    def creer_cles_vault_pour_tous(self) -> dict:
+        """
+        Crée les clés TOTP Vault pour tous les personnels existants.
+        Utile pour initialiser Vault avec les personnels déjà en base.
+        
+        Returns:
+            Dict avec:
+                - "total": nombre total de personnels
+                - "succes": nombre de clés créées
+                - "echecs": nombre d'échecs
+        """
+        try:
+            personnels = self.lister_tout()
+            total = len(personnels)
+            succes = 0
+            echecs = 0
+            
+            for personnel in personnels:
+                code = personnel.get("code")
+                if self.service._creer_cle_vault_personnel(code, personnel):
+                    succes += 1
+                else:
+                    echecs += 1
+            
+            return {
+                "total": total,
+                "succes": succes,
+                "echecs": echecs
+            }
+        except Exception as e:
+            return {
+                "total": 0,
+                "succes": 0,
+                "echecs": 0,
+                "erreur": str(e)
+            }

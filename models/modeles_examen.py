@@ -2,20 +2,23 @@ from datetime import datetime
 
 
 class Examen:
-    def __init__(self, code=None, libelle_examen=None, resultat_examen=None,
+    def __init__(self, code=None, libelle_examen=None,
                  frais_examen=0.0, statut_facture="attente payement",
-                 date_examen=None, code_consultation=None,code_visite=None,
-                 code_session=None, code_personnel=None):
-        self._code             = code
-        self._libelle_examen   = libelle_examen
-        self._resultat_examen  = resultat_examen
-        self._frais_examen     = frais_examen
-        self._statut_facture   = statut_facture
-        self._date_examen      = date_examen or datetime.now()
-        self._code_consultation = code_consultation
-        self._code_visite = code_visite
-        self._code_session     = code_session
-        self._code_personnel   = code_personnel
+                 date_examen=None, code_session=None,
+                 code_personnel=None, code_acte=None,
+                 interpreter_par=None, date_interpretation=None,
+                 conclusion_medicale=None):
+        self._code                = code
+        self._libelle_examen      = libelle_examen
+        self._frais_examen        = frais_examen
+        self._statut_facture      = statut_facture
+        self._date_examen         = date_examen or datetime.now()
+        self._code_session        = code_session
+        self._code_personnel      = code_personnel
+        self._code_acte           = code_acte
+        self._interpreter_par     = interpreter_par
+        self._date_interpretation = date_interpretation
+        self._conclusion_medicale = conclusion_medicale
 
     # -------------------------------------------------------------------------
     # code
@@ -38,17 +41,6 @@ class Examen:
     @libelle_examen.setter
     def libelle_examen(self, value):
         self._libelle_examen = value
-
-    # -------------------------------------------------------------------------
-    # resultat_examen
-    # -------------------------------------------------------------------------
-    @property
-    def resultat_examen(self):
-        return self._resultat_examen
-
-    @resultat_examen.setter
-    def resultat_examen(self, value):
-        self._resultat_examen = value
 
     # -------------------------------------------------------------------------
     # frais_examen
@@ -84,28 +76,6 @@ class Examen:
         self._date_examen = value
 
     # -------------------------------------------------------------------------
-    # code_consultation
-    # -------------------------------------------------------------------------
-    @property
-    def code_consultation(self):
-        return self._code_consultation
-
-    @code_consultation.setter
-    def code_consultation(self, value):
-        self._code_consultation = value
-        
-    # -------------------------------------------------------------------------
-    # code_visite
-    # -------------------------------------------------------------------------
-    @property
-    def code_visite(self):
-        return self._code_visite
-
-    @code_visite.setter
-    def code_visite(self, value):
-        self._code_visite = value
-
-    # -------------------------------------------------------------------------
     # code_session
     # -------------------------------------------------------------------------
     @property
@@ -126,3 +96,47 @@ class Examen:
     @code_personnel.setter
     def code_personnel(self, value):
         self._code_personnel = value
+
+    # -------------------------------------------------------------------------
+    # code_acte
+    # -------------------------------------------------------------------------
+    @property
+    def code_acte(self):
+        return self._code_acte
+
+    @code_acte.setter
+    def code_acte(self, value):
+        self._code_acte = value
+
+    # -------------------------------------------------------------------------
+    # interpreter_par
+    # -------------------------------------------------------------------------
+    @property
+    def interpreter_par(self):
+        return self._interpreter_par
+
+    @interpreter_par.setter
+    def interpreter_par(self, value):
+        self._interpreter_par = value
+
+    # -------------------------------------------------------------------------
+    # date_interpretation
+    # -------------------------------------------------------------------------
+    @property
+    def date_interpretation(self):
+        return self._date_interpretation
+
+    @date_interpretation.setter
+    def date_interpretation(self, value):
+        self._date_interpretation = value
+
+    # -------------------------------------------------------------------------
+    # conclusion_medicale
+    # -------------------------------------------------------------------------
+    @property
+    def conclusion_medicale(self):
+        return self._conclusion_medicale
+
+    @conclusion_medicale.setter
+    def conclusion_medicale(self, value):
+        self._conclusion_medicale = value

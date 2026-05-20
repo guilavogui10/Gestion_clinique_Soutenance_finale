@@ -1,5 +1,5 @@
 class ModelePersonnel:
-    def __init__(self, code, nom, prenom, adresse, date_naissance, contact, mail, fonction, photo_path=None):
+    def __init__(self, code, nom, prenom, adresse, date_naissance, contact, mail, fonction, photo_path=None, est_responsable=0):
         self.code = code
         self.nom = nom
         self.prenom = prenom
@@ -9,6 +9,7 @@ class ModelePersonnel:
         self.mail = mail
         self.fonction = fonction
         self.photo_path = photo_path
+        self.est_responsable = est_responsable
 
     # Getters
     def get_code(self):
@@ -37,6 +38,12 @@ class ModelePersonnel:
         
     def get_photo_path(self):
         return self.photo_path
+
+    def get_est_responsable(self):
+        return self.est_responsable
+
+    def set_est_responsable(self, val):
+        self.est_responsable = val
         
     # Setters (si nécessaire, mais souvent on gère les attibuts directement dans le contrôleur)
     def set_code(self, code):
@@ -55,4 +62,5 @@ class ModelePersonnel:
             "mail": self.mail,
             "fonction": self.fonction,
             "photo_path": self.photo_path,
+            "est_responsable": self.est_responsable,
         }

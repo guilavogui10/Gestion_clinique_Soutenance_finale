@@ -1,1 +1,1 @@
-from .vue_rendez_vous import RendezVousView
+from .vue_rendez_vous_tabs import RendezVousView

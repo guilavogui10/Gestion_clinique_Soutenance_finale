@@ -2,20 +2,20 @@ from datetime import datetime
 
 
 class Chirurgie:
-    def __init__(self, code=None, libelle_chururgie=None, frais_chururgie=0.0, 
-                 statut_facture="attente payement", date_chururgie=None, 
-                 code_consultation=None, code_visite=None,
-                 code_session=None, code_personnel=None):
-        
-        self._code              = code
-        self._libelle_chururgie = libelle_chururgie
-        self._frais_chururgie   = frais_chururgie
-        self._statut_facture    = statut_facture
-        self._date_chururgie    = date_chururgie or datetime.now()
-        self._code_consultation = code_consultation
-        self._code_visite       = code_visite
-        self._code_session      = code_session
-        self._code_personnel    = code_personnel
+    def __init__(self, code=None, libelle_chururgie=None, frais_chururgie=0.0,
+                 statut_facture="attente payement", date_chururgie=None,
+                 code_session=None, code_personnel=None,
+                 code_acte=None, compte_rendu_operatoire=None):
+
+        self._code                   = code
+        self._libelle_chururgie      = libelle_chururgie
+        self._frais_chururgie        = frais_chururgie
+        self._statut_facture         = statut_facture
+        self._date_chururgie         = date_chururgie or datetime.now()
+        self._code_session           = code_session
+        self._code_personnel         = code_personnel
+        self._code_acte              = code_acte
+        self._compte_rendu_operatoire = compte_rendu_operatoire
 
     # -------------------------------------------------------------------------
     # code
@@ -73,28 +73,6 @@ class Chirurgie:
         self._date_chururgie = value
 
     # -------------------------------------------------------------------------
-    # code_consultation
-    # -------------------------------------------------------------------------
-    @property
-    def code_consultation(self):
-        return self._code_consultation
-
-    @code_consultation.setter
-    def code_consultation(self, value):
-        self._code_consultation = value
-        
-    # -------------------------------------------------------------------------
-    # code_visite
-    # -------------------------------------------------------------------------
-    @property
-    def code_visite(self):
-        return self._code_visite
-
-    @code_visite.setter
-    def code_visite(self, value):
-        self._code_visite = value
-
-    # -------------------------------------------------------------------------
     # code_session
     # -------------------------------------------------------------------------
     @property
@@ -115,3 +93,25 @@ class Chirurgie:
     @code_personnel.setter
     def code_personnel(self, value):
         self._code_personnel = value
+
+    # -------------------------------------------------------------------------
+    # code_acte
+    # -------------------------------------------------------------------------
+    @property
+    def code_acte(self):
+        return self._code_acte
+
+    @code_acte.setter
+    def code_acte(self, value):
+        self._code_acte = value
+
+    # -------------------------------------------------------------------------
+    # compte_rendu_operatoire
+    # -------------------------------------------------------------------------
+    @property
+    def compte_rendu_operatoire(self):
+        return self._compte_rendu_operatoire
+
+    @compte_rendu_operatoire.setter
+    def compte_rendu_operatoire(self, value):
+        self._compte_rendu_operatoire = value

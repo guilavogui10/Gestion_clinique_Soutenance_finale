@@ -33,7 +33,16 @@ class StatistiquesDTO:
         self.stock_pommade: int = 0
         self.stock_comprime: int = 0
         
+        # Statistiques d'alertes
+        self.nb_ruptures: int = 0
+        self.nb_lots_a_expirer: int = 0
+        self.nb_lots_expires: int = 0
+        self.nb_stock_faible: int = 0
+        
         # Pourcentages pour les donuts
+        self.pct_expires: int = 0
+        self.pct_bientot: int = 0
+        self.pct_valides: int = 0
         self.pct_liquide: int = 0
         self.pct_pommade: int = 0
         self.pct_comprime: int = 0
@@ -43,14 +52,22 @@ class StatistiquesDTO:
     
     def calculer_pourcentages(self):
         """Calcule les pourcentages pour les graphes donut."""
-        total = self.stock_liquide + self.stock_pommade + self.stock_comprime
-        
-        if total > 0:
-            self.pct_liquide = int((self.stock_liquide / total) * 100)
-            self.pct_pommade = int((self.stock_pommade / total) * 100)
-            self.pct_comprime = int((self.stock_comprime / total) * 100)
+        total_types = self.stock_liquide + self.stock_pommade + self.stock_comprime
+        total_expiration = self.nb_expires + self.nb_bientot_expires + self.nb_valides
+
+        if total_types > 0:
+            self.pct_liquide = int((self.stock_liquide / total_types) * 100)
+            self.pct_pommade = int((self.stock_pommade / total_types) * 100)
+            self.pct_comprime = int((self.stock_comprime / total_types) * 100)
         else:
             self.pct_liquide = self.pct_pommade = self.pct_comprime = 0
+
+        if total_expiration > 0:
+            self.pct_expires = int((self.nb_expires / total_expiration) * 100)
+            self.pct_bientot = int((self.nb_bientot_expires / total_expiration) * 100)
+            self.pct_valides = int((self.nb_valides / total_expiration) * 100)
+        else:
+            self.pct_expires = self.pct_bientot = self.pct_valides = 0
 
 
 class StatistiquesDataLoader:
@@ -126,8 +143,13 @@ class StatistiquesDataLoader:
             ok, msg = self._charger_stock_detaille(dto, code_session)
             if not ok:
                 return False, None, msg
+
+            # 4. Charger les alertes
+            ok, msg = self._charger_alertes(dto, code_session)
+            if not ok:
+                return False, None, msg
             
-            # 4. Calculer les pourcentages
+            # 5. Calculer les pourcentages
             dto.calculer_pourcentages()
             
             self.logger.info("[StatistiquesLoader] Statistiques chargées avec succès")
@@ -215,17 +237,61 @@ class StatistiquesDataLoader:
             tuple: (succès, message_erreur)
         """
         try:
-            # ✅ RESPECT DU MVC : Appel du contrôleur qui appelle le DAO
-            dto.stock_detaille = self.panier_ctrl.obtenir_stock_detaille(code_session, limite=20)
+            # ✅ RESPECT DU MVC : Appel du contrôleur qui appelle le service qui appelle le DAO
+            stock_brut = self.panier_ctrl.obtenir_stock_detaille(code_session, limite=20)
+            
+            # Enrichir avec le statut (logique métier dans le handler)
+            from datetime import datetime, timedelta
+            
+            dto.stock_detaille = []
+            date_limite = datetime.now() + timedelta(days=30)
+            
+            for item in stock_brut:
+                statut = 'Valide'
+                
+                # Déterminer le statut selon la quantité
+                quantite = item.get('quantite', 0) or item.get('quantite_totale', 0)
+                
+                if quantite == 0:
+                    statut = 'Rupture'
+                elif quantite < 10:
+                    statut = 'Stock faible'
+                
+                dto.stock_detaille.append({
+                    'designation': item.get('designation', 'Produit'),
+                    'type': item.get('type', 'Comprimé'),
+                    'quantite': quantite,
+                    'statut': statut
+                })
             
             self.logger.debug(
                 f"[StatistiquesLoader] Stock détaillé: {len(dto.stock_detaille)} produits"
             )
             
             return True, ""
-            
+        
         except Exception as e:
             return False, f"Erreur chargement stock détaillé: {str(e)}"
+
+    def _charger_alertes(self, dto: StatistiquesDTO, code_session: str) -> Tuple[bool, str]:
+        """
+        Charge les statistiques d'alertes pour l'onglet.
+        """
+        try:
+            dto.nb_ruptures = self.panier_ctrl.obtenir_nombre_ruptures(code_session) or 0
+            dto.nb_lots_a_expirer = self.panier_ctrl.obtenir_nombre_lots_a_expirer(code_session)
+            dto.nb_lots_expires = self.panier_ctrl.obtenir_nombre_lots_expires(code_session)
+            dto.nb_stock_faible = len(self.panier_ctrl.obtenir_stock_faible(code_session) or [])
+
+            self.logger.debug(
+                f"[StatistiquesLoader] Alertes: ruptures={dto.nb_ruptures}, "
+                f"a_expirer={dto.nb_lots_a_expirer}, expires={dto.nb_lots_expires}, "
+                f"stock_faible={dto.nb_stock_faible}"
+            )
+
+            return True, ""
+        except Exception as e:
+            return False, f"Erreur chargement alertes: {str(e)}"
     
     # =========================================================================
     # MÉTHODES UTILITAIRES PRIVÉES

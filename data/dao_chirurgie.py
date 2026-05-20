@@ -1,4 +1,4 @@
-import sys
+﻿import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pymysql
@@ -31,9 +31,9 @@ class ChirurgieDAO:
             chururgie.code = self._generer_code(cursor)
             query = """
                 INSERT INTO chururgie (
-                    code, libelle_chururgie, frais_chururgie, 
-                    statut_facture, date_chururgie, 
-                    code_consultation, code_visite, code_session, code_personnel
+                    code, libelle_chururgie, frais_chururgie,
+                    statut_facture, date_chururgie,
+                    code_session, code_personnel, code_acte, compte_rendu_operatoire
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             cursor.execute(query, (
@@ -42,11 +42,18 @@ class ChirurgieDAO:
                 chururgie.frais_chururgie,
                 chururgie.statut_facture,
                 chururgie.date_chururgie,
-                chururgie.code_consultation,
-                chururgie.code_visite,
                 chururgie.code_session,
-                chururgie.code_personnel
+                chururgie.code_personnel,
+                chururgie.code_acte,
+                chururgie.compte_rendu_operatoire or ""
             ))
+            # Mise à jour du statut_patient dans visite
+            nouveau_statut, code_visite = self._determiner_statut_et_visite(cursor, chururgie.code_acte)
+            if code_visite:
+                cursor.execute(
+                    "UPDATE visite SET statut_patient=%s WHERE code_visite=%s",
+                    (nouveau_statut, code_visite)
+                )
             conn.commit()
             return True
         except Exception as e:
@@ -64,10 +71,10 @@ class ChirurgieDAO:
             cursor = conn.cursor()
             query = """
                 UPDATE chururgie SET
-                    libelle_chururgie=%s, frais_chururgie=%s, 
+                    libelle_chururgie=%s, frais_chururgie=%s,
                     statut_facture=%s, date_chururgie=%s,
-                    code_consultation=%s, code_visite=%s,
-                    code_session=%s, code_personnel=%s
+                    code_session=%s, code_personnel=%s,
+                    code_acte=%s, compte_rendu_operatoire=%s
                 WHERE code=%s
             """
             cursor.execute(query, (
@@ -75,10 +82,10 @@ class ChirurgieDAO:
                 chururgie.frais_chururgie,
                 chururgie.statut_facture,
                 chururgie.date_chururgie,
-                chururgie.code_consultation,
-                chururgie.code_visite,
                 chururgie.code_session,
                 chururgie.code_personnel,
+                chururgie.code_acte,
+                chururgie.compte_rendu_operatoire,
                 chururgie.code
             ))
             conn.commit()
@@ -117,11 +124,13 @@ class ChirurgieDAO:
         try:
             cursor = conn.cursor()
             query = """
-                SELECT c.*, p.nom AS patient_nom, p.prenom AS patient_prenom
-                FROM chururgie c
-                LEFT JOIN visite v ON c.code_visite = v.code_visite
-                LEFT JOIN patients p ON v.code_patient = p.code_patient
-                WHERE c.code=%s
+                SELECT ch.*, p.nom AS patient_nom, p.prenom AS patient_prenom
+                FROM chururgie ch
+                LEFT JOIN acte_medical am ON ch.code_acte = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient = p.code_patient
+                WHERE ch.code=%s
             """
             cursor.execute(query, (code,))
             row = cursor.fetchone()
@@ -138,12 +147,14 @@ class ChirurgieDAO:
         try:
             cursor = conn.cursor()
             query = """
-                SELECT c.*, p.nom AS patient_nom, p.prenom AS patient_prenom
-                FROM chururgie c
-                LEFT JOIN visite v ON c.code_visite = v.code_visite
-                LEFT JOIN patients p ON v.code_patient = p.code_patient
-                WHERE c.code_session=%s 
-                ORDER BY c.date_chururgie DESC
+                SELECT ch.*, p.nom AS patient_nom, p.prenom AS patient_prenom
+                FROM chururgie ch
+                LEFT JOIN acte_medical am ON ch.code_acte = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient = p.code_patient
+                WHERE ch.code_session=%s 
+                ORDER BY ch.date_chururgie DESC
             """
             cursor.execute(query, (code_session,))
             rows = cursor.fetchall()
@@ -161,24 +172,55 @@ class ChirurgieDAO:
             cursor = conn.cursor()
             critere_like = f"%{critere}%"
             query = """
-                SELECT c.*, p.nom AS patient_nom, p.prenom AS patient_prenom
-                FROM chururgie c
-                LEFT JOIN visite v ON c.code_visite = v.code_visite
-                LEFT JOIN patients p ON v.code_patient = p.code_patient
-                WHERE c.code_session=%s
+                SELECT ch.*, p.nom AS patient_nom, p.prenom AS patient_prenom
+                FROM chururgie ch
+                LEFT JOIN acte_medical am ON ch.code_acte = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient = p.code_patient
+                WHERE ch.code_session=%s
                 AND (
-                    c.code LIKE %s OR 
-                    c.libelle_chururgie LIKE %s OR 
+                    ch.code LIKE %s OR 
+                    ch.libelle_chururgie LIKE %s OR 
                     p.nom LIKE %s OR 
                     p.prenom LIKE %s
                 )
-                ORDER BY c.date_chururgie DESC
+                ORDER BY ch.date_chururgie DESC
             """
             cursor.execute(query, (code_session, critere_like, critere_like, critere_like, critere_like))
             rows = cursor.fetchall()
             return [self._row_to_object(row) for row in rows]
         except Exception as e:
             print(f"[ChirurgieDAO] Erreur rechercher_par_critere: {e}")
+            return []
+        finally:
+            self.db.close()
+
+    def rechercher_par_libelle(self, code_session: str, libelle: str) -> list:
+        """Recherche les chirurgies par libellé (LIKE) dans une session."""
+        if not code_session:
+            return []
+        conn = self.db.connect()
+        if not conn:
+            return []
+        try:
+            cursor = conn.cursor()
+            query = """
+                SELECT ch.*, p.nom AS patient_nom, p.prenom AS patient_prenom
+                FROM chururgie ch
+                LEFT JOIN acte_medical am ON ch.code_acte = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient = p.code_patient
+                WHERE ch.code_session = %s
+                  AND ch.libelle_chururgie LIKE %s
+                ORDER BY ch.date_chururgie DESC
+            """
+            cursor.execute(query, (code_session, f"%{libelle}%"))
+            rows = cursor.fetchall()
+            return [self._row_to_object(row) for row in rows]
+        except Exception as e:
+            print(f"[ChirurgieDAO] Erreur rechercher_par_libelle: {e}")
             return []
         finally:
             self.db.close()
@@ -241,10 +283,12 @@ class ChirurgieDAO:
             cursor.execute("""
                 SELECT COUNT(*) AS total
                 FROM visite v
-                LEFT JOIN chururgie c ON v.code_visite = c.code_visite
+                LEFT JOIN consultation c   ON v.code_visite = c.code_visite
+                LEFT JOIN acte_medical am  ON am.code_consultation = c.code
+                LEFT JOIN chururgie ch     ON ch.code_acte = am.code_acte
                 WHERE v.code_session = %s
                 AND v.statut_patient = 'Attente chirurgie'
-                AND c.code IS NULL
+                AND ch.code IS NULL
             """, (code_session,))
             result = cursor.fetchone()
             return result['total'] if result else 0
@@ -316,11 +360,13 @@ class ChirurgieDAO:
                     p.code_patient,
                     p.nom,
                     p.prenom,
-                    c.code AS code_consultation
+                    c.code AS code_consultation,
+                    am.code_acte AS code_acte
                 FROM visite v
-                INNER JOIN patients p   ON v.code_patient = p.code_patient
-                INNER JOIN consultation c ON v.code_visite = c.code_visite
-                LEFT JOIN chururgie ch  ON v.code_visite = ch.code_visite
+                INNER JOIN patients p       ON v.code_patient = p.code_patient
+                INNER JOIN consultation c   ON v.code_visite  = c.code_visite
+                LEFT JOIN  acte_medical am  ON am.code_consultation = c.code
+                LEFT JOIN  chururgie ch     ON ch.code_acte = am.code_acte
                 WHERE v.code_session = %s
                 AND v.statut_patient = 'Attente chirurgie'
                 AND ch.code IS NULL
@@ -400,19 +446,81 @@ class ChirurgieDAO:
     def _row_to_object(self, row) -> Chirurgie:
         """Convertit une ligne DB en objet Chirurgie."""
         obj = Chirurgie(
-            code              = row['code'],
-            libelle_chururgie = row['libelle_chururgie'],
-            frais_chururgie   = row['frais_chururgie'],
-            statut_facture    = row['statut_facture'],
-            date_chururgie    = row['date_chururgie'],
-            code_consultation = row['code_consultation'],
-            code_visite       = row['code_visite'],
-            code_session      = row['code_session'],
-            code_personnel    = row['code_personnel']
+            code                  = row['code'],
+            libelle_chururgie     = row['libelle_chururgie'],
+            frais_chururgie       = row['frais_chururgie'],
+            statut_facture        = row['statut_facture'],
+            date_chururgie        = row['date_chururgie'],
+            code_session          = row['code_session'],
+            code_personnel        = row['code_personnel'],
+            code_acte             = row['code_acte'],
+            compte_rendu_operatoire = row.get('compte_rendu_operatoire')
         )
-        obj.patient_nom = row.get('patient_nom', "")
+        obj.patient_nom    = row.get('patient_nom', "")
         obj.patient_prenom = row.get('patient_prenom', "")
         return obj
+
+    def _determiner_statut_et_visite(self, cursor, code_acte: str) -> tuple:
+        """Récupère le code_visite d'exécution via acte_visite (role='execution').
+        Retourne (prochain_statut, code_visite).
+        
+        IMPORTANT : On met à jour UNIQUEMENT la visite d'exécution (role='execution'),
+        PAS la visite d'origine (role='origine') pour éviter la duplication dans la file d'attente.
+        """
+        try:
+            # Récupérer le code_visite d'exécution depuis acte_visite avec role='execution'
+            cursor.execute(
+                "SELECT code_visite FROM acte_visite WHERE code_acte=%s AND role_visite='execution' LIMIT 1",
+                (code_acte,)
+            )
+            row = cursor.fetchone()
+            if not row:
+                # Si pas de visite d'exécution, récupérer depuis la consultation (cas acte "maintenant")
+                cursor.execute(
+                    "SELECT code_consultation FROM acte_medical WHERE code_acte=%s", (code_acte,)
+                )
+                row_cons = cursor.fetchone()
+                if not row_cons:
+                    return "Attente payement", None
+                code_consultation = row_cons.get('code_consultation') if isinstance(row_cons, dict) else row_cons[0]
+                if not code_consultation:
+                    return "Attente payement", None
+                cursor.execute(
+                    "SELECT code_visite, prescription_produit FROM consultation WHERE code=%s",
+                    (code_consultation,)
+                )
+                row_visite = cursor.fetchone()
+                if not row_visite:
+                    return "Attente payement", None
+                code_visite  = row_visite.get('code_visite')  if isinstance(row_visite, dict) else row_visite[0]
+                prescription = row_visite.get('prescription_produit') if isinstance(row_visite, dict) else row_visite[1]
+                statut = "Attente pharmacie" if prescription == "Oui" else "Attente payement"
+                return statut, code_visite
+            
+            # Visite d'exécution trouvée
+            code_visite = row.get('code_visite') if isinstance(row, dict) else row[0]
+            # Vérifier si prescription
+            cursor.execute(
+                "SELECT code_consultation FROM acte_medical WHERE code_acte=%s", (code_acte,)
+            )
+            row_cons = cursor.fetchone()
+            if row_cons:
+                code_consultation = row_cons.get('code_consultation') if isinstance(row_cons, dict) else row_cons[0]
+                if code_consultation:
+                    cursor.execute(
+                        "SELECT prescription_produit FROM consultation WHERE code=%s",
+                        (code_consultation,)
+                    )
+                    row_presc = cursor.fetchone()
+                    if row_presc:
+                        prescription = row_presc.get('prescription_produit') if isinstance(row_presc, dict) else row_presc[0]
+                        statut = "Attente pharmacie" if prescription == "Oui" else "Attente payement"
+                        return statut, code_visite
+            
+            return "Attente payement", code_visite
+        except Exception as e:
+            print(f"[ChirurgieDAO] Erreur _determiner_statut_et_visite: {e}")
+            return "Attente payement", None
 
     # =========================================================================
     # MÉTHODES UTILITAIRES STATISTIQUES (HELPERS)
@@ -466,7 +574,7 @@ class ChirurgieDAO:
             cursor = conn.cursor()
             query = """
                 SELECT
-                    c.*,
+                    ch.*,
                     p.nom           AS patient_nom,
                     p.prenom        AS patient_prenom,
                     p.telephone     AS patient_telephone,
@@ -475,11 +583,13 @@ class ChirurgieDAO:
                     per.nom         AS personnel_nom,
                     per.prenom      AS personnel_prenom,
                     per.fonction    AS personnel_fonction
-                FROM chururgie c
-                LEFT JOIN visite v      ON c.code_visite    = v.code_visite
-                LEFT JOIN patients p    ON v.code_patient   = p.code_patient
-                LEFT JOIN personnel per ON c.code_personnel = per.code
-                WHERE c.code = %s
+                FROM chururgie ch
+                LEFT JOIN acte_medical am ON ch.code_acte = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient = p.code_patient
+                LEFT JOIN personnel per   ON ch.code_personnel = per.code
+                WHERE ch.code = %s
             """
             cursor.execute(query, (code_chururgie,))
             return cursor.fetchone()
@@ -489,19 +599,19 @@ class ChirurgieDAO:
         finally:
             self.db.close()
 
-    def obtenir_par_consultation(self, code_consultation: str):
-        """Retourne la chirurgie liée à une consultation."""
+    def obtenir_par_acte(self, code_acte: str):
+        """Retourne la chirurgie liée à un acte medical."""
         conn = self.db.connect()
         if not conn:
             return None
         try:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT * FROM chururgie WHERE code_consultation=%s", (code_consultation,))
+                "SELECT * FROM chururgie WHERE code_acte=%s", (code_acte,))
             row = cursor.fetchone()
             return self._row_to_object(row) if row else None
         except Exception as e:
-            print(f"[ChirurgieDAO] Erreur obtenir_par_consultation: {e}")
+            print(f"[ChirurgieDAO] Erreur obtenir_par_acte: {e}")
             return None
         finally:
             self.db.close()
@@ -514,12 +624,14 @@ class ChirurgieDAO:
         try:
             cursor = conn.cursor()
             query = """
-                SELECT c.*, per.nom AS personnel_nom, per.prenom AS personnel_prenom
-                FROM chururgie c
-                INNER JOIN visite v      ON c.code_visite    = v.code_visite
-                LEFT JOIN  personnel per ON c.code_personnel = per.code
+                SELECT ch.*, per.nom AS personnel_nom, per.prenom AS personnel_prenom
+                FROM chururgie ch
+                INNER JOIN acte_medical am ON ch.code_acte = am.code_acte
+                INNER JOIN consultation c  ON am.code_consultation = c.code
+                INNER JOIN visite v        ON c.code_visite = v.code_visite
+                LEFT JOIN  personnel per   ON ch.code_personnel = per.code
                 WHERE v.code_patient = %s
-                ORDER BY c.date_chururgie DESC
+                ORDER BY ch.date_chururgie DESC
             """
             cursor.execute(query, (code_patient,))
             return cursor.fetchall()
@@ -820,7 +932,9 @@ class ChirurgieDAO:
             query = """
                 SELECT c.*, v.code_patient, p.nom AS patient_nom, p.prenom AS patient_prenom
                 FROM chururgie c
-                INNER JOIN visite v ON c.code_visite = v.code_visite
+                LEFT JOIN acte_medical am ON c.code_acte = am.code_acte
+                LEFT JOIN consultation cons ON am.code_consultation = cons.code
+                LEFT JOIN visite v ON cons.code_visite = v.code_visite
                 INNER JOIN patients p ON v.code_patient = p.code_patient
                 WHERE c.code_session=%s AND DATE(c.date_chururgie) BETWEEN %s AND %s
                 ORDER BY c.date_chururgie DESC
@@ -855,7 +969,9 @@ class ChirurgieDAO:
                 query = """
                     SELECT MONTH(c.date_chururgie) AS num_mois, COUNT(*) AS total
                     FROM chururgie c
-                    INNER JOIN visite v ON c.code_visite = v.code_visite
+                    LEFT JOIN acte_medical am   ON c.code_acte = am.code_acte
+                    LEFT JOIN consultation cons  ON am.code_consultation = cons.code
+                    LEFT JOIN visite v           ON cons.code_visite = v.code_visite
                     WHERE c.code_session=%s AND v.code_patient=%s
                     GROUP BY MONTH(c.date_chururgie)
                 """
@@ -871,7 +987,9 @@ class ChirurgieDAO:
                            v.code_patient,
                            COUNT(*) AS total
                     FROM chururgie c
-                    INNER JOIN visite v ON c.code_visite = v.code_visite
+                    LEFT JOIN acte_medical am   ON c.code_acte = am.code_acte
+                    LEFT JOIN consultation cons  ON am.code_consultation = cons.code
+                    LEFT JOIN visite v           ON cons.code_visite = v.code_visite
                     WHERE c.code_session=%s
                     GROUP BY MONTH(c.date_chururgie), v.code_patient
                 """
@@ -911,7 +1029,9 @@ class ChirurgieDAO:
                        CASE WHEN EXISTS(
                            SELECT 1
                            FROM chururgie c
-                           INNER JOIN visite v2 ON c.code_visite = v2.code_visite
+                           LEFT JOIN acte_medical am   ON c.code_acte = am.code_acte
+                           LEFT JOIN consultation cons  ON am.code_consultation = cons.code
+                           LEFT JOIN visite v2           ON cons.code_visite = v2.code_visite
                            WHERE v2.code_patient = p.code_patient AND v2.code_session = %s
                        ) THEN 1 ELSE 0 END AS a_consulte
                 FROM patients p
@@ -922,29 +1042,6 @@ class ChirurgieDAO:
             return result
         except Exception as e:
             print(f"[ChirurgieDAO] Erreur codes_patients_session: {e}")
-            return []
-        finally:
-            self.db.close()
-
-    def _patients_par_service(self, code_session: str, condition: str) -> list:
-        """Méthode privée pour filtrer les patients selon une condition."""
-        conn = self.db.connect()
-        if not conn:
-            return []
-        try:
-            cursor = conn.cursor()
-            query = f"""
-                SELECT c.code, c.date_chururgie, p.nom, p.prenom, p.telephone
-                FROM chururgie c
-                INNER JOIN visite v    ON c.code_visite   = v.code_visite
-                INNER JOIN patients p  ON v.code_patient  = p.code_patient
-                WHERE c.code_session=%s AND {condition}
-                ORDER BY c.date_chururgie DESC
-            """
-            cursor.execute(query, (code_session,))
-            return cursor.fetchall()
-        except Exception as e:
-            print(f"[ChirurgieDAO] Erreur _patients_par_service ({condition}): {e}")
             return []
         finally:
             self.db.close()

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Dashboard d'analyse du stock pour l'interface administrateur.
 """
 
@@ -68,9 +68,9 @@ def _format_int(value) -> str:
 
 def _format_currency(value) -> str:
     try:
-        return f"{float(value):,.0f}".replace(",", " ") + " FCFA"
+        return f"{float(value):,.0f}".replace(",", " ") + " GNF"
     except Exception:
-        return "0 FCFA"
+        return "0 GNF"
 
 
 def _to_date(value):
@@ -1122,8 +1122,8 @@ class AnalyseStockView(QWidget):
         self.kpi_ruptures = StockKpiCard("Ruptures de stock", "fa5s.exclamation-circle", "#e74c3c", "produits")
         self.kpi_expirer = StockKpiCard("Lots a expirer (-30 jours)", "fa5s.calendar-alt", "#f28c28", "lots")
         self.kpi_expires = StockKpiCard("Lots expires", "fa5s.calendar-times", "#7a5acb", "lots")
-        self.kpi_valeur = StockKpiCard("Valeur totale du stock", "fa5s.database", "#2d7be5", "FCFA")
-        self.kpi_perte = StockKpiCard("Valeur a perdre (-30 jours)", "fa5s.money-bill-wave", "#1f9d55", "FCFA")
+        self.kpi_valeur = StockKpiCard("Valeur totale du stock", "fa5s.database", "#2d7be5", "GNF")
+        self.kpi_perte = StockKpiCard("Valeur a perdre (-30 jours)", "fa5s.money-bill-wave", "#1f9d55", "GNF")
         for card in (
             self.kpi_ruptures,
             self.kpi_expirer,

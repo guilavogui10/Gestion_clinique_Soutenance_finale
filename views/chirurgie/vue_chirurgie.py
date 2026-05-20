@@ -1,70 +1,38 @@
-"""
+﻿"""
 =============================================================================
- CHIRURGIE VIEW  — version avec panneau bas animé
+ CHIRURGIE VIEW  â€” version onglets (alignÃ©e sur vue_examen.py)
 =============================================================================
- Architecture identique à ExamenView :
-   • _setup_bottom_section  → AnimatedStack avec 2 pages
-   • _setup_action_bar      → barre toggle entre les pages
-   • _toggle_vue            → bascule page 0 ↔ page 1
-   • _update_toggle_btn     → met à jour le bouton + thème
-   • charger_chururgies     → rafraîchit aussi la vue attente
+ Tabs :
+   0 â€” Statistiques  (KPI + Charts)
+   1 â€” Nouvelle chirurgie  (ChirurgieFormWidget)
+   2 â€” Liste  (ChirurgiesTable)
+   3 â€” Patients en attente  (PatientsAttenteChirurgieView)
 =============================================================================
 """
 
 import qtawesome as qta
-from PySide6.QtCore import Qt, QSize, QPropertyAnimation, QPoint, QEasingCurve
-from PySide6.QtGui import QColor
+from PySide6.QtCore import Qt, QSize, QDate
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton,
-    QTableWidget, QHeaderView, QFrame, QLabel, QGraphicsDropShadowEffect,
-    QTableWidgetItem, QMessageBox
+    QWidget, QVBoxLayout, QHBoxLayout, QFrame, QLabel,
+    QTabWidget, QPushButton, QMessageBox,
+    QDialog, QDateEdit, QSizePolicy,
 )
 
-from .graphe_chirurgie import ChirurgieAnalyseGraph
 from views.shared.theme_manager import theme_manager
 from views.chirurgie.styles import ChirurgieStyles
-from views.chirurgie.animated_stack import AnimatedStack
-from views.chirurgie.patients_chirurgie_attente import PatientsAttenteChirurgieView
-from views.chirurgie.chirurgie_form import ChirurgieFormDialog
+from views.chirurgie.chirurgie_form_widget import ChirurgieFormWidget
+from views.chirurgie.patients_chirurgie_attente import (
+    PatientsAttenteChirurgieView, PatientsAttenteDialog
+)
+from views.chirurgie.historique_chirurgie import HistoriquePatientChirurgieView
 from views.chirurgie.detail_chirurgie_modal import DetailsChirurgieModal
 from views.shared.message_box import CustomMessageBox
-
-
-# =============================================================================
-# ANIMATED FRAME
-# =============================================================================
-
-class AnimatedFrame(QFrame):
-    """Cadre arrondi avec effet d'ombre et légère élévation au survol."""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._setup_animation()
-
-    def _setup_animation(self):
-        self.shadow = QGraphicsDropShadowEffect(self)
-        self.shadow.setBlurRadius(15)
-        self.shadow.setOffset(0, 4)
-        self.shadow.setColor(QColor(0, 0, 0, 40))
-        self.setGraphicsEffect(self.shadow)
-
-        self.animation = QPropertyAnimation(self, b"pos")
-        self.animation.setDuration(150)
-        self.animation.setEasingCurve(QEasingCurve.OutCubic)
-
-    def enterEvent(self, event):
-        self.animation.setStartValue(self.pos())
-        self.animation.setEndValue(QPoint(self.pos().x(), self.pos().y() - 5))
-        self.shadow.setBlurRadius(25)
-        self.animation.start()
-        super().enterEvent(event)
-
-    def leaveEvent(self, event):
-        self.animation.setStartValue(self.pos())
-        self.animation.setEndValue(QPoint(self.pos().x(), self.pos().y() + 5))
-        self.shadow.setBlurRadius(15)
-        self.animation.start()
-        super().leaveEvent(event)
+from .components import (
+    KPICards,
+    ChartsSection,
+    QuickActions,
+    ChirurgiesTable
+)
 
 
 # =============================================================================
@@ -74,29 +42,22 @@ class AnimatedFrame(QFrame):
 class ChirurgieView(QWidget):
     """
     Vue principale pour la gestion des interventions chirurgicales.
-    La partie basse est un AnimatedStack à deux pages :
-      - Page 0 : tableau + graphe (vue par défaut)
-      - Page 1 : grille patients en attente (scrollable)
+    Quatre onglets : Statistiques, Nouvelle chirurgie, Liste, Patients en attente.
     """
 
-    # Labels et icônes du bouton toggle selon la page active
-    _TOGGLE_CONFIG = {
-        0: {   # on est sur stats → on propose d'aller vers attente
-            "label": " Patients en Attente",
-            "icon":  "fa5s.procedures",
-            "key":   "danger",
-        },
-        1: {   # on est sur attente → on propose de revenir aux stats
-            "label": " Statistiques Chirurgie",
-            "icon":  "fa5s.chart-bar",
-            "key":   "primary",
-        },
-    }
-
-    def __init__(self, chirurgie_ctrl):
+    def __init__(self, chirurgie_ctrl, permission_ctrl=None, user_info=None):
         super().__init__()
         self.ctrl         = chirurgie_ctrl
+        self.permission_ctrl = permission_ctrl
+        self.user_info = user_info or {}
         self.code_session = None
+        
+        # Créer le helper de permissions si disponible
+        self.permission_helper = None
+        if self.permission_ctrl and self.user_info:
+            from views.shared.permission_helper import PermissionHelper
+            self.permission_helper = PermissionHelper(self, self.permission_ctrl, self.user_info)
+        
         self._init_ui()
         self.apply_theme()
         theme_manager.theme_changed.connect(self.apply_theme)
@@ -106,521 +67,512 @@ class ChirurgieView(QWidget):
     # =========================================================================
 
     def _init_ui(self):
-        self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(15, 15, 15, 15)
-        self.main_layout.setSpacing(15)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
 
-        self._setup_top_bar()
-        self._setup_stats_section()
-        self._setup_action_bar()
-        self._setup_bottom_section()
+        # Frame principal blanc avec ombre
+        main_frame = QFrame()
+        main_frame.setObjectName("MainWhiteFrame")
+        main_frame_layout = QVBoxLayout(main_frame)
+        main_frame_layout.setContentsMargins(0, 0, 0, 0)
+        main_frame_layout.setSpacing(0)
 
-    # =========================================================================
-    # BARRE DU HAUT
-    # =========================================================================
+        # Onglets
+        self.tabs = QTabWidget()
+        self.tabs.setDocumentMode(False)
 
-    def _setup_top_bar(self):
-        hbox = QHBoxLayout()
+        self.tab_stats   = self._create_stats_tab()
+        self.tab_form    = self._create_form_tab()
+        self.tab_liste   = self._create_liste_tab()
+        self.tab_attente = self._create_attente_tab()
+        self.tab_historique = self._create_historique_tab()
 
-        self.search_bar = QLineEdit()
-        self.search_bar.setPlaceholderText(" Rechercher une intervention chirurgicale...")
-        self.search_bar.setFixedHeight(45)
-        self.search_bar.textChanged.connect(self._filtrer_chururgies)
+        self.tabs.addTab(self.tab_stats,      self._get_icon("chart-bar"),   "Statistiques")
+        self.tabs.addTab(self.tab_form,       self._get_icon("plus-circle"),  "Nouvelle chirurgie")
+        self.tabs.addTab(self.tab_liste,      self._get_icon("list"),         "Liste des chirurgies")
+        self.tabs.addTab(self.tab_attente,    self._get_icon("clock"),        "Patients en attente")
+        self.tabs.addTab(self.tab_historique, self._get_icon("history"),      "Historique patient")
 
-        self.btn_add = QPushButton(qta.icon("fa5s.plus-square", color="white"), " Ajouter")
-        self.btn_add.setFixedSize(120, 45)
-        self.btn_add.clicked.connect(self._ouvrir_formulaire_chirurgie)
+        main_frame_layout.addWidget(self.tabs, 1)
 
-        self.btn_notification = QPushButton(
-            qta.icon("fa5s.bell", color=theme_manager.colors()['primary']), "")
-        self.btn_notification.setFixedSize(45, 45)
-        self.btn_notification.setToolTip("Notifications bloc opératoire")
+        # Quick Actions
+        self.quick_actions = QuickActions()
+        self.quick_actions.new_chirurgie_clicked.connect(self.on_new_chirurgie)
+        self.quick_actions.patients_waiting_clicked.connect(self.on_patients_waiting)
+        self.quick_actions.advanced_search_clicked.connect(self.on_advanced_search)
+        self.quick_actions.reports_clicked.connect(self.on_reports)
+        self.quick_actions.patient_history_clicked.connect(self.on_patient_history)
+        main_frame_layout.addWidget(self.quick_actions)
 
-        self.btn_export = QPushButton(
-            qta.icon("fa5s.file-export", color=theme_manager.colors()['primary']), "")
-        self.btn_export.setFixedSize(45, 45)
-        self.btn_export.setToolTip("Exporter le planning")
+        main_layout.addWidget(main_frame)
+        self._apply_main_frame_style(main_frame)
 
-        self.btn_import = QPushButton(
-            qta.icon("fa5s.file-import", color=theme_manager.colors()['primary']), "")
-        self.btn_import.setFixedSize(45, 45)
-        self.btn_import.setToolTip("Importer un planning")
+    def _get_icon(self, name):
+        mapping = {
+            "chart-bar":   "fa5s.chart-bar",
+            "plus-circle": "fa5s.plus-circle",
+            "list":        "fa5s.list",
+            "clock":       "fa5s.hourglass-half",
+            "history":     "fa5s.history",
+        }
+        c = theme_manager.colors()
+        return qta.icon(mapping.get(name, "fa5s.circle"), color=c.get("primary", "#3498db"))
 
-        hbox.addWidget(self.search_bar)
-        hbox.addWidget(self.btn_add)
-        hbox.addSpacing(10)
-        hbox.addWidget(self.btn_notification)
-        hbox.addWidget(self.btn_export)
-        hbox.addWidget(self.btn_import)
+    # â”€â”€â”€ Onglets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-        self.main_layout.addLayout(hbox)
-
-    # =========================================================================
-    # STATISTIQUES
-    # =========================================================================
-
-    def _setup_stats_section(self):
-        hbox = QHBoxLayout()
-        hbox.setSpacing(15)
-
-        self.card_jour = self._create_stat_card(
-            "Chirurgies du Jour", "0", "fa5s.procedures", "primary")
-        self.card_session = self._create_stat_card(
-            "Total Session", "0", "fa5s.hospital-user", "success")
-        self.card_attente = self._create_stat_card(
-            "En Attente de Bloc", "0", "fa5s.clipboard-list", "danger")
-
-        hbox.addWidget(self.card_jour)
-        hbox.addWidget(self.card_session)
-        hbox.addWidget(self.card_attente)
-
-        self.main_layout.addLayout(hbox)
-
-    def _create_stat_card(self, title: str, value: str, icon_name: str, color_key: str) -> AnimatedFrame:
-        card = AnimatedFrame()
-        card._icon_name = icon_name
-        card.setFixedHeight(120)
-        
-        layout = QVBoxLayout(card)
-        layout.setContentsMargins(20, 15, 20, 15)
+    def _create_stats_tab(self):
+        tab = QWidget()
+        tab.setStyleSheet("background: white;")
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(12, 8, 12, 12)
         layout.setSpacing(8)
+        layout.setAlignment(Qt.AlignTop)
 
-        c = theme_manager.colors()
-        color = c[color_key]
+        self.kpi_cards = KPICards(self.ctrl)
+        layout.addWidget(self.kpi_cards)
 
-        # Header avec icône
-        header = QHBoxLayout()
-        icon_lbl = QLabel()
-        icon_lbl.setPixmap(qta.icon(icon_name, color=color).pixmap(QSize(20, 20)))
-        card._icon_lbl = icon_lbl
+        self.charts = ChartsSection(self.ctrl)
+        layout.addWidget(self.charts, 1)
 
-        title_lbl = QLabel(title)
-        title_lbl.setStyleSheet(
-            f"font-weight:bold; color:{c['text_secondary']}; font-size:11px; border:none;")
-        card._title_lbl = title_lbl
+        return tab
 
-        header.addWidget(icon_lbl)
-        header.addSpacing(8)
-        header.addWidget(title_lbl)
-        header.addStretch()
-        layout.addLayout(header)
+    def _create_form_tab(self):
+        tab = QWidget()
+        tab.setStyleSheet("background: white;")
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        # Valeur
-        value_label = QLabel(value)
-        value_label.setStyleSheet(
-            f"font-size:28px; font-weight:bold; color:{color}; border:none;")
-        value_label.setAlignment(Qt.AlignCenter)
-        card.value_label = value_label
-        layout.addWidget(value_label)
-        layout.addStretch()
+        self.form_widget = ChirurgieFormWidget(
+            controleur=self.ctrl,
+            code_session=self.code_session or "",
+        )
+        self.form_widget.chirurgie_saved.connect(self._on_chirurgie_saved)
+        layout.addWidget(self.form_widget)
 
-        return card
+        return tab
 
-    # =========================================================================
-    # BARRE ACTION (TOGGLE)
-    # =========================================================================
+    def _create_liste_tab(self):
+        tab = QWidget()
+        tab.setStyleSheet("background: white;")
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(12, 8, 12, 12)
 
-    def _setup_action_bar(self):
-        """Barre horizontale avec label + bouton toggle."""
-        self._action_bar = QFrame()
-        self._action_bar.setFixedHeight(50)
+        self.table = ChirurgiesTable(self.ctrl)
+        self.table.view_clicked.connect(self.on_view_chirurgie)
+        self.table.edit_clicked.connect(self.on_edit_chirurgie)
+        self.table.new_clicked.connect(self.on_new_chirurgie)
+        layout.addWidget(self.table)
 
-        layout = QHBoxLayout(self._action_bar)
-        layout.setContentsMargins(15, 0, 15, 0)
-        layout.setSpacing(10)
+        return tab
 
-        c = theme_manager.colors()
+    def _create_attente_tab(self):
+        tab = QWidget()
+        tab.setStyleSheet("background: white;")
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(12, 8, 12, 12)
+        layout.setSpacing(0)
 
-        self._lbl_vue = QLabel("Vue actuelle : Statistiques")
-        self._lbl_vue.setStyleSheet(
-            f"font-size: 11px; color: {c['text_muted']}; font-weight: 600; border: none;")
-
-        self._btn_toggle = QPushButton()
-        self._btn_toggle.setFixedHeight(38)
-        self._btn_toggle.setCursor(Qt.PointingHandCursor)
-        self._btn_toggle.clicked.connect(self._toggle_vue)
-
-        layout.addWidget(self._lbl_vue)
-        layout.addStretch()
-        layout.addWidget(self._btn_toggle)
-
-        self.main_layout.addWidget(self._action_bar)
-
-    # =========================================================================
-    # SECTION BASSE (ANIMATED STACK)
-    # =========================================================================
-
-    def _setup_bottom_section(self):
-        """Conteneur animé à 2 pages : stats (0) et attente (1)."""
-        self._stack = AnimatedStack()
-
-        # Page 0 : Tableau + Graphe
-        page_stats = QWidget()
-        page_stats.setStyleSheet("background: transparent;")
-        layout_stats = QHBoxLayout(page_stats)
-        layout_stats.setContentsMargins(0, 0, 0, 0)
-        layout_stats.setSpacing(15)
-
-        # Tableau
-        self.frame_table = self._create_card_frame("Liste des Interventions", "fa5s.syringe")
-        self.table = QTableWidget()
-        self.table.setColumnCount(4)
-        self.table.setHorizontalHeaderLabels([
-            "Code", "Patient", "Libellé", "Actions"
-        ])
-        header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)  # Code
-        header.setSectionResizeMode(1, QHeaderView.Stretch)           # Patient (flexible)
-        header.setSectionResizeMode(2, QHeaderView.Stretch)           # Libellé (flexible)
-        header.setSectionResizeMode(3, QHeaderView.Fixed)             # Actions
-        self.table.setColumnWidth(3, 140)  # Largeur fixe pour Actions
-        self.table.verticalHeader().setVisible(False)
-        self.table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.table.setAlternatingRowColors(True)
-        self.frame_table.layout().addWidget(self.table)
-
-        layout_stats.addWidget(self.frame_table, 6)
-
-        # Graphe
-        self.frame_graph = self._create_card_frame("Chirurgies par Mois", "fa5s.chart-bar")
-        self.graphe = ChirurgieAnalyseGraph(parent=self.frame_graph)
-        self.frame_graph.layout().addWidget(self.graphe)
-
-        layout_stats.addWidget(self.frame_graph, 4)
-
-        self._stack.add_page(page_stats)
-
-        # Page 1 : Patients en attente
-        self._vue_attente = PatientsAttenteChirurgieView(
+        self.vue_attente = PatientsAttenteChirurgieView(
             ctrl=self.ctrl,
             code_session=self.code_session or "",
-            parent=self
+            parent=tab,
         )
-        self._vue_attente.chirurgie_creee.connect(self._on_chirurgie_creee_depuis_attente)
-        self._stack.add_page(self._vue_attente)
+        self.vue_attente.ouvrir_formulaire.connect(self._ouvrir_nouveau_avec_consultation)
+        layout.addWidget(self.vue_attente)
 
-        self.main_layout.addWidget(self._stack, 1)
+        return tab
 
-    def _create_card_frame(self, title: str, icon_name: str) -> AnimatedFrame:
-        """Crée un cadre arrondi avec titre et icône."""
-        frame = AnimatedFrame()
-        frame._icon_name = icon_name
+    def _create_historique_tab(self):
+        tab = QWidget()
+        tab.setStyleSheet("background: white;")
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        c = theme_manager.colors()
-        
-        layout = QVBoxLayout(frame)
-        layout.setContentsMargins(14, 8, 14, 10)
-        layout.setSpacing(4)
-
-        # Header
-        header = QHBoxLayout()
-        icon_lbl = QLabel()
-        icon_lbl.setPixmap(qta.icon(icon_name, color=c['primary']).pixmap(QSize(16, 16)))
-        icon_lbl.setStyleSheet("border: none; background: transparent;")
-        frame._icon_lbl = icon_lbl
-
-        title_lbl = QLabel(title)
-        title_lbl.setStyleSheet(
-            f"font-weight:bold; color:{c['text_primary']}; font-size:12px; border:none;")
-        frame._title_lbl = title_lbl
-
-        header.addWidget(icon_lbl)
-        header.addSpacing(6)
-        header.addWidget(title_lbl)
-        header.addStretch()
-        layout.addLayout(header)
-
-        # Séparateur
-        sep = QFrame()
-        sep.setFrameShape(QFrame.HLine)
-        sep.setFixedHeight(1)
-        sep.setStyleSheet(f"background:{c['border_light']}; border:none;")
-        frame._separator = sep
-        layout.addWidget(sep)
-
-        return frame
-
-    # =========================================================================
-    # TOGGLE ENTRE VUES
-    # =========================================================================
-
-    def _toggle_vue(self):
-        """Bascule entre page 0 (stats) et page 1 (attente)."""
-        current = self._stack.current_index()
-        target = 1 if current == 0 else 0
-        self._stack.slide_to(target)
-        self._update_toggle_btn()
-
-        # Mise à jour du label
-        if target == 0:
-            self._lbl_vue.setText("Vue actuelle : Statistiques")
-        else:
-            self._lbl_vue.setText("Vue actuelle : Patients en Attente")
-            if hasattr(self, '_vue_attente'):
-                self._vue_attente.charger_patients()
-
-    def _update_toggle_btn(self):
-        """Met à jour le bouton toggle selon la page active."""
-        current = self._stack.current_index()
-        config = self._TOGGLE_CONFIG[current]
-        c = theme_manager.colors()
-
-        self._btn_toggle.setText(config["label"])
-        self._btn_toggle.setIcon(
-            qta.icon(config["icon"], color=c.get('text_inverse', '#ffffff'))
+        self.vue_historique = HistoriquePatientChirurgieView(
+            ctrl=self.ctrl,
+            code_session=self.code_session or "",
+            parent=tab,
         )
+        layout.addWidget(self.vue_historique)
 
-        color = c[config["key"]]
-        self._btn_toggle.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {color};
-                color: {c.get('text_inverse', '#ffffff')};
-                border-radius: 10px;
-                font-weight: bold;
-                font-size: 12px;
-                padding: 8px 16px;
-                border: none;
-            }}
-            QPushButton:hover {{
-                background-color: {color}dd;
-            }}
-        """)
+        return tab
 
     # =========================================================================
-    # CHARGEMENT DONNÉES
+    # CHARGEMENT DONNÃ‰ES
     # =========================================================================
 
     def charger_chururgies(self, code_session: str):
-        """Charge les chirurgies et met à jour toutes les vues."""
+        """Charge les chirurgies et met Ã  jour toutes les vues."""
         self.code_session = code_session
 
-        # Statistiques - utiliser les méthodes individuelles du DAO
-        try:
-            chururgies_jour = self.ctrl.obtenir_chururgies_aujourd_hui(code_session)
-            chururgies_session = self.ctrl.obtenir_total_chururgies_session(code_session)
-            patients_attente = self.ctrl.obtenir_chururgies_en_attente(code_session)
-            
-            self.card_jour.value_label.setText(str(chururgies_jour))
-            self.card_session.value_label.setText(str(chururgies_session))
-            self.card_attente.value_label.setText(str(patients_attente))
-        except Exception as e:
-            print(f"[ChirurgieView] Erreur stats: {e}")
-            self.card_jour.value_label.setText("0")
-            self.card_session.value_label.setText("0")
-            self.card_attente.value_label.setText("0")
+        # Mettre Ã  jour les sous-vues AVANT charger_donnees
+        if hasattr(self, 'vue_attente'):
+            self.vue_attente.code_session = code_session
+        if hasattr(self, 'form_widget'):
+            self.form_widget.code_session = code_session
 
-        # Graphe
-        try:
-            stats_mensuelles = self.ctrl.obtenir_chururgies_par_mois(code_session)
-            self.graphe.update_graph(stats_mensuelles)
-        except Exception as e:
-            print(f"[ChirurgieView] Erreur graphe: {e}")
-            self.graphe.update_graph({})
+        self.charger_donnees()
 
-        # Tableau
-        chururgies = self.ctrl.lister_chururgies(code_session)
-        self._remplir_tableau(chururgies)
+    def charger_donnees(self):
+        if not self.code_session:
+            return
 
-        # Vue attente
-        if hasattr(self, '_vue_attente'):
-            self._vue_attente.code_session = code_session
-            if self._stack.current_index() == 1:
-                self._vue_attente.charger_patients()
+        chirurgies = self.ctrl.lister_chururgies(self.code_session)
+        self.table.load_chirurgies(chirurgies, self.code_session)
 
-    def _remplir_tableau(self, chururgies):
-        """Remplit le tableau avec la liste des chirurgies."""
-        self.table.setRowCount(0)
+        self.kpi_cards.rafraichir(self.code_session)
 
-        for chururgie in chururgies:
-            row = self.table.rowCount()
-            self.table.insertRow(row)
+        if hasattr(self, 'charts'):
+            self.charts.update_data(self.code_session)
 
-            # Code
-            self.table.setItem(row, 0, QTableWidgetItem(str(chururgie.code)))
+        if hasattr(self, 'vue_attente'):
+            self.vue_attente.charger_patients()
 
-            # Patient
-            nom_patient = f"{chururgie.patient_nom or ''} {chururgie.patient_prenom or ''}".strip()
-            self.table.setItem(row, 1, QTableWidgetItem(nom_patient or "Patient inconnu"))
-
-            # Libellé (tronqué)
-            libelle = str(chururgie.libelle_chururgie or "—")
-            libelle_court = libelle[:50] + "..." if len(libelle) > 50 else libelle
-            self.table.setItem(row, 2, QTableWidgetItem(libelle_court))
-
-            # Actions
-            actions_widget = self._create_action_buttons(str(chururgie.code))
-            self.table.setCellWidget(row, 3, actions_widget)
-
-    def _create_action_buttons(self, code_chururgie: str) -> QWidget:
-        """Crée les boutons d'action pour une ligne du tableau."""
-        widget = QWidget()
-        layout = QHBoxLayout(widget)
-        layout.setContentsMargins(8, 4, 8, 4)
-        layout.setSpacing(8)
-
-        c = theme_manager.colors()
-
-        # Bouton Voir
-        btn_voir = QPushButton(qta.icon("fa5s.eye", color=c['info']), "")
-        btn_voir.setFixedSize(36, 36)
-        btn_voir.setCursor(Qt.PointingHandCursor)
-        btn_voir.setToolTip("Voir les détails")
-        btn_voir.clicked.connect(lambda: self._voir_details(code_chururgie))
-        btn_voir.setStyleSheet(ChirurgieStyles.button_table_action())
-
-        # Bouton Modifier
-        btn_edit = QPushButton(qta.icon("fa5s.edit", color=c['warning']), "")
-        btn_edit.setFixedSize(36, 36)
-        btn_edit.setCursor(Qt.PointingHandCursor)
-        btn_edit.setToolTip("Modifier")
-        btn_edit.clicked.connect(lambda: self._modifier_chirurgie(code_chururgie))
-        btn_edit.setStyleSheet(ChirurgieStyles.button_table_action())
-
-        # Bouton Supprimer
-        btn_del = QPushButton(qta.icon("fa5s.trash", color=c['danger']), "")
-        btn_del.setFixedSize(36, 36)
-        btn_del.setCursor(Qt.PointingHandCursor)
-        btn_del.setToolTip("Supprimer")
-        btn_del.clicked.connect(lambda: self._supprimer_chirurgie(code_chururgie))
-        btn_del.setStyleSheet(ChirurgieStyles.button_table_action())
-
-        layout.addWidget(btn_voir)
-        layout.addWidget(btn_edit)
-        layout.addWidget(btn_del)
-        layout.addStretch()
-
-        return widget
+        if hasattr(self, 'vue_historique'):
+            self.vue_historique.set_session(self.code_session)
 
     # =========================================================================
     # ACTIONS
     # =========================================================================
 
-    def _ouvrir_formulaire_chirurgie(self):
-        """Ouvre le formulaire pour créer une nouvelle chirurgie."""
-        dialog = ChirurgieFormDialog(
-            controleur=self.ctrl,
-            code_session=self.code_session or "",
-            parent=self
-        )
-        if dialog.exec():
-            self.charger_chururgies(self.code_session)
-
-    def _voir_details(self, code_chururgie: str):
-        """Ouvre la modal de détails d'une chirurgie."""
-        modal = DetailsChirurgieModal(
-            parent=self,
-            code_chururgie=code_chururgie,
-            ctrl=self.ctrl
-        )
-        modal.exec()
-
-    def _modifier_chirurgie(self, code_chururgie: str):
-        """Ouvre le formulaire en mode modification."""
-        chururgie = self.ctrl.obtenir_par_code(code_chururgie)
-        if not chururgie:
-            CustomMessageBox("Erreur", "Chirurgie introuvable", False, self).exec()
+    def on_view_chirurgie(self, chirurgie):
+        """Voir les détails d'une chirurgie - Pas de restriction"""
+        DetailsChirurgieModal(self, chirurgie.code, self.ctrl).exec()
+    
+    def on_view_resultats_chirurgie(self, chirurgie):
+        """Voir les résultats d'une chirurgie - Nécessite OTP"""
+        if not self.permission_helper:
+            # Mode dégradé sans permissions
+            CustomMessageBox.info(self, "Résultats", f"Affichage des résultats de {chirurgie.code}")
             return
-
-        dialog = ChirurgieFormDialog(
-            controleur=self.ctrl,
-            code_session=self.code_session or "",
-            chururgie_obj=chururgie,
-            parent=self
-        )
-        if dialog.exec():
-            self.charger_chururgies(self.code_session)
-
-    def _supprimer_chirurgie(self, code_chururgie: str):
-        """Supprime une chirurgie après confirmation."""
-        reply = QMessageBox.question(
-            self,
-            "Confirmation",
-            f"Voulez-vous vraiment supprimer la chirurgie {code_chururgie} ?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
+        
+        # Vérifier et exécuter avec gestion OTP (même pour les responsables)
+        def afficher_resultats():
+            CustomMessageBox.success(
+                self,
+                "Accès autorisé",
+                f"Affichage des résultats de la chirurgie {chirurgie.code}"
+            )
+            # TODO: Ouvrir l'interface des résultats
+        
+        self.permission_helper.verifier_et_executer(
+            action=self.permission_ctrl.ACTION_CONSULTATION,
+            contexte=f"Résultats chirurgie {chirurgie.code}",
+            callback_success=afficher_resultats
         )
 
-        if reply == QMessageBox.Yes:
-            ok, msg = self.ctrl.supprimer_chururgie(code_chururgie)
-            CustomMessageBox("Succès" if ok else "Erreur", msg, ok, self).exec()
-            if ok:
-                self.charger_chururgies(self.code_session)
+    def on_edit_chirurgie(self, chirurgie):
+        """Modifier une chirurgie - Vérification des permissions"""
+        if not self.permission_helper:
+            # Mode dégradé sans permissions
+            print(f"Éditer chirurgie: {chirurgie.code}")
+            return
+        
+        # Vérifier et exécuter avec gestion OTP
+        def executer_modification():
+            print(f"Éditer chirurgie: {chirurgie.code}")
+            # TODO: Ouvrir le formulaire de modification
+        
+        self.permission_helper.verifier_et_executer(
+            action=self.permission_ctrl.ACTION_MODIFICATION,
+            contexte=f"Chirurgie {chirurgie.code}",
+            callback_success=executer_modification
+        )
 
-    def _filtrer_chururgies(self, texte: str):
-        """Filtre le tableau selon le texte de recherche."""
-        texte = texte.lower()
-        for row in range(self.table.rowCount()):
-            match = False
-            for col in range(3):  # Exclure colonne Actions (index 3)
-                item = self.table.item(row, col)
-                if item and texte in item.text().lower():
-                    match = True
-                    break
-            self.table.setRowHidden(row, not match)
+    def on_new_chirurgie(self):
+        """Créer une nouvelle chirurgie - Vérification des permissions"""
+        if not self.permission_helper:
+            # Mode dégradé sans permissions
+            self.tabs.setCurrentIndex(1)
+            return
+        
+        # Vérifier si l'utilisateur peut créer
+        if not self.permission_helper.peut_creer():
+            # Demander l'autorisation au responsable
+            def executer_creation():
+                self.tabs.setCurrentIndex(1)
+            
+            self.permission_helper.verifier_et_executer(
+                action=self.permission_ctrl.ACTION_CREATION,
+                contexte="Création d'une nouvelle chirurgie",
+                callback_success=executer_creation
+            )
+        else:
+            # Autorisation directe pour les responsables
+            self.tabs.setCurrentIndex(1)
 
-    def _on_chirurgie_creee_depuis_attente(self):
-        """Callback quand une chirurgie est créée depuis la vue attente."""
-        self.charger_chururgies(self.code_session)
+    def on_patients_waiting(self):
+        self.tabs.setCurrentIndex(3)
+
+    def on_advanced_search(self):
+        if not self.code_session:
+            return
+        dlg = _RechercheEntresDatesDialog(self.ctrl, self.code_session, parent=self)
+        dlg.exec()
+
+    def on_reports(self):
+        if not self.code_session:
+            return
+        dlg = _ResumeSessionDialog(self.ctrl, self.code_session, parent=self)
+        dlg.exec()
+
+    def on_patient_history(self):
+        self.tabs.setCurrentIndex(4)
+
+    def _ouvrir_nouveau_avec_consultation(self, code_consultation: str):
+        self.tabs.setCurrentIndex(1)
+        if hasattr(self, 'form_widget'):
+            self.form_widget.recharger_pour_patient(
+                code_consultation, self.code_session or ""
+            )
+
+    def _on_chirurgie_saved(self):
+        self.charger_donnees()
+        self.tabs.setCurrentIndex(2)
 
     # =========================================================================
-    # THÈME
+    # STYLE
     # =========================================================================
+
+    def _apply_main_frame_style(self, frame):
+        c = theme_manager.colors()
+        frame.setStyleSheet(f"""
+            QFrame#MainWhiteFrame {{
+                background: white;
+                border: 1px solid {c['border']};
+                border-radius: 16px;
+            }}
+        """)
+
+    def _apply_tab_styles(self):
+        from .styles import ChirurgieStyles
+        self.tabs.setStyleSheet(ChirurgieStyles.tab_widget())
 
     def apply_theme(self):
-        """Applique le thème actif à tous les composants."""
         c = theme_manager.colors()
-        self.search_bar.setStyleSheet(ChirurgieStyles.search_bar())
-        self.btn_add.setStyleSheet(ChirurgieStyles.button_primary())
-
-        round_btn = ChirurgieStyles.button_secondary()
-        self.btn_notification.setStyleSheet(round_btn)
-        self.btn_export.setStyleSheet(round_btn)
-        self.btn_import.setStyleSheet(round_btn)
-
-        self.frame_table.setStyleSheet(ChirurgieStyles.card())
-        self.frame_graph.setStyleSheet(ChirurgieStyles.card())
-        self.table.setStyleSheet(ChirurgieStyles.table())
-
         self.setStyleSheet(f"background: {c['bg_main']};")
+        self._apply_tab_styles()
 
-        self.btn_add.setIcon(qta.icon("fa5s.plus-square", color=c['text_inverse']))
 
-        for btn, ico in [
-            (self.btn_notification, "fa5s.bell"),
-            (self.btn_export,       "fa5s.file-export"),
-            (self.btn_import,       "fa5s.file-import"),
-        ]:
-            btn.setIcon(qta.icon(ico, color=c['primary']))
+# =============================================================================
+# DIALOGS INTERNES
+# =============================================================================
 
-        for card, key in [
-            (self.card_jour,    'primary'),
-            (self.card_session, 'success'),
-            (self.card_attente, 'danger'),
-        ]:
-            color = c[key]
-            card.setStyleSheet(ChirurgieStyles.stat_card_style(color))
-            card._icon_lbl.setPixmap(qta.icon(card._icon_name, color=color).pixmap(QSize(20, 20)))
-            card._title_lbl.setStyleSheet(
-                f"font-weight:bold; color:{c['text_secondary']}; font-size:11px; border:none;")
-            card.value_label.setStyleSheet(
-                f"font-size:28px; font-weight:bold; color:{color}; border:none;")
+class _RechercheEntresDatesDialog(QDialog):
+    """Recherche des chirurgies entre deux dates."""
 
-        for frame in [self.frame_table, self.frame_graph]:
-            frame._icon_lbl.setPixmap(
-                qta.icon(frame._icon_name, color=c['primary']).pixmap(QSize(16, 16)))
-            frame._title_lbl.setStyleSheet(
-                f"font-weight:bold; color:{c['text_primary']}; font-size:12px; border:none;")
-            frame._separator.setStyleSheet(
-                f"background:{c['border_light']}; border:none;")
+    def __init__(self, ctrl, code_session, parent=None):
+        super().__init__(parent)
+        self.ctrl = ctrl
+        self.code_session = code_session
+        self.resultats = []
+        self._build()
 
-        self.table.verticalScrollBar().setStyleSheet(ChirurgieStyles.scrollbar())
+    def _build(self):
+        self.setWindowTitle("Recherche avancée — entre deux dates")
+        self.setMinimumWidth(480)
+        self.setModal(True)
+        c = theme_manager.colors()
+        self.setStyleSheet(f"""
+            QDialog {{ background: {c['bg_main']}; }}
+            QLabel {{ color: {c['text_primary']}; font-size: 13px; }}
+            QDateEdit {{
+                background: {c['bg_input']}; border: 1px solid {c['border']};
+                border-radius: 8px; padding: 6px 12px;
+                color: {c['text_primary']}; font-size: 13px; min-height: 32px;
+            }}
+            QDateEdit:focus {{ border-color: {c.get('danger', '#dc2626')}; }}
+            QPushButton#PrimaryBtn {{
+                background: {c.get('danger', '#dc2626')}; color: white; border: none;
+                border-radius: 8px; padding: 8px 24px; font-weight: 700; font-size: 13px;
+            }}
+            QPushButton#PrimaryBtn:hover {{ background: {c.get('danger', '#dc2626')}cc; }}
+            QPushButton#SecondaryBtn {{
+                background: {c['bg_card']}; color: {c['text_primary']};
+                border: 1px solid {c['border']}; border-radius: 8px;
+                padding: 8px 20px; font-size: 13px;
+            }}
+            QPushButton#SecondaryBtn:hover {{ background: {c['hover']}; }}
+        """)
 
-        # Barre action
-        self._action_bar.setStyleSheet(
-            f"background: {c['bg_card']}; border-radius: 8px; border: 1px solid {c['border_light']};")
-        self._lbl_vue.setStyleSheet(
-            f"font-size: 11px; color: {c['text_muted']}; font-weight: 600; border: none;")
+        layout = QVBoxLayout(self)
+        layout.setSpacing(16)
+        layout.setContentsMargins(24, 24, 24, 24)
 
-        self._update_toggle_btn()
+        layout.addWidget(QLabel("<b>Définir la plage de dates :</b>"))
+
+        grid = QHBoxLayout()
+        date_debut_lbl = QLabel("Du :")
+        date_debut_lbl.setFixedWidth(40)
+        self.date_debut = QDateEdit()
+        self.date_debut.setCalendarPopup(True)
+        self.date_debut.setDate(QDate.currentDate().addMonths(-1))
+        self.date_debut.setDisplayFormat("dd/MM/yyyy")
+
+        date_fin_lbl = QLabel("Au :")
+        date_fin_lbl.setFixedWidth(40)
+        self.date_fin = QDateEdit()
+        self.date_fin.setCalendarPopup(True)
+        self.date_fin.setDate(QDate.currentDate())
+        self.date_fin.setDisplayFormat("dd/MM/yyyy")
+
+        grid.addWidget(date_debut_lbl)
+        grid.addWidget(self.date_debut, 1)
+        grid.addSpacing(16)
+        grid.addWidget(date_fin_lbl)
+        grid.addWidget(self.date_fin, 1)
+        layout.addLayout(grid)
+
+        self.lbl_count = QLabel("")
+        self.lbl_count.setStyleSheet(f"color: {c['text_secondary']}; font-size: 12px;")
+        layout.addWidget(self.lbl_count)
+
+        btns = QHBoxLayout()
+        btn_annuler = QPushButton("Annuler")
+        btn_annuler.setObjectName("SecondaryBtn")
+        btn_annuler.clicked.connect(self.reject)
+        btn_rechercher = QPushButton("Rechercher")
+        btn_rechercher.setObjectName("PrimaryBtn")
+        btn_rechercher.clicked.connect(self._rechercher)
+        btns.addStretch()
+        btns.addWidget(btn_annuler)
+        btns.addWidget(btn_rechercher)
+        layout.addLayout(btns)
+
+    def _rechercher(self):
+        d_debut = self.date_debut.date().toPython()
+        d_fin   = self.date_fin.date().toPython()
+        try:
+            self.resultats = self.ctrl.rechercher_entre_dates(
+                self.code_session, d_debut, d_fin
+            ) or []
+        except Exception:
+            self.resultats = []
+        self.lbl_count.setText(f"{len(self.resultats)} résultat(s) trouvé(s)")
+        if self.resultats:
+            self.accept()
+
+
+class _ResumeSessionDialog(QDialog):
+    """Rapport / résumé de la session chirurgie courante."""
+
+    def __init__(self, ctrl, code_session, parent=None):
+        super().__init__(parent)
+        self.ctrl = ctrl
+        self.code_session = code_session
+        self._build()
+
+    def _build(self):
+        self.setWindowTitle("Rapport de session — Chirurgie")
+        self.setMinimumWidth(480)
+        self.setModal(True)
+        c = theme_manager.colors()
+        self.setStyleSheet(f"""
+            QDialog {{ background: {c['bg_main']}; }}
+            QLabel {{ color: {c['text_primary']}; font-size: 13px; }}
+            QPushButton#SecondaryBtn {{
+                background: {c['bg_card']}; color: {c['text_primary']};
+                border: 1px solid {c['border']}; border-radius: 8px;
+                padding: 8px 20px; font-size: 13px;
+            }}
+            QPushButton#SecondaryBtn:hover {{ background: {c['hover']}; }}
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(16)
+        layout.setContentsMargins(24, 24, 24, 24)
+
+        layout.addWidget(QLabel(f"<b>Session :</b> {self.code_session}"))
+
+        try:
+            total    = self.ctrl.obtenir_total_chururgies_session(self.code_session) or 0
+        except Exception:
+            total = 0
+        try:
+            auj      = self.ctrl.obtenir_chururgies_aujourd_hui(self.code_session) or 0
+        except Exception:
+            auj = 0
+        try:
+            attente  = self.ctrl.obtenir_chururgies_en_attente(self.code_session) or 0
+        except Exception:
+            attente = 0
+        try:
+            montant  = self.ctrl.obtenir_montant_total_par_session(self.code_session) or 0
+        except Exception:
+            montant = 0
+        try:
+            m_auj    = self.ctrl.obtenir_montant_total_aujourdhui(self.code_session) or 0
+        except Exception:
+            m_auj = 0
+
+        donnees = [
+            ("Total chirurgies (session)",    total),
+            ("Chirurgies aujourd'hui",         auj),
+            ("Chirurgies en attente",          attente),
+            ("Montant total session (GNF)",    self._fmt_money(montant)),
+            ("Montant aujourd'hui (GNF)",      self._fmt_money(m_auj)),
+        ]
+
+        for libelle, valeur in donnees:
+            row_w = QWidget()
+            row_l = QHBoxLayout(row_w)
+            row_l.setContentsMargins(0, 0, 0, 0)
+            lbl_lib = QLabel(libelle)
+            lbl_lib.setStyleSheet(f"color: {c['text_secondary']}; font-size: 12px;")
+            lbl_val = QLabel(str(valeur))
+            lbl_val.setStyleSheet(
+                f"color: {c['text_primary']}; font-size: 13px; font-weight: 700;"
+            )
+            lbl_val.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            row_l.addWidget(lbl_lib)
+            row_l.addStretch()
+            row_l.addWidget(lbl_val)
+            layout.addWidget(row_w)
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.HLine)
+        sep.setStyleSheet(f"color: {c['border']};")
+        layout.addWidget(sep)
+
+        # Top libellés
+        try:
+            tops = self.ctrl.obtenir_top_libelles(self.code_session, 5) or []
+        except Exception:
+            tops = []
+
+        if tops:
+            layout.addWidget(QLabel("<b>Top 5 chirurgies les plus fréquentes :</b>"))
+            for item in tops:
+                lib = item.get("libelle_chururgie", "-") if isinstance(item, dict) else str(item)
+                nb  = item.get("nb", "") if isinstance(item, dict) else ""
+                row_w = QWidget()
+                row_l = QHBoxLayout(row_w)
+                row_l.setContentsMargins(0, 0, 0, 0)
+                row_l.addWidget(QLabel(f"• {lib}"))
+                row_l.addStretch()
+                if nb:
+                    cnt = QLabel(f"{nb} fois")
+                    cnt.setStyleSheet(
+                        f"color: {c.get('danger', '#dc2626')}; font-weight: 700;"
+                    )
+                    row_l.addWidget(cnt)
+                layout.addWidget(row_w)
+
+        btns = QHBoxLayout()
+        btn_fermer = QPushButton("Fermer")
+        btn_fermer.setObjectName("SecondaryBtn")
+        btn_fermer.clicked.connect(self.accept)
+        btns.addStretch()
+        btns.addWidget(btn_fermer)
+        layout.addLayout(btns)
+
+    @staticmethod
+    def _fmt_money(val):
+        try:
+            return f"{float(val):,.0f}".replace(",", " ")
+        except Exception:
+            return str(val or 0)
 

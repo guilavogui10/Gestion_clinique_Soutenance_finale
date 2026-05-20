@@ -105,6 +105,26 @@ class RendezVousControleur:
     def obtenir_par_visite(self, code_visite: str):
         return self.service.obtenir_par_visite(code_visite)
 
+    def obtenir_par_acte(self, code_acte: str):
+        """Retourne le RDV le plus recent lie a un acte medical."""
+        return self.service.obtenir_par_acte(code_acte)
+
+    def lister_par_acte(self, code_acte: str) -> list:
+        """Retourne tous les RDV lies a un acte medical (historique)."""
+        return self.service.lister_par_acte(code_acte)
+
+    def planifier_rdv_pour_acte(self, rdv) -> tuple:
+        """Cree un RDV lie a un acte medical."""
+        return self.service.planifier_rdv_pour_acte(rdv)
+
+    def traiter_rdv_du_jour(self, code_session: str) -> int:
+        """Place automatiquement en file d'attente les patients dont le RDV est arrivé."""
+        return self.service.dao.traiter_rdv_du_jour(code_session)
+
+    def lister_rdv_en_cours(self, code_session: str) -> list:
+        """Retourne les RDV actifs (attente/confirme/en_cours) enrichis avec type_acte."""
+        return self.service.dao.lister_en_cours(code_session)
+
     def lister_rendez_vous(self, code_session: str) -> list:
         return self.service.lister_rendez_vous(code_session)
 
@@ -294,3 +314,7 @@ class RendezVousControleur:
 
     def lister_personnel(self) -> list:
         return self.service.lister_personnel()
+
+    def lister_actes_en_attente_rdv(self, code_session: str) -> list:
+        """Retourne les actes médicaux avec choix_patient='plus_tard' pour cette session."""
+        return self.service.lister_actes_en_attente_rdv(code_session)

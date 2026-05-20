@@ -48,118 +48,99 @@ class StatCard(AnimatedFrame):
         self._setup_ui(titre, valeur, icone)
     
     def _setup_ui(self, titre: str, valeur: str, icone: str):
-        """Configure l'interface de la card."""
-        # Hauteur adaptée au mode
-        hauteur = 65 if self.compact else 80
-        self.setFixedHeight(hauteur)
-        self.setStyleSheet(StatistiquesStyles.card_stat_compact() if self.compact else StatistiquesStyles.card_stat())
+        """Configure l'interface de la card - Style consultation avec icône encerclée."""
+        self.setFixedHeight(82)
+        self.setStyleSheet(StatistiquesStyles.card_stat())
         
-        layout = QVBoxLayout(self)
-        margins = (10, 6, 10, 6) if self.compact else (12, 8, 12, 8)
-        layout.setContentsMargins(*margins)
-        layout.setSpacing(2 if self.compact else 3)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(10)
         
-        # Header : Icône + Titre
-        header = self._create_header(titre, icone)
-        layout.addLayout(header)
+        # Cercle icône (style consultation)
+        self.icon_circle = QFrame()
+        self.icon_circle.setObjectName("KpiIconCircle")
+        self.icon_circle.setFixedSize(42, 42)
+        icon_layout = QHBoxLayout(self.icon_circle)
+        icon_layout.setContentsMargins(0, 0, 0, 0)
+        icon_layout.setAlignment(Qt.AlignCenter)
         
-        # Barre colorée
-        bar = self._create_color_bar()
-        layout.addWidget(bar)
-        
-        # Valeur
-        self.value_label = self._create_value_label(valeur)
-        layout.addWidget(self.value_label)
-    
-    def _create_header(self, titre: str, icone: str) -> QHBoxLayout:
-        """
-        Crée le header avec icône et titre.
-        
-        Args:
-            titre: Titre de la card
-            icone: Nom de l'icône
-        
-        Returns:
-            QHBoxLayout: Layout du header
-        """
-        header = QHBoxLayout()
-        
-        # Icône (taille augmentée)
-        icon_size = 24 if self.compact else 20
         self._icon_lbl = QLabel()
-        self._icon_lbl.setPixmap(qta.icon(icone, color=self.couleur).pixmap(QSize(icon_size, icon_size)))
-        self._icon_lbl.setStyleSheet(StatistiquesStyles.icone_base())
+        self._icon_lbl.setAlignment(Qt.AlignCenter)
+        self._icon_lbl.setFixedSize(22, 22)
+        self._icon_lbl.setPixmap(qta.icon(icone, color="white").pixmap(QSize(22, 22)))
+        icon_layout.addWidget(self._icon_lbl)
+        
+        # Style du cercle
+        self.icon_circle.setStyleSheet(
+            f"background: {self.couleur}; border: none; border-radius: 21px;"
+        )
+        
+        # Layout texte
+        text_layout = QVBoxLayout()
+        text_layout.setSpacing(2)
         
         # Titre
         self._title_lbl = QLabel(titre)
-        font_size = 10 if self.compact else 11
-        self._title_lbl.setStyleSheet(StatistiquesStyles.label_titre_compact(font_size))
+        self._title_lbl.setObjectName("KpiTitle")
+        self._title_lbl.setStyleSheet(
+            "color: #6c757d; font-size: 11px; font-weight: 500; "
+            "background: transparent; border: none;"
+        )
         
-        header.addWidget(self._icon_lbl)
-        header.addSpacing(6)
-        header.addWidget(self._title_lbl)
-        header.addStretch()
+        # Valeur
+        self.value_label = QLabel(valeur)
+        self.value_label.setObjectName("KpiValue")
+        from PySide6.QtGui import QFont
+        font_value = QFont()
+        font_value.setPointSize(15)
+        font_value.setBold(True)
+        self.value_label.setFont(font_value)
+        self.value_label.setStyleSheet(
+            "color: #2c3e50; background: transparent; border: none;"
+        )
         
-        return header
-    
-    def _create_color_bar(self) -> QFrame:
-        """
-        Crée la barre colorée.
+        # Sous-titre (optionnel)
+        self.subtitle_label = QLabel("")
+        self.subtitle_label.setObjectName("KpiSubtitle")
+        self.subtitle_label.setStyleSheet(
+            "color: #6c757d; font-size: 10px; background: transparent; border: none;"
+        )
         
-        Returns:
-            QFrame: Barre colorée
-        """
-        bar = QFrame()
-        bar.setFixedHeight(3)
-        bar.setStyleSheet(StatistiquesStyles.barre_couleur(self.couleur))
-        self._bar = bar
-        return bar
-    
-    def _create_value_label(self, valeur: str) -> QLabel:
-        """
-        Crée le label de valeur.
+        text_layout.addWidget(self._title_lbl)
+        text_layout.addWidget(self.value_label)
+        text_layout.addWidget(self.subtitle_label)
         
-        Args:
-            valeur: Valeur initiale
-        
-        Returns:
-            QLabel: Label de valeur
-        """
-        value_lbl = QLabel(valeur)
-        font_size = 18 if self.compact else 20
-        value_lbl.setStyleSheet(StatistiquesStyles.label_valeur(self.couleur, font_size))
-        value_lbl.setAlignment(Qt.AlignCenter)
-        return value_lbl
-    
+        layout.addWidget(self.icon_circle)
+        layout.addLayout(text_layout, 1)
+
     # =========================================================================
     # API PUBLIQUE
     # =========================================================================
     
-    def update_value(self, nouvelle_valeur: str):
+    def update_value(self, nouvelle_valeur: str, subtitle: str = ""):
         """
-        Met à jour la valeur affichée.
+        Met à jour la valeur affichée et le sous-titre.
         
         Args:
             nouvelle_valeur: Nouvelle valeur à afficher
+            subtitle: Sous-titre optionnel
         
         Usage:
-            >>> card.update_value("10")
+            >>> card.update_value("10", "produits")
         """
-        self.value_label.setText(nouvelle_valeur)
+        self.value_label.setText(str(nouvelle_valeur))
+        if subtitle:
+            self.subtitle_label.setText(subtitle)
 
     def update_theme_color(self, nouvelle_couleur: str):
-        """Met à jour la couleur d'accent et re-stylise tous les éléments."""
+        """Met à jour la couleur d'accent et re-stylise le cercle icône."""
         self.couleur = nouvelle_couleur
-        self.setStyleSheet(StatistiquesStyles.card_stat_compact() if self.compact else StatistiquesStyles.card_stat())
-        icon_size = 24 if self.compact else 20
+        self.icon_circle.setStyleSheet(
+            f"background: {self.couleur}; border: none; border-radius: 21px;"
+        )
         self._icon_lbl.setPixmap(
-            qta.icon(self._icone_name, color=self.couleur).pixmap(QSize(icon_size, icon_size)))
-        self._icon_lbl.setStyleSheet(StatistiquesStyles.icone_base())
-        font_size = 10 if self.compact else 11
-        self._title_lbl.setStyleSheet(StatistiquesStyles.label_titre_compact(font_size))
-        self._bar.setStyleSheet(StatistiquesStyles.barre_couleur(self.couleur))
-        font_size_val = 18 if self.compact else 20
-        self.value_label.setStyleSheet(StatistiquesStyles.label_valeur(self.couleur, font_size_val))
+            qta.icon(self._icone_name, color="white").pixmap(QSize(22, 22))
+        )
     
     def get_value(self) -> str:
         """

@@ -1,1 +1,1 @@
-from .vue_gestion_panier import GestionProduitsView
+from .vue_gestion_panier_tabs import GestionProduitsView

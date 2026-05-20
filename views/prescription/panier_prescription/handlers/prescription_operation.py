@@ -68,8 +68,8 @@ class PrescriptionOperations:
             if not form_data.get('code_produit'):
                 return False, "Veuillez sélectionner un produit."
 
-            if not form_data.get('code_consultation'):
-                return False, "Aucune consultation active pour ce patient."
+            if not form_data.get('code_acte'):
+                return False, "Aucun acte médical actif pour ce patient."
 
             quantite = int(form_data.get('quantite', 0))
             if quantite <= 0:
@@ -89,8 +89,7 @@ class PrescriptionOperations:
                 quantite_prescript       = quantite,
                 prix_applique            = prix,
                 date_expiration          = None,           # FEFO automatique
-                code_consultation        = form_data['code_consultation'],
-                code_visite              = form_data['code_visite'],
+                code_acte                = form_data['code_acte'],
                 code_session             = form_data['code_session'],
             )
 
@@ -171,27 +170,23 @@ class PrescriptionOperations:
     # VALIDER
     # =========================================================================
 
-    def valider_prescription(self, code_consultation: str,
-                              code_visite: str,
+    def valider_prescription(self, code_acte: str,
                               parent_widget) -> Tuple[bool, str]:
         """
         Valide la prescription en cours avec confirmation.
         Le statut_patient de la visite passe à 'Attente payement' via le DAO.
 
         Args:
-            code_consultation : Code de la consultation en cours
-            code_visite       : Code de la visite en cours
+            code_acte         : Code de l'acte médical en cours
             parent_widget     : Widget parent pour la boîte de dialogue
 
         Returns:
             Tuple[bool, str]: (succès, message)
         """
-        if not code_consultation:
-            return False, "Aucune consultation active."
-        if not code_visite:
-            return False, "Aucune visite active."
+        if not code_acte:
+            return False, "Aucun acte médical actif."
 
-        confirmed = CustomMessageBox.question(
+        confirmed = CustomMessageBox.confirm(
             parent_widget,
             "Confirmation",
             "Confirmer la prescription ?\n"
@@ -203,9 +198,7 @@ class PrescriptionOperations:
 
         # La prescription est déjà enregistrée ligne par ligne.
         # Ici on finalise : passage du statut_patient à 'Attente payement'.
-        ok, msg = self.ctrl.valider_prescription_visite(
-            code_visite, code_consultation
-        )
+        ok, msg = self.ctrl.valider_prescription_visite(code_acte)
         return ok, msg
 
     # =========================================================================

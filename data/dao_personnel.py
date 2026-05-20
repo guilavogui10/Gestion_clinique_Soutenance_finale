@@ -19,6 +19,7 @@ class PersonnelDAO:
             row.get("mail"),
             row.get("fonction"),
             row.get("photo_path"),
+            row.get("est_responsable", 0),
         )
 
     def _rows_to_modeles(self, rows):
@@ -49,8 +50,8 @@ class PersonnelDAO:
         try:
             with conn.cursor() as cursor:
                 sql = """
-                INSERT INTO personnel (code, nom, prenom, adresse, date_naissance, contact, mail, fonction, photo_path)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO personnel (code, nom, prenom, adresse, date_naissance, contact, mail, fonction, photo_path, est_responsable)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 cursor.execute(sql, (
                     personnel.get_code(),
@@ -61,7 +62,8 @@ class PersonnelDAO:
                     personnel.get_contact(),
                     personnel.get_mail(),
                     personnel.get_fonction(),
-                    personnel.get_photo_path()  # <-- Le chemin de la photo peut être None
+                    personnel.get_photo_path(),
+                    personnel.get_est_responsable(),
                 ))
                 conn.commit()
                 return True
@@ -85,7 +87,7 @@ class PersonnelDAO:
                 sql = """
                 UPDATE personnel
                 SET nom=%s, prenom=%s, adresse=%s, date_naissance=%s,
-                    contact=%s, mail=%s, fonction=%s, photo_path=%s
+                    contact=%s, mail=%s, fonction=%s, photo_path=%s, est_responsable=%s
                 WHERE code=%s
                 """
                 cursor.execute(sql, (
@@ -97,6 +99,7 @@ class PersonnelDAO:
                     personnel.get_mail(),
                     personnel.get_fonction(),
                     personnel.get_photo_path(),
+                    personnel.get_est_responsable(),
                     personnel.get_code()
                 ))
                 conn.commit()
@@ -208,6 +211,53 @@ class PersonnelDAO:
         except Exception as e:
             print("Erreur obtenir par code :", e)
             return None
+        finally:
+            if conn:
+                conn.close()
+
+    def get_responsable(self, fonction: str) -> dict | None:
+        """
+        Retourne toutes les informations du responsable d'un service (fonction).
+        Utilisé par Vault pour envoyer le code OTP de déverrouillage par email.
+        """
+        conn = self.db_connection.connect()
+        try:
+            with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+                sql = """
+                SELECT *
+                FROM personnel
+                WHERE LOWER(fonction) = LOWER(%s) AND est_responsable = 1
+                LIMIT 1
+                """
+                cursor.execute(sql, (fonction,))
+                return cursor.fetchone()
+        except Exception as e:
+            print("Erreur get_responsable :", e)
+            return None
+        finally:
+            if conn:
+                conn.close()
+
+    def compter_par_fonction(self) -> dict:
+        """
+        Compte le nombre de personnels par fonction.
+        Retourne un dictionnaire {fonction: nombre}
+        """
+        conn = self.db_connection.connect()
+        try:
+            with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+                sql = """
+                SELECT fonction, COUNT(*) as nombre
+                FROM personnel
+                GROUP BY fonction
+                ORDER BY fonction
+                """
+                cursor.execute(sql)
+                results = cursor.fetchall()
+                return {row['fonction']: row['nombre'] for row in results}
+        except Exception as e:
+            print("Erreur compter_par_fonction :", e)
+            return {}
         finally:
             if conn:
                 conn.close()

@@ -40,6 +40,46 @@ class ChirurgieStyles:
     # ── STYLES SPÉCIFIQUES ───────────────────────────────────────────────
 
     @staticmethod
+    def tab_widget() -> str:
+        """Style pour le widget d'onglets."""
+        c = theme_manager.colors()
+        return f"""
+            QTabWidget::pane {{
+                border: none;
+                background: white;
+                padding: 0px;
+                margin-top: 0px;
+            }}
+            QTabBar {{
+                background: white;
+                border: none;
+            }}
+            QTabBar::tab {{
+                background: white;
+                color: {c['text_secondary']};
+                border: none;
+                border-bottom: 3px solid transparent;
+                padding: 10px 20px;
+                margin-right: 0px;
+                margin-bottom: 0px;
+                font-size: 14px;
+                font-weight: 600;
+                min-width: 120px;
+            }}
+            QTabBar::tab:selected {{
+                background: white;
+                color: {c['primary']};
+                border: none;
+                border-bottom: 3px solid {c['primary']};
+            }}
+            QTabBar::tab:hover {{
+                background: white;
+                color: {c['text_primary']};
+                border: none;
+            }}
+        """
+
+    @staticmethod
     def chirurgie_card() -> str:
         """Carte de détail d'une chirurgie."""
         c = theme_manager.colors()

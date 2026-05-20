@@ -1,23 +1,17 @@
 from datetime import datetime
 
 class Consultation:
-    def __init__(self, code=None, diagnostique=None, resultat_consultation=None,
-                 examen="Non", chirurgie="Non", commandelunette="Non", prescription_produit="Non",
-                 frais_consultation=0.0, statut_facture="attente payement", 
-                 date_consultation=None, code_visite=None, code_session=None, code_personnel=None):
-        self._code = code
-        self._diagnostique = diagnostique
-        self._resultat_consultation = resultat_consultation
-        self._examen = examen
-        self._chirurgie = chirurgie
-        self._commandelunette = commandelunette
-        self._prescription_produit = prescription_produit
-        self._frais_consultation = frais_consultation
-        self._statut_facture = statut_facture
-        self._date_consultation = date_consultation or datetime.now()
-        self._code_visite = code_visite
-        self._code_session = code_session
-        self._code_personnel = code_personnel
+    def __init__(self, code=None, diagnostique=None,
+                 frais_consultation=0.0, statut_facture="attente payement",
+                 date_consultation=None, code_visite=None, code_session=None, code_personne=None):
+        self._code                = code
+        self._diagnostique        = diagnostique
+        self._frais_consultation  = frais_consultation
+        self._statut_facture      = statut_facture
+        self._date_consultation   = date_consultation or datetime.now()
+        self._code_visite         = code_visite
+        self._code_session        = code_session
+        self._code_personne       = code_personne
 
     @property
     def code(self):
@@ -34,46 +28,6 @@ class Consultation:
     @diagnostique.setter
     def diagnostique(self, value):
         self._diagnostique = value
-
-    @property
-    def resultat_consultation(self):
-        return self._resultat_consultation
-
-    @resultat_consultation.setter
-    def resultat_consultation(self, value):
-        self._resultat_consultation = value
-
-    @property
-    def examen(self):
-        return self._examen
-
-    @examen.setter
-    def examen(self, value):
-        self._examen = value
-
-    @property
-    def chirurgie(self):
-        return self._chirurgie
-
-    @chirurgie.setter
-    def chirurgie(self, value):
-        self._chirurgie = value
-
-    @property
-    def commandelunette(self):
-        return self._commandelunette
-
-    @commandelunette.setter
-    def commandelunette(self, value):
-        self._commandelunette = value
-
-    @property
-    def prescription_produit(self):
-        return self._prescription_produit
-
-    @prescription_produit.setter
-    def prescription_produit(self, value):
-        self._prescription_produit = value
 
     @property
     def frais_consultation(self):
@@ -116,9 +70,22 @@ class Consultation:
         self._code_session = value
 
     @property
-    def code_personnel(self):
-        return self._code_personnel
+    def code_personne(self):
+        return self._code_personne
 
-    @code_personnel.setter
-    def code_personnel(self, value):
-        self._code_personnel = value
+    @code_personne.setter
+    def code_personne(self, value):
+        self._code_personne = value
+    
+    def to_dict(self):
+        """Convertit l'objet Consultation en dictionnaire"""
+        return {
+            'code': self._code,
+            'diagnostique': self._diagnostique,
+            'frais_consultation': self._frais_consultation,
+            'statut_facture': self._statut_facture,
+            'date_consultation': self._date_consultation,
+            'code_visite': self._code_visite,
+            'code_session': self._code_session,
+            'code_personnel': self._code_personne
+        }

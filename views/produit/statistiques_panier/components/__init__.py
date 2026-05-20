@@ -6,6 +6,7 @@ from .donut_card import DonutCard
 from .ligne_stock_card import LigneStockCard
 from .stock_detail_card import StockDetailCard
 from .circular_progress import CircularProgress
+from .multi_segment_donut import MultiSegmentDonut
 
 __all__ = [
     'AnimatedFrame',
@@ -13,5 +14,6 @@ __all__ = [
     'DonutCard',
     'LigneStockCard',
     'StockDetailCard',
-    'CircularProgress'
+    'CircularProgress',
+    'MultiSegmentDonut'
 ]

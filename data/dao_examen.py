@@ -31,30 +31,32 @@ class ExamenDAO:
             examen.code = self._generer_code(cursor)
             query = """
                 INSERT INTO examen (
-                    code, libelle_examen, resultat_examen,
-                    frais_examen, statut_facture, date_examen,
-                    code_consultation, code_visite, code_session, code_personnel
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    code, libelle_examen, frais_examen,
+                    statut_facture, date_examen,
+                    code_session, code_personnel, code_acte,
+                    interpreter_par, date_interpretation, conclusion_medicale
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             cursor.execute(query, (
                 examen.code,
                 examen.libelle_examen,
-                examen.resultat_examen,
                 examen.frais_examen,
                 examen.statut_facture,
                 examen.date_examen,
-                examen.code_consultation,
-                examen.code_visite,
                 examen.code_session,
-                examen.code_personnel
+                examen.code_personnel,
+                examen.code_acte,
+                examen.interpreter_par,
+                examen.date_interpretation,
+                examen.conclusion_medicale
             ))
-            
+
             # Mise à jour du statut_patient dans visite vers le service suivant
-            nouveau_statut = self._determiner_prochain_statut_apres_examen(cursor, examen.code_consultation)
-            if nouveau_statut:
+            nouveau_statut, code_visite = self._determiner_statut_et_visite(cursor, examen.code_acte)
+            if nouveau_statut and code_visite:
                 cursor.execute(
                     "UPDATE visite SET statut_patient=%s WHERE code_visite=%s",
-                    (nouveau_statut, examen.code_visite)
+                    (nouveau_statut, code_visite)
                 )
             
             conn.commit()
@@ -74,22 +76,24 @@ class ExamenDAO:
             cursor = conn.cursor()
             query = """
                 UPDATE examen SET
-                    libelle_examen=%s, resultat_examen=%s,
-                    frais_examen=%s, statut_facture=%s, date_examen=%s,
-                    code_consultation=%s, code_visite=%s,
-                    code_session=%s, code_personnel=%s
+                    libelle_examen=%s, frais_examen=%s,
+                    statut_facture=%s, date_examen=%s,
+                    code_session=%s, code_personnel=%s,
+                    code_acte=%s, interpreter_par=%s,
+                    date_interpretation=%s, conclusion_medicale=%s
                 WHERE code=%s
             """
             cursor.execute(query, (
                 examen.libelle_examen,
-                examen.resultat_examen,
                 examen.frais_examen,
                 examen.statut_facture,
                 examen.date_examen,
-                examen.code_consultation,
-                examen.code_visite,
                 examen.code_session,
                 examen.code_personnel,
+                examen.code_acte,
+                examen.interpreter_par,
+                examen.date_interpretation,
+                examen.conclusion_medicale,
                 examen.code
             ))
             conn.commit()
@@ -131,8 +135,10 @@ class ExamenDAO:
             query = """
                 SELECT e.*, p.nom AS patient_nom, p.prenom AS patient_prenom
                 FROM examen e
-                LEFT JOIN visite v ON e.code_visite = v.code_visite
-                LEFT JOIN patients p ON v.code_patient = p.code_patient
+                LEFT JOIN acte_medical am ON e.code_acte = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient = p.code_patient
                 WHERE e.code=%s
             """
             cursor.execute(query, (code,))
@@ -144,31 +150,37 @@ class ExamenDAO:
         finally:
             self.db.close()
 
-    def obtenir_par_consultation(self, code_consultation: str):
-        """Retourne l examen lie a une consultation."""
+    def obtenir_par_acte(self, code_acte: str):
+        """Retourne l examen lie a un acte medical."""
         conn = self.db.connect()
         if not conn:
             return None
         try:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT * FROM examen WHERE code_consultation=%s", (code_consultation,))
+                "SELECT * FROM examen WHERE code_acte=%s", (code_acte,))
             row = cursor.fetchone()
             return self._row_to_object(row) if row else None
         except Exception as e:
-            print(f"[ExamenDAO] Erreur obtenir_par_consultation: {e}")
+            print(f"[ExamenDAO] Erreur obtenir_par_acte: {e}")
             return None
         finally:
             self.db.close()
 
     def obtenir_par_visite(self, code_visite: str):
-        """Compatibilite: retourne l examen lie a une visite."""
+        """Retourne l examen lie a une visite (via acte_medical → consultation)."""
         conn = self.db.connect()
         if not conn:
             return None
         try:
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM examen WHERE code_visite=%s", (code_visite,))
+            query = """
+                SELECT e.* FROM examen e
+                INNER JOIN acte_medical am ON e.code_acte = am.code_acte
+                INNER JOIN consultation c  ON am.code_consultation = c.code
+                WHERE c.code_visite = %s
+            """
+            cursor.execute(query, (code_visite,))
             row = cursor.fetchone()
             return self._row_to_object(row) if row else None
         except Exception as e:
@@ -183,10 +195,17 @@ class ExamenDAO:
         try:
             cursor = conn.cursor()
             query = """
-                SELECT e.*, p.nom AS patient_nom, p.prenom AS patient_prenom
+                SELECT e.*,
+                       p.nom AS patient_nom, p.prenom AS patient_prenom,
+                       p.telephone AS patient_telephone,
+                       per.nom AS personnel_nom, per.prenom AS personnel_prenom,
+                       per.fonction AS personnel_fonction
                 FROM examen e
-                LEFT JOIN visite v ON e.code_visite = v.code_visite
-                LEFT JOIN patients p ON v.code_patient = p.code_patient
+                LEFT JOIN acte_medical am ON e.code_acte = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient = p.code_patient
+                LEFT JOIN personnel per   ON e.code_personnel = per.code
                 WHERE e.code_session=%s 
                 ORDER BY e.date_examen DESC
             """
@@ -209,8 +228,10 @@ class ExamenDAO:
             query = """
                 SELECT e.*, p.nom AS patient_nom, p.prenom AS patient_prenom
                 FROM examen e
-                LEFT JOIN visite v ON e.code_visite = v.code_visite
-                LEFT JOIN patients p ON v.code_patient = p.code_patient
+                LEFT JOIN acte_medical am ON e.code_acte = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient = p.code_patient
                 WHERE e.code_session=%s
                 AND (
                     e.code LIKE %s OR 
@@ -248,9 +269,11 @@ class ExamenDAO:
                     per.prenom      AS personnel_prenom,
                     per.fonction    AS personnel_fonction
                 FROM examen e
-                LEFT JOIN visite v      ON e.code_visite    = v.code_visite
-                LEFT JOIN patients p    ON v.code_patient   = p.code_patient
-                LEFT JOIN personnel per ON e.code_personnel = per.code
+                LEFT JOIN acte_medical am ON e.code_acte = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient = p.code_patient
+                LEFT JOIN personnel per   ON e.code_personnel = per.code
                 WHERE e.code = %s
             """
             cursor.execute(query, (code_examen,))
@@ -276,22 +299,22 @@ class ExamenDAO:
             return {}
         try:
             cursor = conn.cursor()
-            cursor.execute("SELECT code_consultation FROM examen WHERE code=%s", (code_examen,))
+            cursor.execute("SELECT code_acte FROM examen WHERE code=%s", (code_examen,))
             row = cursor.fetchone()
             if not row:
                 return {}
-            code_consultation = row.get('code_consultation') if isinstance(row, dict) else row[0]
-            if not code_consultation:
+            code_acte = row.get('code_acte') if isinstance(row, dict) else row[0]
+            if not code_acte:
                 return {}
 
             services = {}
-            cursor.execute("SELECT * FROM examen WHERE code_consultation=%s", (code_consultation,))
+            cursor.execute("SELECT * FROM examen WHERE code_acte=%s", (code_acte,))
             services['examens'] = cursor.fetchall()
-            cursor.execute("SELECT * FROM chiururgie WHERE code_consultation=%s", (code_consultation,))
+            cursor.execute("SELECT * FROM chiururgie WHERE code_acte=%s", (code_acte,))
             services['chirurgies'] = cursor.fetchall()
-            cursor.execute("SELECT * FROM lunette WHERE code_consultation=%s", (code_consultation,))
+            cursor.execute("SELECT * FROM lunette WHERE code_acte=%s", (code_acte,))
             services['lunettes'] = cursor.fetchall()
-            cursor.execute("SELECT * FROM prescription_produit WHERE code_consultation=%s", (code_consultation,))
+            cursor.execute("SELECT * FROM prescription_produit WHERE code_acte=%s", (code_acte,))
             services['prescriptions'] = cursor.fetchall()
             return services
         except Exception as e:
@@ -360,7 +383,9 @@ class ExamenDAO:
             cursor.execute("""
                 SELECT COUNT(*) AS total
                 FROM visite v
-                LEFT JOIN examen e ON v.code_visite = e.code_visite
+                LEFT JOIN consultation c  ON c.code_visite = v.code_visite
+                LEFT JOIN acte_medical am ON am.code_consultation = c.code
+                LEFT JOIN examen e        ON e.code_acte = am.code_acte
                 WHERE v.code_session = %s
                 AND v.statut_patient = 'Attente examen'
                 AND e.code IS NULL
@@ -783,8 +808,10 @@ class ExamenDAO:
             query = """
                 SELECT e.*, v.code_patient, p.nom AS patient_nom, p.prenom AS patient_prenom
                 FROM examen e
-                INNER JOIN visite v ON e.code_visite = v.code_visite
-                INNER JOIN patients p ON v.code_patient = p.code_patient
+                LEFT JOIN acte_medical am ON e.code_acte = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite = v.code_visite
+                INNER JOIN patients p     ON v.code_patient = p.code_patient
                 WHERE e.code_session=%s AND DATE(e.date_examen) BETWEEN %s AND %s
                 ORDER BY e.date_examen DESC
             """
@@ -823,8 +850,10 @@ class ExamenDAO:
             query = f"""
                 SELECT e.*, v.code_patient, p.nom AS patient_nom, p.prenom AS patient_prenom
                 FROM examen e
-                INNER JOIN visite v ON e.code_visite = v.code_visite
-                INNER JOIN patients p ON v.code_patient = p.code_patient
+                LEFT JOIN acte_medical am ON e.code_acte = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite = v.code_visite
+                INNER JOIN patients p     ON v.code_patient = p.code_patient
                 WHERE {where_clause}
                 ORDER BY e.date_examen DESC
             """
@@ -833,52 +862,6 @@ class ExamenDAO:
             return [self._row_to_object(row) for row in result]
         except Exception as e:
             print(f"[ExamenDAO] Erreur rechercher_par_libelle: {e}")
-            return []
-        finally:
-            self.db.close()
-
-    def rechercher_par_services(self, code_session: str, examen=None, chirurgie=None,
-                               commandelunette=None, prescription=None) -> list:
-        """Compatibilite consultation: filtres via la consultation liee."""
-        if not code_session:
-            return []
-
-        if examen is not None and examen == "Non":
-            return []
-
-        conditions = ["e.code_session=%s"]
-        params = [code_session]
-
-        if chirurgie is not None:
-            conditions.append("c.chiurgie=%s")
-            params.append(chirurgie)
-        if commandelunette is not None:
-            conditions.append("c.commandelunette=%s")
-            params.append(commandelunette)
-        if prescription is not None:
-            conditions.append("c.prescription_produit=%s")
-            params.append(prescription)
-
-        where_clause = " AND ".join(conditions)
-        conn = self.db.connect()
-        if not conn:
-            return []
-        try:
-            cursor = conn.cursor(DictCursor)
-            query = f"""
-                SELECT e.*, v.code_patient, p.nom AS patient_nom, p.prenom AS patient_prenom
-                FROM examen e
-                INNER JOIN consultation c ON e.code_consultation = c.code
-                INNER JOIN visite v ON e.code_visite = v.code_visite
-                INNER JOIN patients p ON v.code_patient = p.code_patient
-                WHERE {where_clause}
-                ORDER BY e.date_examen DESC
-            """
-            cursor.execute(query, tuple(params))
-            result = cursor.fetchall()
-            return [self._row_to_object(row) for row in result]
-        except Exception as e:
-            print(f"[ExamenDAO] Erreur rechercher_par_services: {e}")
             return []
         finally:
             self.db.close()
@@ -942,7 +925,9 @@ class ExamenDAO:
                 query = """
                     SELECT MONTH(e.date_examen) AS num_mois, COUNT(*) AS total
                     FROM examen e
-                    INNER JOIN visite v ON e.code_visite = v.code_visite
+                    LEFT JOIN acte_medical am ON e.code_acte = am.code_acte
+                    LEFT JOIN consultation c  ON am.code_consultation = c.code
+                    LEFT JOIN visite v        ON c.code_visite = v.code_visite
                     WHERE e.code_session=%s AND v.code_patient=%s
                     GROUP BY MONTH(e.date_examen)
                 """
@@ -957,7 +942,9 @@ class ExamenDAO:
                            v.code_patient,
                            COUNT(*) AS total
                     FROM examen e
-                    INNER JOIN visite v ON e.code_visite = v.code_visite
+                    LEFT JOIN acte_medical am ON e.code_acte = am.code_acte
+                    LEFT JOIN consultation c  ON am.code_consultation = c.code
+                    LEFT JOIN visite v        ON c.code_visite = v.code_visite
                     WHERE e.code_session=%s
                     GROUP BY MONTH(e.date_examen), v.code_patient
                 """
@@ -1001,7 +988,9 @@ class ExamenDAO:
                        CASE WHEN EXISTS(
                            SELECT 1
                            FROM examen ex
-                           INNER JOIN visite v2 ON ex.code_visite = v2.code_visite
+                           INNER JOIN acte_medical am2 ON ex.code_acte = am2.code_acte
+                           INNER JOIN consultation c2  ON am2.code_consultation = c2.code
+                           INNER JOIN visite v2        ON c2.code_visite = v2.code_visite
                            WHERE v2.code_patient = p.code_patient AND v2.code_session = %s
                        ) THEN 1 ELSE 0 END AS a_eu_examen
                 FROM patients p
@@ -1035,7 +1024,7 @@ class ExamenDAO:
                     c.code          AS code_consultation,
                     c.date_consultation,
                     c.diagnostique,
-                    c.resultat_consultation,
+                    am.code_acte      AS code_acte,
                     p.code_patient,
                     p.nom,
                     p.prenom,
@@ -1043,9 +1032,11 @@ class ExamenDAO:
                 FROM visite v
                 INNER JOIN patients p    ON v.code_patient = p.code_patient
                 INNER JOIN consultation c ON v.code_visite  = c.code_visite
-                LEFT JOIN  examen e       ON v.code_visite  = e.code_visite
+                INNER JOIN acte_medical am ON am.code_consultation = c.code
+                LEFT JOIN  examen e         ON e.code_acte = am.code_acte
                 WHERE v.code_session = %s
                 AND v.statut_patient = 'Attente examen'
+                AND am.type_acte = 'examen'
                 AND e.code IS NULL
                 ORDER BY v.urgent DESC, v.date_visite ASC
             """
@@ -1064,15 +1055,6 @@ class ExamenDAO:
     def patients_pour_examen(self, code_session: str) -> list:
         return self.patients_en_attente_examen(code_session)
 
-    def patients_pour_chirurgie(self, code_session: str) -> list:
-        return self._patients_par_service(code_session, "c.chiurgie='Oui'")
-
-    def patients_pour_lunette(self, code_session: str) -> list:
-        return self._patients_par_service(code_session, "c.commandelunette='Oui'")
-
-    def patients_pour_prescription(self, code_session: str) -> list:
-        return self._patients_par_service(code_session, "c.prescription_produit='Oui'")
-
     def historique_patient(self, code_patient: str) -> list:
         """Retourne l historique complet des examens d un patient."""
         conn = self.db.connect()
@@ -1083,8 +1065,10 @@ class ExamenDAO:
             query = """
                 SELECT e.*, per.nom AS personnel_nom, per.prenom AS personnel_prenom
                 FROM examen e
-                INNER JOIN visite v      ON e.code_visite    = v.code_visite
-                LEFT JOIN  personnel per ON e.code_personnel = per.code
+                LEFT JOIN acte_medical am ON e.code_acte = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite = v.code_visite
+                LEFT JOIN personnel per   ON e.code_personnel = per.code
                 WHERE v.code_patient = %s
                 ORDER BY e.date_examen DESC
             """
@@ -1119,29 +1103,6 @@ class ExamenDAO:
     # METHODES PRIVEES
     # =========================================================================
 
-    def _patients_par_service(self, code_session: str, condition: str) -> list:
-        conn = self.db.connect()
-        if not conn:
-            return []
-        try:
-            cursor = conn.cursor()
-            query = f"""
-                SELECT e.code, e.date_examen, p.nom, p.prenom, p.telephone
-                FROM examen e
-                INNER JOIN consultation c ON e.code_consultation = c.code
-                INNER JOIN visite v ON e.code_visite = v.code_visite
-                INNER JOIN patients p ON v.code_patient = p.code_patient
-                WHERE e.code_session=%s AND {condition}
-                ORDER BY e.date_examen DESC
-            """
-            cursor.execute(query, (code_session,))
-            return cursor.fetchall()
-        except Exception as e:
-            print(f"[ExamenDAO] Erreur _patients_par_service ({condition}): {e}")
-            return []
-        finally:
-            self.db.close()
-
     def _generer_code(self, cursor) -> str:
         """Genere un code unique (ex: EXM001)."""
         try:
@@ -1159,41 +1120,69 @@ class ExamenDAO:
 
     def _row_to_object(self, row) -> Examen:
         obj = Examen(
-            code              = row['code'],
-            libelle_examen    = row['libelle_examen'],
-            resultat_examen   = row['resultat_examen'],
-            frais_examen      = row['frais_examen'],
-            statut_facture    = row['statut_facture'],
-            date_examen       = row['date_examen'],
-            code_consultation = row['code_consultation'],
-            code_visite       = row['code_visite'],
-            code_session      = row['code_session'],
-            code_personnel    = row['code_personnel']
+            code                 = row['code'],
+            libelle_examen       = row['libelle_examen'],
+            frais_examen         = row['frais_examen'],
+            statut_facture       = row['statut_facture'],
+            date_examen          = row['date_examen'],
+            code_session         = row['code_session'],
+            code_personnel       = row['code_personnel'],
+            code_acte            = row['code_acte'],
+            interpreter_par      = row.get('interpreter_par'),
+            date_interpretation  = row.get('date_interpretation'),
+            conclusion_medicale  = row.get('conclusion_medicale')
         )
-        # On ajoute dynamiquement les infos du patient si elles existent dans la ligne
-        obj.patient_nom = row.get('patient_nom', "")
-        obj.patient_prenom = row.get('patient_prenom', "")
+        # Infos patient ajoutées dynamiquement si présentes dans la ligne
+        obj.patient_nom       = row.get('patient_nom', "")
+        obj.patient_prenom    = row.get('patient_prenom', "")
+        obj.patient_telephone = row.get('patient_telephone', "")
+        obj.personnel_nom     = row.get('personnel_nom', "")
+        obj.personnel_prenom  = row.get('personnel_prenom', "")
+        obj.personnel_fonction= row.get('personnel_fonction', "")
         return obj
     
-    def _determiner_prochain_statut_apres_examen(self, cursor, code_consultation: str) -> str:
-        """Détermine le prochain statut après création d'examen."""
-        # Récupérer les services restants de la consultation
-        cursor.execute(
-            "SELECT chiurgie, commandelunette, prescription_produit FROM consultation WHERE code=%s",
-            (code_consultation,)
-        )
-        row = cursor.fetchone()
-        if not row:
-            return "Attente payement"
+    def _determiner_statut_et_visite(self, cursor, code_acte: str) -> tuple:
+        """Récupère le code_visite d'exécution via acte_visite (role='execution').
+        Retourne toujours 'Examen terminé' : le médecin décide ensuite de la suite
+        (nouvel acte ou paiement) depuis la vue acte_médical.
         
-        # Ordre : chirurgie > lunette > prescription > payement
-        if row['chiurgie'] == "Oui":
-            return "Attente chirurgie"
-        elif row['commandelunette'] == "Oui":
-            return "Attente lunette"
-        elif row['prescription_produit'] == "Oui":
-            return "Attente pharmacie"
-        else:
-            return "Attente payement"
+        IMPORTANT : On met à jour UNIQUEMENT la visite d'exécution (role='execution'),
+        PAS la visite d'origine (role='origine') pour éviter la duplication dans la file d'attente.
+        """
+        try:
+            # Récupérer le code_visite d'exécution depuis acte_visite avec role='execution'
+            cursor.execute(
+                "SELECT code_visite FROM acte_visite WHERE code_acte=%s AND role_visite='execution' LIMIT 1",
+                (code_acte,)
+            )
+            row = cursor.fetchone()
+            if not row:
+                # Si pas de visite d'exécution, récupérer depuis la consultation (cas acte "maintenant")
+                cursor.execute(
+                    "SELECT code_consultation FROM acte_medical WHERE code_acte=%s",
+                    (code_acte,)
+                )
+                row_cons = cursor.fetchone()
+                if not row_cons:
+                    return "Examen terminé", None
+                code_consultation = row_cons.get('code_consultation') if isinstance(row_cons, dict) else row_cons[0]
+                if not code_consultation:
+                    return "Examen terminé", None
+                cursor.execute(
+                    "SELECT code_visite FROM consultation WHERE code=%s",
+                    (code_consultation,)
+                )
+                row_visite = cursor.fetchone()
+                if not row_visite:
+                    return "Examen terminé", None
+                code_visite = row_visite.get('code_visite') if isinstance(row_visite, dict) else row_visite[0]
+                return "Examen terminé", code_visite
+            
+            code_visite = row.get('code_visite') if isinstance(row, dict) else row[0]
+            return "Examen terminé", code_visite
+        except Exception as e:
+            print(f"[ExamenDAO] Erreur _determiner_statut_et_visite: {e}")
+            return "Examen terminé", None
+
 
 

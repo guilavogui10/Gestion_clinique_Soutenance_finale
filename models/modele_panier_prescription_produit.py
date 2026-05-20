@@ -1,16 +1,15 @@
 class PanierPrescriptionProduit:
     def __init__(self, code_prescription=None, designation=None, code_produit=None,
                  quantite_prescript=0, prix_applique=0.0, date_expiration=None,
-                 code_consultation=None, code_visite=None, code_session=None):
+                 code_session=None, code_acte=None):
         self._code_prescription = code_prescription
         self._designation = designation
         self._code_produit = code_produit
         self._quantite_prescript = quantite_prescript
         self._prix_applique = prix_applique
         self._date_expiration = date_expiration
-        self._code_consultation = code_consultation
-        self._code_visite = code_visite
         self._code_session = code_session
+        self._code_acte = code_acte
 
     # ---------------------------------------------------------------------
     # code_prescription
@@ -79,28 +78,6 @@ class PanierPrescriptionProduit:
         self._date_expiration = value
 
     # ---------------------------------------------------------------------
-    # code_consultation
-    # ---------------------------------------------------------------------
-    @property
-    def code_consultation(self):
-        return self._code_consultation
-
-    @code_consultation.setter
-    def code_consultation(self, value):
-        self._code_consultation = value
-
-    # ---------------------------------------------------------------------
-    # code_visite
-    # ---------------------------------------------------------------------
-    @property
-    def code_visite(self):
-        return self._code_visite
-
-    @code_visite.setter
-    def code_visite(self, value):
-        self._code_visite = value
-
-    # ---------------------------------------------------------------------
     # code_session
     # ---------------------------------------------------------------------
     @property
@@ -110,3 +87,14 @@ class PanierPrescriptionProduit:
     @code_session.setter
     def code_session(self, value):
         self._code_session = value
+
+    # ---------------------------------------------------------------------
+    # code_acte
+    # ---------------------------------------------------------------------
+    @property
+    def code_acte(self):
+        return self._code_acte
+
+    @code_acte.setter
+    def code_acte(self, value):
+        self._code_acte = value

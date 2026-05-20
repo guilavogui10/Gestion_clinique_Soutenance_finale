@@ -6,6 +6,7 @@ from datetime import datetime
 from fpdf import FPDF
 import pandas as pd
 
+from core.vault_service import VaultService
 from data.dao_personnel import PersonnelDAO
 from models.modele_personnel import ModelePersonnel
 from parametre.dao_param import CabinetDAO
@@ -15,6 +16,7 @@ class PersonnelService:
     def __init__(self, dao=None, cabinet_dao=None):
         self.dao = dao or PersonnelDAO()
         self.cabinet_dao = cabinet_dao or CabinetDAO()
+        self.vault = VaultService()
         script_dir = os.path.dirname(__file__)
         self.image_folder = os.path.normpath(
             os.path.join(script_dir, "..", "connexion", "image")
@@ -38,6 +40,7 @@ class PersonnelService:
             "mail": personnel.get_mail(),
             "fonction": personnel.get_fonction(),
             "photo_path": personnel.get_photo_path(),
+            "est_responsable": personnel.get_est_responsable(),
         }
 
     def _modeles_vers_dicts(self, personnels):
@@ -54,6 +57,7 @@ class PersonnelService:
             data.get("mail").strip(),
             data.get("fonction").strip(),
             photo_nom,
+            int(data.get("est_responsable", 0)),
         )
 
     def _valider_nom_prenom_fonction(self, valeur):
@@ -163,6 +167,8 @@ class PersonnelService:
         personnel = self._creer_modele(code, data, photo_nom)
         ok = self.dao.enregistrer_personnel(personnel)
         if ok:
+            # Créer automatiquement une clé TOTP Vault pour ce personnel
+            self._creer_cle_vault_personnel(code, data)
             return True, f"Personnel enregistré avec code {code}."
         return False, "Erreur lors de l'enregistrement en base."
 
@@ -189,6 +195,13 @@ class PersonnelService:
         return False, "Erreur mise à jour en base."
 
     def supprimer_par_mail(self, mail):
+        # Récupérer le personnel avant suppression pour obtenir son code
+        personnel = self.obtenir_par_mail(mail)
+        if personnel:
+            code = personnel.get_code()
+            # Supprimer la clé TOTP Vault
+            self._supprimer_cle_vault_personnel(code)
+        
         ok = self.dao.supprimer_par_mail(mail)
         if ok:
             return True, "Personnel supprimé."
@@ -213,6 +226,80 @@ class PersonnelService:
             if (personnel.get_mail() or "").strip().lower() == mail_normalise:
                 return personnel
         return None
+
+    def get_responsable(self, fonction: str) -> dict | None:
+        """
+        Retourne le nom et mail du responsable d'une fonction.
+        Utilisé par Vault pour envoyer le code OTP par email.
+        """
+        return self.dao.get_responsable(fonction)
+    
+    def compter_par_fonction(self) -> dict:
+        """
+        Compte le nombre de personnels par fonction.
+        Retourne un dictionnaire {fonction: nombre}
+        """
+        return self.dao.compter_par_fonction()
+    
+    # =========================================================================
+    # GESTION VAULT - CLÉS TOTP
+    # =========================================================================
+    
+    def _creer_cle_vault_personnel(self, code: str, data: dict) -> bool:
+        """
+        Crée une clé TOTP Vault pour un personnel.
+        
+        Args:
+            code: Code du personnel (ex: P0001)
+            data: Données du personnel (nom, prenom)
+        
+        Returns:
+            True si créé, False sinon
+        """
+        try:
+            if not self.vault.est_connecte():
+                print(f"[Vault] Service non connecté, clé TOTP non créée pour {code}")
+                return False
+            
+            nom_complet = f"{data.get('prenom', '')} {data.get('nom', '')}".strip()
+            account_name = nom_complet or code
+            
+            if self.vault.creer_cle_totp(code, account_name=account_name):
+                print(f"[Vault] Clé TOTP créée pour le personnel {code} ({account_name})")
+                return True
+            else:
+                print(f"[Vault] Échec création clé TOTP pour {code}")
+                return False
+                
+        except Exception as e:
+            print(f"[Vault] Erreur création clé TOTP pour {code}: {e}")
+            return False
+    
+    def _supprimer_cle_vault_personnel(self, code: str) -> bool:
+        """
+        Supprime la clé TOTP Vault d'un personnel.
+        
+        Args:
+            code: Code du personnel (ex: P0001)
+        
+        Returns:
+            True si supprimé, False sinon
+        """
+        try:
+            if not self.vault.est_connecte():
+                print(f"[Vault] Service non connecté, clé TOTP non supprimée pour {code}")
+                return False
+            
+            if self.vault.supprimer_cle_totp(code):
+                print(f"[Vault] Clé TOTP supprimée pour le personnel {code}")
+                return True
+            else:
+                print(f"[Vault] Échec suppression clé TOTP pour {code}")
+                return False
+                
+        except Exception as e:
+            print(f"[Vault] Erreur suppression clé TOTP pour {code}: {e}")
+            return False
 
     def get_personnel_stats(self):
         personnels = self.dao.lister_tout()

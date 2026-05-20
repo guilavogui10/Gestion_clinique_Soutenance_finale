@@ -134,7 +134,8 @@ class Visitedao:
                         statut_visite=row["statut_visite"],
                         statut_patient=row["statut_patient"],
                         urgent=row["urgent"],
-                        date_visite=row["date_visite"]
+                        date_visite=row["date_visite"],
+                        date_debut_consultation=row.get("date_debut_consultation")
                     )
                     liste_visite.append(visite)
                 return liste_visite
@@ -215,7 +216,8 @@ class Visitedao:
                         statut_visite=row["statut_visite"],
                         statut_patient=row["statut_patient"],
                         urgent=row["urgent"],
-                        date_visite=row["date_visite"]
+                        date_visite=row["date_visite"],
+                        date_debut_consultation=row.get("date_debut_consultation")
                     )
                     return visite
                 return None
@@ -335,14 +337,14 @@ class Visitedao:
     
     def get_details_complets_visite(self, code_visite: str):
         """
-        Récupère toutes les activités liées à une visite
+        Récupère toutes les activités liées à une visite via la table acte_medical
         (consultations, examens, chirurgies, prescriptions, lunettes)
         
         Args:
             code_visite (str): Code de la visite
             
         Returns:
-            dict: Dictionnaire avec toutes les activités
+            dict: Dictionnaire avec toutes les activités et leurs actes médicaux
         """
         details = {
             'consultations': [],
@@ -358,39 +360,51 @@ class Visitedao:
             
         try:
             with conn.cursor(DictCursor) as cursor:
-                # 1. Consultations
+                # 1. Consultations (directement liées à la visite)
                 cursor.execute(
                     "SELECT diagnostique, resultat_consultation FROM consultation WHERE code_visite = %s",
                     (code_visite,)
                 )
                 details['consultations'] = cursor.fetchall()
 
-                # 2. Examens
-                cursor.execute(
-                    "SELECT libelle_examen, resultat_examen FROM examen WHERE code_visite = %s",
-                    (code_visite,)
-                )
+                # 2. Examens (via acte_medical)
+                cursor.execute("""
+                    SELECT e.libelle_examen, e.resultat_examen, e.conclusion_medicale,
+                           a.decision_medicale, a.choix_patient, a.statu_acte
+                    FROM examen e
+                    INNER JOIN acte_medical a ON e.code_acte = a.code_acte
+                    WHERE a.code_visite_origine = %s OR a.code_visite_execution = %s
+                """, (code_visite, code_visite))
                 details['examens'] = cursor.fetchall()
 
-                # 3. Chirurgies
-                cursor.execute(
-                    "SELECT libelle_chururgie FROM chururgie WHERE code_visite = %s",
-                    (code_visite,)
-                )
+                # 3. Chirurgies (via acte_medical)
+                cursor.execute("""
+                    SELECT c.libelle_chururgie, c.date_chururgie,
+                           a.decision_medicale, a.choix_patient, a.statu_acte
+                    FROM chururgie c
+                    INNER JOIN acte_medical a ON c.code_acte = a.code_acte
+                    WHERE a.code_visite_origine = %s OR a.code_visite_execution = %s
+                """, (code_visite, code_visite))
                 details['chirurgies'] = cursor.fetchall()
 
-                # 4. Prescriptions
-                cursor.execute(
-                    "SELECT designation, quantite_prescript FROM prescription_produit WHERE code_visite = %s",
-                    (code_visite,)
-                )
+                # 4. Prescriptions (via acte_medical)
+                cursor.execute("""
+                    SELECT p.designation, p.quantite_prescript, p.prix_applique,
+                           a.decision_medicale, a.choix_patient, a.statu_acte
+                    FROM prescription_produit p
+                    INNER JOIN acte_medical a ON p.code_acte = a.code_acte
+                    WHERE a.code_visite_origine = %s OR a.code_visite_execution = %s
+                """, (code_visite, code_visite))
                 details['prescriptions'] = cursor.fetchall()
 
-                # 5. Commandes de lunettes
-                cursor.execute(
-                    "SELECT numero_cadre, numero_verre FROM commandeslunettes WHERE code_visite = %s",
-                    (code_visite,)
-                )
+                # 5. Commandes de lunettes (via acte_medical)
+                cursor.execute("""
+                    SELECT l.numero_cadre, l.numero_verre, l.prix, l.statut,
+                           a.decision_medicale, a.choix_patient, a.statu_acte
+                    FROM commandeslunettes l
+                    INNER JOIN acte_medical a ON l.code_acte = a.code_acte
+                    WHERE a.code_visite_origine = %s OR a.code_visite_execution = %s
+                """, (code_visite, code_visite))
                 details['lunettes'] = cursor.fetchall()
 
             return details
@@ -432,7 +446,8 @@ class Visitedao:
                         statut_visite=row["statut_visite"],
                         statut_patient=row["statut_patient"],
                         urgent=row["urgent"],
-                        date_visite=row["date_visite"]
+                        date_visite=row["date_visite"],
+                        date_debut_consultation=row.get("date_debut_consultation")
                     )
                     visites_objets.append(visite)
                 
@@ -523,7 +538,8 @@ class Visitedao:
                         statut_visite=row["statut_visite"],
                         statut_patient=row["statut_patient"],
                         urgent=row["urgent"],
-                        date_visite=row["date_visite"]
+                        date_visite=row["date_visite"],
+                        date_debut_consultation=row.get("date_debut_consultation")
                     )
                     
                     # Ajout dynamique des attributs patient
@@ -584,7 +600,8 @@ class Visitedao:
                         statut_visite=row["statut_visite"],
                         statut_patient=row["statut_patient"],
                         urgent=row["urgent"],
-                        date_visite=row["date_visite"]
+                        date_visite=row["date_visite"],
+                        date_debut_consultation=row.get("date_debut_consultation")
                     )
                     visite.nom_patient = row["nom"]
                     visite.prenom_patient = row["prenom"]
@@ -749,6 +766,59 @@ class Visitedao:
         finally:
             conn.close()
     
+    def get_visites_actives_avec_duree(self, code_session: str) -> list:
+        """
+        Retourne toutes les visites actives (non terminées) de la session
+        avec le nom du patient, le statut courant et deux durées :
+          - duree_totale_minutes : depuis la création de la visite
+          - duree_service_minutes : depuis l'entrée dans le service courant
+                                     (date_entre du dernier acte_visite actif)
+
+        Returns:
+            list[dict]: [{code_visite, nom, prenom, type_visite,
+                          statut_patient, urgent,
+                          duree_totale_minutes, duree_service_minutes}]
+        """
+        conn = self.db_manager.connect()
+        if not conn:
+            return []
+        try:
+            with conn.cursor(DictCursor) as cursor:
+                sql = """
+                    SELECT
+                        v.code_visite,
+                        v.type_visite,
+                        v.statut_patient,
+                        v.urgent,
+                        p.nom,
+                        p.prenom,
+                        ABS(TIMESTAMPDIFF(MINUTE, v.date_visite, NOW())) AS duree_totale_minutes,
+                        ABS(TIMESTAMPDIFF(MINUTE, av_last.derniere_entree, NOW())) AS duree_service_minutes
+                    FROM visite v
+                    INNER JOIN patients p ON v.code_patient = p.code_patient
+                    LEFT JOIN (
+                        SELECT code_visite, MAX(date_entre) AS derniere_entree
+                        FROM acte_visite
+                        WHERE date_sortie IS NULL
+                          AND date_entre IS NOT NULL
+                        GROUP BY code_visite
+                    ) av_last ON av_last.code_visite = v.code_visite
+                    WHERE v.code_session = %s
+                      AND LOWER(COALESCE(v.statut_visite, '')) != 'terminée'
+                      AND v.statut_patient NOT IN (
+                            'Libéré', 'Liberé', 'libéré',
+                            'Examen terminé', 'Examen termine'
+                      )
+                    ORDER BY v.urgent DESC, v.date_visite ASC
+                """
+                cursor.execute(sql, (code_session,))
+                return cursor.fetchall()
+        except pymysql.MySQLError as e:
+            print(f"Erreur get_visites_actives_avec_duree: {e}")
+            return []
+        finally:
+            conn.close()
+
     def get_analyse_flux_hebdomadaire(self):
         """
         Analyse le flux de visites par jour de la semaine
@@ -895,5 +965,216 @@ class Visitedao:
         except pymysql.MySQLError as e:
             print(f"Erreur get_statistiques_performance_session: {e}")
             return default
+        finally:
+            conn.close()
+
+    def get_nombre_visites_aujourdhui(self, code_session: str) -> int:
+        """
+        Récupère le nombre de visites créées aujourd'hui pour une session.
+        
+        Args:
+            code_session (str): Code de la session
+            
+        Returns:
+            int: Nombre de visites créées aujourd'hui
+        """
+        conn = self.db_manager.connect()
+        if not conn:
+            return 0
+        
+        try:
+            with conn.cursor(DictCursor) as cursor:
+                sql = """
+                    SELECT COUNT(*) AS total
+                    FROM visite
+                    WHERE code_session = %s
+                    AND DATE(date_visite) = CURDATE()
+                """
+                cursor.execute(sql, (code_session,))
+                result = cursor.fetchone()
+                return int(result['total'] or 0)
+        except pymysql.MySQLError as e:
+            print(f"Erreur get_nombre_visites_aujourdhui: {e}")
+            return 0
+        finally:
+            conn.close()
+    
+    def get_nombre_visites_terminees(self, code_session: str) -> int:
+        """
+        Récupère le nombre total de visites terminées pour une session.
+        
+        Args:
+            code_session (str): Code de la session
+            
+        Returns:
+            int: Nombre de visites terminées
+        """
+        conn = self.db_manager.connect()
+        if not conn:
+            return 0
+        
+        try:
+            with conn.cursor(DictCursor) as cursor:
+                sql = """
+                    SELECT COUNT(*) AS total
+                    FROM visite
+                    WHERE code_session = %s
+                    AND statut_visite = 'terminée'
+                """
+                cursor.execute(sql, (code_session,))
+                result = cursor.fetchone()
+                return int(result['total'] or 0)
+        except pymysql.MySQLError as e:
+            print(f"Erreur get_nombre_visites_terminees: {e}")
+            return 0
+        finally:
+            conn.close()
+    
+    def get_nombre_urgences(self, code_session: str) -> int:
+        """
+        Récupère le nombre de visites marquées comme urgentes pour une session.
+        
+        Args:
+            code_session (str): Code de la session
+            
+        Returns:
+            int: Nombre d'urgences
+        """
+        conn = self.db_manager.connect()
+        if not conn:
+            return 0
+        
+        try:
+            with conn.cursor(DictCursor) as cursor:
+                sql = """
+                    SELECT COUNT(*) AS total
+                    FROM visite
+                    WHERE code_session = %s
+                    AND urgent = 'Oui'
+                """
+                cursor.execute(sql, (code_session,))
+                result = cursor.fetchone()
+                return int(result['total'] or 0)
+        except pymysql.MySQLError as e:
+            print(f"Erreur get_nombre_urgences: {e}")
+            return 0
+        finally:
+            conn.close()
+    
+    # ==================== GESTION CONSULTATION ====================
+    
+    def demarrer_consultation(self, code_visite: str) -> tuple:
+        """
+        Démarre la consultation pour une visite.
+        - Renseigne date_debut_consultation
+        - Change statut_patient à "En consultation"
+        
+        Args:
+            code_visite (str): Code de la visite
+            
+        Returns:
+            tuple: (bool, str) - (succès, message)
+        """
+        conn = self.db_manager.connect()
+        if not conn:
+            return False, "Erreur de connexion"
+        
+        try:
+            with conn.cursor(DictCursor) as cursor:
+                # Vérifier que la visite existe et est en attente consultation
+                cursor.execute(
+                    "SELECT statut_patient FROM visite WHERE code_visite = %s",
+                    (code_visite,)
+                )
+                row = cursor.fetchone()
+                if not row:
+                    return False, "Visite introuvable"
+                
+                if row['statut_patient'] != "Attente consultation":
+                    return False, f"La visite doit être en 'Attente consultation' (statut actuel: {row['statut_patient']})"
+                
+                # Mettre à jour
+                sql = """
+                    UPDATE visite 
+                    SET date_debut_consultation = %s,
+                        statut_patient = 'En consultation'
+                    WHERE code_visite = %s
+                """
+                from datetime import datetime
+                cursor.execute(sql, (datetime.now(), code_visite))
+                conn.commit()
+                return True, "Consultation démarrée avec succès"
+        except pymysql.MySQLError as e:
+            conn.rollback()
+            return False, f"Erreur lors du démarrage: {e}"
+        finally:
+            conn.close()
+    
+    def get_durees_consultation(self, code_visite: str) -> dict:
+        """
+        Calcule les durées pour la consultation.
+        - Durée attente = date_debut_consultation - date_visite
+        - Durée consultation = date_creation_consultation - date_debut_consultation
+        
+        Args:
+            code_visite (str): Code de la visite
+            
+        Returns:
+            dict: {duree_attente_min, duree_consultation_min}
+        """
+        conn = self.db_manager.connect()
+        if not conn:
+            return {'duree_attente_min': None, 'duree_consultation_min': None}
+        
+        try:
+            with conn.cursor(DictCursor) as cursor:
+                sql = """
+                    SELECT 
+                        v.date_visite,
+                        v.date_debut_consultation,
+                        c.date_creation as date_creation_consultation
+                    FROM visite v
+                    LEFT JOIN consultation c ON c.code_visite = v.code_visite
+                    WHERE v.code_visite = %s
+                """
+                cursor.execute(sql, (code_visite,))
+                row = cursor.fetchone()
+                
+                if not row:
+                    return {'duree_attente_min': None, 'duree_consultation_min': None}
+                
+                from datetime import datetime
+                date_visite = row['date_visite']
+                date_debut = row['date_debut_consultation']
+                date_fin = row['date_creation_consultation']
+                
+                duree_attente = None
+                duree_consultation = None
+                
+                # Durée d'attente
+                if date_debut and date_visite:
+                    delta = date_debut - date_visite
+                    duree_attente = int(delta.total_seconds() / 60)
+                elif date_visite:
+                    # En cours d'attente
+                    delta = datetime.now() - date_visite
+                    duree_attente = int(delta.total_seconds() / 60)
+                
+                # Durée de consultation
+                if date_fin and date_debut:
+                    delta = date_fin - date_debut
+                    duree_consultation = int(delta.total_seconds() / 60)
+                elif date_debut:
+                    # En cours de consultation
+                    delta = datetime.now() - date_debut
+                    duree_consultation = int(delta.total_seconds() / 60)
+                
+                return {
+                    'duree_attente_min': duree_attente,
+                    'duree_consultation_min': duree_consultation
+                }
+        except Exception as e:
+            print(f"Erreur get_durees_consultation: {e}")
+            return {'duree_attente_min': None, 'duree_consultation_min': None}
         finally:
             conn.close()

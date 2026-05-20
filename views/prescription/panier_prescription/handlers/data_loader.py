@@ -131,24 +131,24 @@ class PrescriptionDataLoader:
     # =========================================================================
 
     def charger_panier_existant(self, prescription_ctrl,
-                                code_consultation: str,
+                                code_acte: str,
                                 ajouter_ligne_visuelle_callback: Callable) -> None:
         """
         Recharge visuellement les lignes de prescription déjà enregistrées
-        pour une consultation donnée.
+        pour un acte médical donné.
 
         Utilisé quand on reprend une prescription en cours.
 
         Args:
             prescription_ctrl             : PrescriptionControleur
-            code_consultation             : Code de la consultation en cours
+            code_acte                     : Code de l'acte médical en cours
             ajouter_ligne_visuelle_callback: Callable(dict) → ajoute la ligne dans le layout
         """
-        if not prescription_ctrl or not code_consultation:
+        if not prescription_ctrl or not code_acte:
             return
 
         try:
-            lignes = prescription_ctrl.lister_par_consultation(code_consultation)
+            lignes = prescription_ctrl.lister_par_acte(code_acte)
             print(f"[PrescriptionDataLoader] {len(lignes)} lignes existantes rechargées")
 
             for ligne in lignes:

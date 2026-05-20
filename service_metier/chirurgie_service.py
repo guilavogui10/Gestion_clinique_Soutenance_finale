@@ -90,9 +90,11 @@ class ChirurgieService:
             return False, "Les frais doivent etre un nombre valide"
 
     def valider_codes_obligatoires(self, chururgie: Chirurgie) -> tuple:
-        """Valide que les codes visite, session et personnel sont renseignés."""
-        if not chururgie.code_visite or not chururgie.code_session or not chururgie.code_personnel:
-            return False, "Tous les codes (visite, session, personnel) sont obligatoires"
+        """Valide que les codes session, personnel et acte sont renseignés."""
+        if not chururgie.code_session or not chururgie.code_personnel:
+            return False, "Tous les codes (session, personnel) sont obligatoires"
+        if not chururgie.code_acte:
+            return False, "Le code acte medical est obligatoire"
         return True, ""
 
     def valider_chururgie(self, chururgie: Chirurgie) -> tuple:
@@ -121,47 +123,15 @@ class ChirurgieService:
     def _nettoyer_chururgie(self, chururgie: Chirurgie) -> None:
         """Nettoie les champs texte (supprime les espaces superflus)."""
         chururgie.libelle_chururgie = chururgie.libelle_chururgie.strip()
-
-    def _determiner_prochain_statut(self, chururgie: Chirurgie) -> str:
-        """
-        Après une chirurgie terminée, le prochain statut dépend
-        des services prescrits dans la CONSULTATION liée.
-
-        Règle :
-        prescription = Oui → Attente Pharmacie
-        prescription = Non → Attente payement
-        """
-        try:
-            consultation = self.dao_visite.reeVisite_ByCode_visite(chururgie.code_visite)
-            if not consultation:
-                return "Attente payement"
-
-            from data.dao_consultation import ConsultationDAO
-            dao_cls = ConsultationDAO()
-            consult = dao_cls.obtenir_par_visite(chururgie.code_visite)
-
-            if not consult:
-                return "Attente payement"
-
-            if consult.prescription_produit == "Oui":
-                return "Attente Pharmacie"
-            else:
-                return "Attente payement"
-
-        except Exception as e:
-            self.logger.warning(f"_determiner_prochain_statut chirurgie: {e}")
-            return "Attente payement"
+        if chururgie.compte_rendu_operatoire:
+            chururgie.compte_rendu_operatoire = chururgie.compte_rendu_operatoire.strip()
 
     # =========================================================================
     # METHODES CRUD
     # =========================================================================
 
     def creer_chururgie(self, chururgie: Chirurgie) -> tuple:
-        """
-        Valide et crée une nouvelle chirurgie.
-        Après création, met à jour automatiquement le statut de la visite
-        selon le workflow patient.
-        """
+        """Valide et crée une nouvelle chirurgie."""
         valide, msg = self.valider_chururgie(chururgie)
         if not valide:
             return False, msg
@@ -170,32 +140,19 @@ class ChirurgieService:
         if not valide:
             return False, msg
 
-        # Vérifie qu'une chirurgie n'existe pas déjà pour cette consultation
-        if self.dao.obtenir_par_consultation(chururgie.code_consultation):
-            return False, "Une chirurgie existe deja pour cette consultation"
+        if self.dao.obtenir_par_acte(chururgie.code_acte):
+            return False, "Une chirurgie existe deja pour cet acte medical"
 
         self._nettoyer_chururgie(chururgie)
 
         if self.dao.ajouter(chururgie):
-            # Mise à jour du statut de la visite après création réussie
-            prochain_statut = self._determiner_prochain_statut(chururgie)
-            self.dao_visite.update_progression_visite(
-                chururgie.code_visite,
-                prochain_statut
-            )
-            self.logger.info(
-                f"Chirurgie {chururgie.code} cree — "
-                f"Visite {chururgie.code_visite} -> {prochain_statut}"
-            )
-            return True, f"Chirurgie cree — Patient : {prochain_statut}"
+            self.logger.info(f"Chirurgie {chururgie.code} cree pour acte {chururgie.code_acte}")
+            return True, "Chirurgie cree avec succes"
 
         return False, "Erreur lors de la creation de la chirurgie"
 
     def modifier_chururgie(self, chururgie: Chirurgie) -> tuple:
-        """
-        Valide et met à jour une chirurgie existante.
-        Met également à jour le statut de la visite.
-        """
+        """Valide et met à jour une chirurgie existante."""
         valide, msg = self.valider_chururgie(chururgie)
         if not valide:
             return False, msg
@@ -203,16 +160,7 @@ class ChirurgieService:
         self._nettoyer_chururgie(chururgie)
 
         if self.dao.modifier(chururgie):
-            # Mise à jour du statut de la visite après modification réussie
-            prochain_statut = self._determiner_prochain_statut(chururgie)
-            self.dao_visite.update_progression_visite(
-                chururgie.code_visite,
-                prochain_statut
-            )
-            self.logger.info(
-                f"Chirurgie {chururgie.code} modifie — "
-                f"Visite {chururgie.code_visite} -> {prochain_statut}"
-            )
+            self.logger.info(f"Chirurgie {chururgie.code} modifie")
             return True, "Chirurgie modifie avec succes"
 
         return False, "Erreur lors de la modification de la chirurgie"
@@ -233,9 +181,9 @@ class ChirurgieService:
         """Retourne une chirurgie par son code."""
         return self.dao.obtenir_par_code(code)
 
-    def obtenir_par_consultation(self, code_consultation: str):
-        """Retourne la chirurgie liée à une consultation."""
-        return self.dao.obtenir_par_consultation(code_consultation)
+    def obtenir_par_acte(self, code_acte: str):
+        """Retourne la chirurgie liée à un acte medical."""
+        return self.dao.obtenir_par_acte(code_acte)
 
     def lister_chururgies(self, code_session: str) -> list:
         """Retourne toutes les chirurgies d'une session."""
@@ -412,3 +360,11 @@ class ChirurgieService:
     def lister_personnel(self) -> list:
         """Retourne la liste du personnel pour le formulaire."""
         return self.dao.lister_personnel()
+
+    def rechercher_par_libelle(self, code_session: str, libelle: str) -> list:
+        """Recherche des chirurgies par libellé (LIKE) dans une session."""
+        return self.dao.rechercher_par_libelle(code_session, libelle)
+
+    def codes_patients_session(self, code_session: str) -> list:
+        """Liste les patients avec indicateur de chirurgie dans la session."""
+        return self.dao.codes_patients_session(code_session)

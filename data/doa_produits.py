@@ -50,7 +50,7 @@ class ProduitDAO:
             conn.commit()
             return True
         except Exception as e:
-            print(f"[ProduitDAO] Erreur ajouter: {e}")
+            self.logger.error(f"[ProduitDAO] Erreur ajouter: {e}", exc_info=True)
             conn.rollback()
             return False
         finally:
@@ -78,7 +78,7 @@ class ProduitDAO:
             conn.commit()
             return True
         except Exception as e:
-            print(f"[ProduitDAO] Erreur modifier: {e}")
+            self.logger.error(f"[ProduitDAO] Erreur modifier: {e}", exc_info=True)
             conn.rollback()
             return False
         finally:
@@ -94,7 +94,7 @@ class ProduitDAO:
             conn.commit()
             return True
         except Exception as e:
-            print(f"[ProduitDAO] Erreur supprimer: {e}")
+            self.logger.error(f"[ProduitDAO] Erreur supprimer: {e}", exc_info=True)
             conn.rollback()
             return False
         finally:
@@ -117,7 +117,7 @@ class ProduitDAO:
             row = cursor.fetchone()
             return self._row_to_object(row) if row else None
         except Exception as e:
-            print(f"[ProduitDAO] Erreur obtenir_par_code: {e}")
+            self.logger.error(f"[ProduitDAO] Erreur obtenir_par_code: {e}", exc_info=True)
             return None
         finally:
             self.db.close()
@@ -133,7 +133,7 @@ class ProduitDAO:
             rows = cursor.fetchall()
             return [self._row_to_object(row) for row in rows]
         except Exception as e:
-            print(f"[ProduitDAO] Erreur lister_tous: {e}")
+            self.logger.error(f"[ProduitDAO] Erreur lister_tous: {e}", exc_info=True)
             return []
         finally:
             self.db.close()
@@ -152,7 +152,7 @@ class ProduitDAO:
             rows = cursor.fetchall()
             return [self._row_to_object(row) for row in rows]
         except Exception as e:
-            print(f"[ProduitDAO] Erreur lister_par_type: {e}")
+            self.logger.error(f"[ProduitDAO] Erreur lister_par_type: {e}", exc_info=True)
             return []
         finally:
             self.db.close()

@@ -37,9 +37,6 @@ class CommandeLunetteService:
         self.dao = dao or CommandeLunetteDAO()
         self.cabinetdao = cabinet_dao or CabinetDAO()
         self.logger = logging.getLogger(__name__)
-        # Import différé du DAO visite pour éviter les imports circulaires
-        from data.dao_visite import Visitedao
-        self.dao_visite = Visitedao()
 
     # =========================================================================
     # METHODES DE VALIDATION (LOGIQUE METIER)
@@ -90,9 +87,9 @@ class CommandeLunetteService:
             return False, "Le prix doit etre un nombre valide"
 
     def valider_codes_obligatoires(self, commande: CommandeLunette) -> tuple:
-        """Valide que les codes visite, session et personnel sont renseignés."""
-        if not commande.code_visite or not commande.code_session or not commande.code_personnel:
-            return False, "Tous les codes (visite, session, personnel) sont obligatoires"
+        """Valide que les codes acte, session et personnel sont renseignés."""
+        if not commande.code_acte or not commande.code_session or not commande.code_personnel:
+            return False, "Tous les codes (acte, session, personnel) sont obligatoires"
         return True, ""
 
     def valider_commande(self, commande: CommandeLunette) -> tuple:
@@ -119,7 +116,7 @@ class CommandeLunetteService:
         return True, ""
 
     # =========================================================================
-    # METHODES UTILITAIRES (NETTOYAGE & WORKFLOW)
+    # METHODES UTILITAIRES (NETTOYAGE)
     # =========================================================================
 
     def _nettoyer_commande(self, commande: CommandeLunette) -> None:
@@ -127,35 +124,6 @@ class CommandeLunetteService:
         commande.numero_cadre  = commande.numero_cadre.strip()
         commande.numero_verre  = commande.numero_verre.strip()
         commande.date_commande = datetime.now()
-
-    def _determiner_prochain_statut(self, commande: CommandeLunette) -> str:
-        """
-        Après une commande de lunette enregistrée, le prochain statut dépend
-        des services prescrits dans la CONSULTATION liée.
-
-        Règle :
-        chirurgie       = Oui → Attente chirurgie
-        prescription    = Oui → Attente Pharmacie
-        sinon               → Attente payement
-        """
-        try:
-            from data.dao_consultation import ConsultationDAO
-            dao_cls = ConsultationDAO()
-            consult = dao_cls.obtenir_par_visite(commande.code_visite)
-
-            if not consult:
-                return "Attente payement"
-
-            if consult.chiurgie == "Oui":
-                return "Attente chirurgie"
-            elif consult.prescription_produit == "Oui":
-                return "Attente Pharmacie"
-            else:
-                return "Attente payement"
-
-        except Exception as e:
-            self.logger.warning(f"_determiner_prochain_statut lunette: {e}")
-            return "Attente payement"
 
     # =========================================================================
     # METHODES CRUD
@@ -165,8 +133,7 @@ class CommandeLunetteService:
         """
         Valide et crée une nouvelle commande de lunettes.
         La date_commande est fixée automatiquement à l'instant présent.
-        Après création, met à jour automatiquement le statut de la visite
-        selon le workflow patient.
+        Après création, met à jour automatiquement le statut de la visite (dans le DAO).
         """
         valide, msg = self.valider_commande(commande)
         if not valide:
@@ -176,31 +143,23 @@ class CommandeLunetteService:
         if not valide:
             return False, msg
 
-        # Vérifie qu'une commande n'existe pas déjà pour cette consultation
-        if self.dao.obtenir_par_consultation(commande.code_consultation):
-            return False, "Une commande de lunettes existe deja pour cette consultation"
+        # Vérifie qu'une commande n'existe pas déjà pour cet acte
+        if self.dao.obtenir_par_acte(commande.code_acte):
+            return False, "Une commande de lunettes existe deja pour cet acte"
 
         self._nettoyer_commande(commande)
 
         if self.dao.ajouter(commande):
-            # Mise à jour du statut de la visite après création réussie
-            prochain_statut = self._determiner_prochain_statut(commande)
-            self.dao_visite.update_progression_visite(
-                commande.code_visite,
-                prochain_statut
-            )
             self.logger.info(
-                f"Commande lunette {commande.code} cree — "
-                f"Visite {commande.code_visite} -> {prochain_statut}"
+                f"Commande lunette {commande.code} cree — acte {commande.code_acte}"
             )
-            return True, f"Commande lunette cree — Patient : {prochain_statut}"
+            return True, "Commande lunette cree avec succes"
 
         return False, "Erreur lors de la creation de la commande de lunettes"
 
     def modifier_commande(self, commande: CommandeLunette) -> tuple:
         """
         Valide et met à jour une commande de lunettes existante.
-        Met également à jour le statut de la visite.
         """
         valide, msg = self.valider_commande(commande)
         if not valide:
@@ -209,15 +168,8 @@ class CommandeLunetteService:
         self._nettoyer_commande(commande)
 
         if self.dao.modifier(commande):
-            # Mise à jour du statut de la visite après modification réussie
-            prochain_statut = self._determiner_prochain_statut(commande)
-            self.dao_visite.update_progression_visite(
-                commande.code_visite,
-                prochain_statut
-            )
             self.logger.info(
-                f"Commande lunette {commande.code} modifie — "
-                f"Visite {commande.code_visite} -> {prochain_statut}"
+                f"Commande lunette {commande.code} modifie — acte {commande.code_acte}"
             )
             return True, "Commande de lunettes modifie avec succes"
 
@@ -239,9 +191,9 @@ class CommandeLunetteService:
         """Retourne une commande par son code."""
         return self.dao.obtenir_par_code(code)
 
-    def obtenir_par_consultation(self, code_consultation: str):
-        """Retourne la commande de lunettes liée à une consultation."""
-        return self.dao.obtenir_par_consultation(code_consultation)
+    def obtenir_par_acte(self, code_acte: str):
+        """Retourne la commande de lunettes liée à un acte médical."""
+        return self.dao.obtenir_par_acte(code_acte)
 
     def lister_commandes(self, code_session: str) -> list:
         """Retourne toutes les commandes de lunettes d'une session."""

@@ -179,38 +179,20 @@ class PanierFactureFourniControleur:
         return self.service.obtenir_stock_detaille(code_session, limite)
 
     # =========================================================================
-    # METHODES DE VALIDATION
+    # METHODES DE VALIDATION (délégation au service)
     # =========================================================================
 
     def valider_quantite(self, quantite) -> Tuple[bool, str]:
         """Valide que la quantite est un entier strictement positif."""
-        try:
-            qte = int(quantite)
-            if qte <= 0:
-                return False, "La quantite doit etre superieure a 0"
-            return True, ""
-        except Exception:
-            return False, "La quantite doit etre un nombre entier valide"
+        return self.service.valider_quantite(quantite)
 
     def valider_prix(self, prix, champ_nom: str = "prix") -> Tuple[bool, str]:
         """Valide que le prix est un nombre strictement positif."""
-        try:
-            prix_float = float(prix)
-            if prix_float <= 0:
-                return False, f"Le {champ_nom} doit etre superieur a 0"
-            return True, ""
-        except Exception:
-            return False, f"Le {champ_nom} doit etre un nombre valide"
+        return self.service.valider_prix(prix, champ_nom)
 
-    def valider_date_expiration(self, date_str: str) -> Tuple[bool, str]:
-        """Valide le format de la date d'expiration."""
-        if not date_str or date_str.strip() == "":
-            return False, "La date d'expiration est obligatoire"
-        try:
-            datetime.strptime(date_str, "%Y-%m-%d")
-            return True, ""
-        except Exception:
-            return False, "Format de date invalide (YYYY-MM-DD attendu)"
+    def valider_date_expiration(self, date_str) -> Tuple[bool, str]:
+        """Valide le format et la validite de la date d'expiration."""
+        return self.service.valider_date_expiration(date_str)
 
     # =========================================================================
     # INFORMATIONS CABINET

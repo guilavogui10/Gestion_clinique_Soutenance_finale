@@ -5,8 +5,7 @@ class CommandeLunette:
     def __init__(self, code=None, numero_cadre=None, numero_verre=None,
                  date_commande=None, date_livraison=None, prix=0.0,
                  statut="attente", statut_facture="Attente payement",
-                 code_consultation=None, code_visite=None,
-                 code_session=None, code_personnel=None):
+                 code_session=None, code_personnel=None, code_acte=None):
 
         self._code             = code
         self._numero_cadre     = numero_cadre
@@ -16,10 +15,9 @@ class CommandeLunette:
         self._prix             = prix
         self._statut           = statut
         self._statut_facture   = statut_facture
-        self._code_consultation = code_consultation
-        self._code_visite      = code_visite
         self._code_session     = code_session
         self._code_personnel   = code_personnel
+        self._code_acte        = code_acte
 
     # -------------------------------------------------------------------------
     # code
@@ -110,26 +108,15 @@ class CommandeLunette:
         self._statut_facture = value
 
     # -------------------------------------------------------------------------
-    # code_consultation
+    # code_acte
     # -------------------------------------------------------------------------
     @property
-    def code_consultation(self):
-        return self._code_consultation
+    def code_acte(self):
+        return self._code_acte
 
-    @code_consultation.setter
-    def code_consultation(self, value):
-        self._code_consultation = value
-
-    # -------------------------------------------------------------------------
-    # code_visite
-    # -------------------------------------------------------------------------
-    @property
-    def code_visite(self):
-        return self._code_visite
-
-    @code_visite.setter
-    def code_visite(self, value):
-        self._code_visite = value
+    @code_acte.setter
+    def code_acte(self, value):
+        self._code_acte = value
 
     # -------------------------------------------------------------------------
     # code_session

@@ -10,7 +10,6 @@ from datetime import datetime
 from PySide6.QtWidgets import QDialog
 from PySide6.QtCore import Qt
 from views.shared.message_box import CustomMessageBox
-from ..components.payment_slide_panel import PaymentSlidePanel
 
 
 class PanierOperations:
@@ -186,7 +185,7 @@ class PanierOperations:
     def finaliser_facture(self, code_facture_four: str, code_fournisseur: str, 
                          code_session: str, parent_widget) -> Tuple[bool, str]:
         """
-        Finalise la facture avec panneau de paiement glissant.
+        Finalise la facture en retournant le code pour redirection.
         
         Args:
             code_facture_four: Code de la facture à finaliser
@@ -195,32 +194,22 @@ class PanierOperations:
             parent_widget: Widget parent pour le panneau
         
         Returns:
-            tuple: (succès, message)
+            tuple: (succès, message ou code_facture)
         """
-        # Récupérer les données de la facture
+        # Vérifier que la facture existe
         facture_data = self.facture_ctrl.obtenir_par_code(code_facture_four)
         if not facture_data:
             return False, "Facture introuvable"
         
-        # Récupérer les produits du panier
+        # Vérifier qu'il y a des produits
         produits_data = self.panier_ctrl.lister_par_facture(code_facture_four)
         if not produits_data:
             return False, "Aucun produit dans le panier"
         
-        # Récupérer les infos fournisseur
-        from controllers.controleur_fournisseur import FournisseurControleur
-        fournisseur_ctrl = FournisseurControleur()
-        fournisseur_data = fournisseur_ctrl.obtenir_par_code(code_fournisseur)
+        # Stocker le code de la facture pour le parent
+        parent_widget._pending_facture_code = code_facture_four
         
-        # Stocker les données pour le panneau
-        parent_widget._payment_facture_data = facture_data
-        parent_widget._payment_produits_data = produits_data
-        parent_widget._payment_fournisseur_data = fournisseur_data
-        parent_widget._payment_code_facture = code_facture_four
-        parent_widget._payment_code_fournisseur = code_fournisseur
-        parent_widget._payment_code_session = code_session
-        
-        # Retourner succès pour que le panier se ferme
+        # Retourner succès avec signal spécial
         return True, "SHOW_PAYMENT_PANEL"
     
     def annuler_facture(self, code_facture_four: str, parent_widget) -> Tuple[bool, str]:

@@ -106,8 +106,24 @@ class UIUpdater:
         except Exception as e:
             self.logger.error(f"[UIUpdater] Erreur mise à jour stock détaillé: {e}")
             raise
+
+    def mettre_a_jour_alertes(self, dto: 'StatistiquesDTO', alert_items: Dict[str, Any]) -> None:
+        """
+        Met à jour les badges d'alertes et notifications.
+        """
+        self.logger.debug("[UIUpdater] Mise à jour des alertes")
+
+        try:
+            alert_items['ruptures'].setText(str(dto.nb_ruptures))
+            alert_items['a_expirer'].setText(str(dto.nb_lots_a_expirer))
+            alert_items['expires'].setText(str(dto.nb_lots_expires))
+            alert_items['stock_faible'].setText(str(dto.nb_stock_faible))
+            self.logger.debug("[UIUpdater] Alertes mises à jour")
+        except Exception as e:
+            self.logger.error(f"[UIUpdater] Erreur mise à jour alertes: {e}")
+            raise
     
-    def afficher_donnees_vides(self, cards_expiration: Dict[str, Any], cards_type: Dict[str, Any], card_detail: Any) -> None:
+    def afficher_donnees_vides(self, cards_expiration: Dict[str, Any], cards_type: Dict[str, Any], card_detail: Any, alert_items: Dict[str, Any] = None) -> None:
         """
         Affiche des valeurs vides/zéro dans tous les composants.
         Utilisé lors de la réinitialisation ou en cas d'erreur.
@@ -116,6 +132,7 @@ class UIUpdater:
             cards_expiration: Dictionnaire des cards d'expiration
             cards_type: Dictionnaire des cards par type
             card_detail: Card de stock détaillé
+            alert_items: Dictionnaire des badges d'alertes
         """
         self.logger.debug("[UIUpdater] Affichage données vides")
         
@@ -134,6 +151,13 @@ class UIUpdater:
             # Stock détaillé
             if card_detail:
                 card_detail.vider()
+
+            # Alertes
+            if alert_items:
+                alert_items['ruptures'].setText("0")
+                alert_items['a_expirer'].setText("0")
+                alert_items['expires'].setText("0")
+                alert_items['stock_faible'].setText("0")
             
             self.logger.debug("[UIUpdater] Données vides affichées")
             

@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QFrame, QLabel
 )
 from ..styles.prescription_style import PrescriptionStyles
+from views.shared.theme_manager import theme_manager
 
 
 class PrescriptionFooter:
@@ -100,7 +101,7 @@ class PrescriptionFooter:
 
         # Bouton Valider
         self.btn_valider = QPushButton(
-            qta.icon("fa5s.check-circle", color="white"),
+            qta.icon("fa5s.check-circle", color=theme_manager.colors()['success']),
             " Valider la Prescription"
         )
         self.btn_valider.setFixedHeight(40)
@@ -112,7 +113,7 @@ class PrescriptionFooter:
 
         # Bouton Annuler
         self.btn_annuler = QPushButton(
-            qta.icon("fa5s.trash-alt", color="white"),
+            qta.icon("fa5s.trash-alt", color=theme_manager.colors()['danger']),
             " Annuler"
         )
         self.btn_annuler.setFixedHeight(40)

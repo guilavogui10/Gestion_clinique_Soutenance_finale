@@ -1,0 +1,22 @@
+# Fichiers de configuration sensibles
+.env
+*.env
+!.env.example
+
+# Logs Vault
+vault.log
+*.log
+
+# Fichiers temporaires Vault
+vault.pid
+*.pid
+
+# Fichiers de sauvegarde
+*.bak
+*.backup
+*~
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+desktop.ini

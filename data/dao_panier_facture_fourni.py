@@ -1,4 +1,4 @@
-﻿import sys
+import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pymysql
@@ -262,7 +262,7 @@ class PanierFactureFourniDAO:
     def lister_lots_par_produit(self, code_produit: str, code_session: str) -> List[Dict]:
         """
         Retourne tous les lots d un produit avec stock restant et statut par lot.
-        stock_lot = entrees - sorties (prescriptions).
+        stock_lot = entrees - sorties (prescriptions validées).
         Trie par date_expiration ASC pour visualiser les lots prioritaires.
         """
         conn = self.db.connect()
@@ -276,28 +276,29 @@ class PanierFactureFourniDAO:
                     pf.date_expiration,
                     p.libelle,
                     p.type,
-                    SUM(pf.quantite_four) -
-                        COALESCE((
-                            {sorties_validees}
-                        ), 0) AS stock_lot,
+                    SUM(pf.quantite_four) - COALESCE((
+                        SELECT SUM(pp.quantite_prescript)
+                        FROM prescription_produit pp
+                        WHERE pp.code_produit = pf.code_produit
+                          AND pp.date_expiration = pf.date_expiration
+                          AND pp.code_session = pf.code_session
+                    ), 0) AS stock_lot,
                     DATEDIFF(pf.date_expiration, CURDATE()) AS jours_restants,
                     CASE
                         WHEN pf.date_expiration < CURDATE()
-                            THEN 'ExpirÃ©'
+                            THEN 'Expiré'
                         WHEN DATEDIFF(pf.date_expiration, CURDATE()) <= 30
-                            THEN 'Ã€ Expirer'
+                            THEN 'À Expirer'
                         ELSE 'Valide'
                     END AS statut_lot
                 FROM panier_facture_four pf
                 INNER JOIN produits p ON pf.code_produit = p.code_produit
                 WHERE pf.code_produit = %s
                   AND pf.code_session = %s
-                GROUP BY pf.date_expiration
+                GROUP BY pf.date_expiration, pf.code_produit, p.libelle, p.type
                 HAVING stock_lot > 0
                 ORDER BY pf.date_expiration ASC
-            """.format(
-                sorties_validees=self._sous_requete_sorties_lot_validees()
-            ), (code_session, code_produit, code_session))
+            """, (code_produit, code_session))
             return cursor.fetchall()
         except Exception as e:
             self.logger.error(f"Erreur lister_lots_par_produit: {e}", exc_info=True)
@@ -593,7 +594,7 @@ class PanierFactureFourniDAO:
                 LIMIT 1
             """.format(
                 sorties_validees=self._sous_requete_sorties_lot_validees()
-            ), (code_session, code_produit, code_session, quantite))
+            ), (code_produit, code_session, code_session, quantite))
             row = cursor.fetchone()
             return row['date_expiration'] if row else None
         except Exception as e:
@@ -609,15 +610,14 @@ class PanierFactureFourniDAO:
     def _sous_requete_sorties_lot_validees(self) -> str:
         """
         Ne compte que les prescriptions dont le stock global a deja ete decremente.
+        Simplifie : compte toutes les prescriptions validees.
         """
         return """
             SELECT SUM(pp.quantite_prescript)
             FROM prescription_produit pp
-            INNER JOIN visite v ON pp.code_visite = v.code_visite
             WHERE pp.code_produit = pf.code_produit
               AND pp.date_expiration = pf.date_expiration
               AND pp.code_session = %s
-              AND v.statut_patient IN ('Attente payement', 'Libéré')
         """
 
     def _recalculer_montant_facture(self, cursor, code_facture_four: str) -> None:
@@ -674,38 +674,19 @@ class PanierFactureFourniDAO:
             """, (nouveau_code, code_produit, quantite, code_session))
     
     def _generer_code_stock(self, cursor) -> str:
-        """GÃ©nÃ¨re un code unique pour la table stocks (ex: STK001)."""
+        """Génère un code unique pour la table stocks (ex: STK001)."""
         try:
-            # RÃ©cupÃ©rer le dernier code_stock non vide
+            # Utiliser MAX(CAST(...)) pour un tri numérique fiable
             cursor.execute("""
-                SELECT code_stock 
-                FROM stocks 
-                WHERE code_stock IS NOT NULL AND code_stock != '' 
-                ORDER BY code_stock DESC 
-                LIMIT 1
+                SELECT COALESCE(MAX(CAST(SUBSTRING(code_stock, 4) AS UNSIGNED)), 0) AS max_num
+                FROM stocks
+                WHERE code_stock REGEXP '^STK[0-9]+$'
             """)
             row = cursor.fetchone()
-            
-            if row:
-                last_code = row['code_stock'] if isinstance(row, dict) else row[0]
-                # VÃ©rifier que le code n'est pas vide
-                if last_code and len(last_code) > 3:
-                    try:
-                        last_num = int(last_code[3:])
-                        return f"STK{last_num + 1:03d}"
-                    except (ValueError, IndexError):
-                        # Si le format est invalide, compter les lignes
-                        pass
-            
-            # Si aucun code valide trouvÃ©, compter le nombre de lignes
-            cursor.execute("SELECT COUNT(*) as total FROM stocks")
-            count_row = cursor.fetchone()
-            total = count_row['total'] if count_row else 0
-            return f"STK{total + 1:03d}"
-            
+            max_num = int(row['max_num']) if row and row['max_num'] else 0
+            return f"STK{max_num + 1:03d}"
         except Exception as e:
-            self.logger.error(f"Erreur gÃ©nÃ©ration code stock: {e}", exc_info=True)
-            # Fallback : utiliser timestamp
+            self.logger.error(f"Erreur génération code stock: {e}", exc_info=True)
             from datetime import datetime
             return "STK" + datetime.now().strftime("%H%M%S")
         
@@ -736,7 +717,7 @@ class PanierFactureFourniDAO:
                 WHERE lots.stock_lot > 0
             """.format(
                 sorties_validees=self._sous_requete_sorties_lot_validees()
-            ), (code_session, code_produit, code_session))
+            ), (code_produit, code_session, code_session))
             result = cursor.fetchone()
             return result['total'] if result else 0
         except Exception as e:
@@ -772,7 +753,7 @@ class PanierFactureFourniDAO:
                 WHERE lots.stock_lot > 0
             """.format(
                 sorties_validees=self._sous_requete_sorties_lot_validees()
-            ), (code_session, code_produit, code_session, jours))
+            ), (code_produit, code_session, code_session, jours))
             result = cursor.fetchone()
             return result['total'] if result else 0
         except Exception as e:
@@ -808,7 +789,7 @@ class PanierFactureFourniDAO:
                 WHERE lots.stock_lot > 0
             """.format(
                 sorties_validees=self._sous_requete_sorties_lot_validees()
-            ), (code_session, code_produit, code_session))
+            ), (code_produit, code_session, code_session))
             result = cursor.fetchone()
             return result['total'] if result else 0
         except Exception as e:
@@ -955,7 +936,7 @@ class PanierFactureFourniDAO:
         """Retourne les quantitÃ©s par type de produit (Liquide, Pommade, ComprimÃ©)."""
         conn = self.db.connect()
         if not conn:
-            return {'Liquide': 0, 'Pommade': 0, 'ComprimÃ©': 0}
+            return {'Liquide': 0, 'Pommade': 0, 'Comprimé': 0}
         try:
             cursor = conn.cursor()
             cursor.execute("""
@@ -967,7 +948,7 @@ class PanierFactureFourniDAO:
             """, (code_session,))
             resultats = cursor.fetchall()
             
-            stock_par_type = {'Liquide': 0, 'Pommade': 0, 'ComprimÃ©': 0}
+            stock_par_type = {'Liquide': 0, 'Pommade': 0, 'Comprimé': 0}
             for row in resultats:
                 type_produit = (row.get('type') or row.get('Type') or '').strip().capitalize()
                 quantite = int(row.get('total_quantite') or 0)
@@ -981,7 +962,7 @@ class PanierFactureFourniDAO:
                     elif 'pommade' in type_lower:
                         stock_par_type['Pommade'] += quantite
                     elif 'comprim' in type_lower:
-                        stock_par_type['ComprimÃ©'] += quantite
+                        stock_par_type['Comprimé'] += quantite
             
             return stock_par_type
         except Exception as e:

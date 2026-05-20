@@ -1,445 +1,470 @@
+"""
+=============================================================================
+ VUE COMMANDE LUNETTE — version onglets (pattern consultation/chirurgie)
+=============================================================================
+ Tabs :
+   0 — Statistiques  (KPI cards + graphe)
+   1 — Nouvelle commande  (CommandeLunetteFormWidget)
+   2 — Liste  (CommandesTable)
+   3 — Patients en attente  (PatientsAttenteView)
+   4 — Historique patient   (HistoriqueCommandeLunetteView)
+=============================================================================
+"""
+
 import qtawesome as qta
-from PySide6.QtCore import Qt, QSize, QPropertyAnimation, QPoint, QEasingCurve
-from PySide6.QtGui import QColor
+from PySide6.QtCore    import Qt, QSize, QDate
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton,
-    QTableWidget, QHeaderView, QFrame, QLabel, QGraphicsDropShadowEffect,
-    QTableWidgetItem
+    QWidget, QVBoxLayout, QHBoxLayout, QFrame, QLabel,
+    QTabWidget, QDialog, QDialogButtonBox, QDateEdit,
+    QFormLayout,
 )
+
 from views.shared.theme_manager import theme_manager
-from views.lunette.styles import LunetteStyles
+from views.lunette.styles       import LunetteStyles
+from views.lunette.commande_lunette_form_widget import CommandeLunetteFormWidget
+from views.lunette.composants   import (
+    CommandesTable,
+    PatientsAttenteView,
+    PatientsAttenteDialog,
+    LunetteKpiCardsSection,
+    LunetteQuickActions,
+)
+from views.lunette.graphiques        import CommandeLunetteChartsSection
+from views.lunette.modals            import DetailsCommandeLunetteModal
+from views.lunette.historique_lunette import HistoriqueCommandeLunetteView
 
 
-class AnimatedFrame(QFrame):
-    """Cadre arrondi avec effet d'ombre et animation de survol."""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._setup_animation()
-
-    def _setup_animation(self):
-        self.shadow = QGraphicsDropShadowEffect(self)
-        self.shadow.setBlurRadius(15)
-        self.shadow.setOffset(0, 4)
-        self.shadow.setColor(QColor(0, 0, 0, 40))
-        self.setGraphicsEffect(self.shadow)
-
-        self.animation = QPropertyAnimation(self, b"pos")
-        self.animation.setDuration(150)
-        self.animation.setEasingCurve(QEasingCurve.OutCubic)
-
-    def enterEvent(self, event):
-        self.animation.setStartValue(self.pos())
-        self.animation.setEndValue(QPoint(self.pos().x(), self.pos().y() - 5))
-        self.shadow.setBlurRadius(25)
-        self.animation.start()
-        super().enterEvent(event)
-
-    def leaveEvent(self, event):
-        self.animation.setStartValue(self.pos())
-        self.animation.setEndValue(QPoint(self.pos().x(), self.pos().y() + 5))
-        self.shadow.setBlurRadius(15)
-        self.animation.start()
-        super().leaveEvent(event)
-
+# =============================================================================
+# VUE PRINCIPALE
+# =============================================================================
 
 class CommandeLunetteView(QWidget):
     """
-    Vue principale pour la gestion des commandes de lunettes.
-    Interface uniquement — logique à implémenter ultérieurement.
+    Vue principale Lunettes — 4 onglets.
     """
 
-    def __init__(self,commande_lunette_ctrl):
+    def __init__(self, commande_lunette_ctrl):
         super().__init__()
-        self.ctrl = commande_lunette_ctrl
+        self.ctrl         = commande_lunette_ctrl
         self.code_session = None
         self._init_ui()
-        from .panneaux import PanneauAlertesLivraison
-        self.panneau_alertes = PanneauAlertesLivraison(self, self.ctrl)
-        from .panneaux import PanneauSuiviLivraisons
-        # Dans __init__ après _init_ui() :
-        self.panneau_suivi = PanneauSuiviLivraisons(self, self.ctrl)
-
-        # Appliquer le thème initial et écouter les changements
         self.apply_theme()
         theme_manager.theme_changed.connect(self.apply_theme)
 
     # =========================================================================
-    # CONSTRUCTION DE L'INTERFACE
+    # CONSTRUCTION
     # =========================================================================
 
     def _init_ui(self):
-        self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(15, 15, 15, 15)
-        self.main_layout.setSpacing(15)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(12, 12, 12, 12)
+        main_layout.setSpacing(0)
 
-        self._setup_top_bar()
-        self._setup_stats_section()
-        self._setup_bottom_section()
+        main_frame = QFrame()
+        main_frame.setObjectName("MainWhiteFrame")
+        mf_lay = QVBoxLayout(main_frame)
+        mf_lay.setContentsMargins(0, 0, 0, 0)
+        mf_lay.setSpacing(0)
 
-    # =========================================================================
-    # BARRE DU HAUT
-    # =========================================================================
+        # Onglets
+        self.tabs = QTabWidget()
+        self.tabs.setDocumentMode(False)
 
-    def apply_theme(self):
-        """Applique le thème actif à tous les composants de la vue lunettes."""
+        self.tab_stats   = self._create_stats_tab()
+        self.tab_form    = self._create_form_tab()
+        self.tab_liste   = self._create_liste_tab()
+        self.tab_attente = self._create_attente_tab()
+        self.tab_historique = self._create_historique_tab()
+
+        self.tabs.addTab(self.tab_stats,      self._get_icon("chart-bar"),  "Statistiques")
+        self.tabs.addTab(self.tab_form,       self._get_icon("plus"),        "Nouvelle commande")
+        self.tabs.addTab(self.tab_liste,      self._get_icon("list"),        "Liste des commandes")
+        self.tabs.addTab(self.tab_attente,    self._get_icon("clock"),       "Patients en attente")
+        self.tabs.addTab(self.tab_historique, self._get_icon("history"),     "Historique patient")
+
+        mf_lay.addWidget(self.tabs, 1)
+
+        # Boutons actions rapides (toujours visible en bas)
+        self.quick_actions = LunetteQuickActions()
+        self.quick_actions.new_commande_clicked.connect(self._on_new_commande)
+        self.quick_actions.patients_attente_clicked.connect(self._on_patients_attente)
+        self.quick_actions.livraisons_clicked.connect(self._on_livraisons)
+        self.quick_actions.recherche_clicked.connect(self._on_recherche)
+        self.quick_actions.rapports_clicked.connect(self._on_rapports)
+        self.quick_actions.historique_clicked.connect(self._on_historique)
+        mf_lay.addWidget(self.quick_actions)
+
+        main_layout.addWidget(main_frame)
+        self._apply_main_frame_style(main_frame)
+
+    def _get_icon(self, name: str):
+        mapping = {
+            "chart-bar": "fa5s.chart-bar",
+            "plus":      "fa5s.plus-circle",
+            "list":      "fa5s.list",
+            "clock":     "fa5s.hourglass-half",
+            "history":   "fa5s.history",
+        }
         c = theme_manager.colors()
-        self.setStyleSheet(f"background: {c['bg_main']};")
-        self.search_bar.setStyleSheet(LunetteStyles.search_bar())
-        self.btn_add.setStyleSheet(LunetteStyles.button_primary())
-        self.btn_add.setIcon(qta.icon("fa5s.plus-square", color=c['text_inverse']))
-        round_btn = LunetteStyles.button_secondary()
-        for btn, ico in [(self.btn_notification, "fa5s.bell"), (self.btn_suivi, "fa5s.shipping-fast"), (self.btn_export, "fa5s.file-export"), (self.btn_import, "fa5s.file-import")]:
-            btn.setStyleSheet(round_btn)
-            btn.setIcon(qta.icon(ico, color=c['primary']))
-        for card, key in [(self.card_livraison, 'primary'), (self.card_session, 'success'), (self.card_attente, 'warning')]:
-            color = c[key]
-            card.setStyleSheet(LunetteStyles.stat_card_style(color))
-            card._icon_lbl.setPixmap(qta.icon(card._icon_name, color=color).pixmap(QSize(20, 20)))
-            card._title_lbl.setStyleSheet(f"font-weight:bold; color:{c['text_secondary']}; font-size:11px; border:none;")
-            card.value_label.setStyleSheet(f"font-size:28px; font-weight:bold; color:{color}; border:none;")
-        for frame in [self.frame_table, self.frame_graph]:
-            frame.setStyleSheet(LunetteStyles.card())
-            frame._icon_lbl.setPixmap(qta.icon(frame._icon_name, color=c['primary']).pixmap(QSize(16, 16)))
-            frame._title_lbl.setStyleSheet(f"font-weight:bold; color:{c['text_primary']}; font-size:12px; border:none;")
-            frame._separator.setStyleSheet(f"background:{c['border_light']}; border:none;")
-        self.table.setStyleSheet(LunetteStyles.table())
-        self.table.verticalScrollBar().setStyleSheet(LunetteStyles.scrollbar())
+        return qta.icon(mapping.get(name, "fa5s.circle"),
+                        color=c.get("primary", "#2ecc71"))
 
-    def _setup_top_bar(self):
-        hbox = QHBoxLayout()
+    # ── Header ────────────────────────────────────────────────────────────
 
-        self.search_bar = QLineEdit()
-        self.search_bar.setPlaceholderText(" Rechercher une commande de lunettes...")
-        self.search_bar.setFixedHeight(45)
-
-        self.btn_add = QPushButton(qta.icon("fa5s.plus-square", color="white"), " Ajouter")
-        self.btn_add.setFixedSize(120, 45)
-        self.btn_add.clicked.connect(self._ouvrir_formulaire)
-
+    def _create_header(self) -> QFrame:
         c = theme_manager.colors()
-        self.btn_notification = QPushButton(qta.icon("fa5s.bell", color=c['primary']), "")
-        self.btn_notification.setFixedSize(45, 45)
-        self.btn_notification.setToolTip("Notifications commandes")
-        self.btn_notification.clicked.connect(self._ouvrir_alertes)
-        
-        self.btn_suivi = QPushButton(qta.icon("fa5s.shipping-fast", color=c['primary']), "")
-        self.btn_suivi.setFixedSize(45, 45)
-        self.btn_suivi.setToolTip("Suivi des livraisons")
-        self.btn_suivi.clicked.connect(self._ouvrir_suivi)
+        header = QFrame()
+        header.setObjectName("ViewHeader")
+        header.setFixedHeight(64)
+        lay = QHBoxLayout(header)
+        lay.setContentsMargins(20, 0, 20, 0)
+        lay.setSpacing(12)
 
-        self.btn_export = QPushButton(qta.icon("fa5s.file-export", color=c['primary']), "")
-        self.btn_export.setFixedSize(45, 45)
-        self.btn_export.setToolTip("Exporter les commandes")
+        icon_box = QFrame()
+        icon_box.setFixedSize(40, 40)
+        icon_box.setStyleSheet(
+            f"background:{c.get('primary','#2ecc71')}22; border-radius:10px; border:none;"
+        )
+        ib_lay = QVBoxLayout(icon_box)
+        ib_lay.setContentsMargins(0, 0, 0, 0)
+        ic = QLabel()
+        ic.setAlignment(Qt.AlignCenter)
+        ic.setPixmap(
+            qta.icon("fa5s.glasses", color=c.get("primary", "#2ecc71")).pixmap(QSize(22, 22))
+        )
+        ib_lay.addWidget(ic)
 
-        self.btn_import = QPushButton(qta.icon("fa5s.file-import", color=c['primary']), "")
-        self.btn_import.setFixedSize(45, 45)
-        self.btn_import.setToolTip("Importer des commandes")
-        
-        
+        title = QLabel("Gestion des Commandes de Lunettes")
+        title.setStyleSheet(
+            f"font-size:17px; font-weight:700; color:{c['text_primary']}; border:none;"
+        )
+        lay.addWidget(icon_box)
+        lay.addWidget(title)
+        lay.addStretch()
+        return header
 
-        hbox.addWidget(self.search_bar)
-        hbox.addWidget(self.btn_add)
-        hbox.addSpacing(10)
-        hbox.addWidget(self.btn_notification)
-        hbox.addWidget(self.btn_suivi)
-        hbox.addWidget(self.btn_export)
-        hbox.addWidget(self.btn_import)
-        self.main_layout.addLayout(hbox)
+    # ── Onglets ───────────────────────────────────────────────────────────
 
-    # =========================================================================
-    # CARDS STATISTIQUES
-    # =========================================================================
+    def _create_stats_tab(self) -> QWidget:
+        tab = QWidget()
+        tab.setStyleSheet("background:white;")
+        lay = QVBoxLayout(tab)
+        lay.setContentsMargins(12, 8, 12, 12)
+        lay.setSpacing(8)
 
-    def _setup_stats_section(self):
-        stats_layout = QHBoxLayout()
-        stats_layout.setSpacing(12)
+        # 6 KPI cards
+        self.kpi_cards = LunetteKpiCardsSection(self.ctrl)
+        lay.addWidget(self.kpi_cards)
 
-        self.card_livraison = self._creer_stat_card(
-            "Attente de Livraisons",              "0", "fa5s.truck",         "primary")
-        self.card_session   = self._creer_stat_card(
-            "Commandes Lunettes Total Session",   "0", "fa5s.glasses",       "success")
-        self.card_attente   = self._creer_stat_card(
-            "Commandes en Attente",               "0", "fa5s.clipboard-list","warning")
+        # 3 graphiques
+        self._charts = CommandeLunetteChartsSection(self.ctrl)
+        lay.addWidget(self._charts, 1)
+        return tab
 
-        stats_layout.addWidget(self.card_livraison)
-        stats_layout.addWidget(self.card_session)
-        stats_layout.addWidget(self.card_attente)
-        self.main_layout.addLayout(stats_layout)
-
-    def _creer_stat_card(self, titre: str, valeur: str,
-                         icone: str, accent_key: str) -> AnimatedFrame:
+    def _make_kpi(self, title: str, value: str,
+                  icon_name: str, accent: str) -> QFrame:
         c = theme_manager.colors()
-        couleur = c.get(accent_key, accent_key)
-        card = AnimatedFrame()
-        card.setFixedHeight(120)
-        card._icon_name = icone
-        card._accent_key = accent_key
-        card.setStyleSheet(LunetteStyles.stat_card_style(couleur))
+        color = c.get(accent, '#2ecc71')
+        card = QFrame()
+        card.setFixedHeight(110)
+        card.setStyleSheet(
+            f"QFrame{{background:{c['bg_card']}; border:1px solid {c['border_light']};"
+            f"border-radius:12px;}}"
+        )
+        lay = QVBoxLayout(card)
+        lay.setContentsMargins(16, 10, 16, 10)
+        lay.setSpacing(4)
 
-        layout = QVBoxLayout(card)
-        layout.setContentsMargins(15, 10, 15, 10)
-        layout.setSpacing(5)
+        hdr = QHBoxLayout()
+        ic_lbl = QLabel()
+        ic_lbl.setPixmap(qta.icon(icon_name, color=color).pixmap(QSize(18, 18)))
+        ic_lbl.setStyleSheet("border:none; background:transparent;")
+        ttl = QLabel(title)
+        ttl.setStyleSheet(
+            f"font-size:11px; font-weight:700; color:{c['text_secondary']}; border:none;"
+        )
+        hdr.addWidget(ic_lbl)
+        hdr.addSpacing(6)
+        hdr.addWidget(ttl)
+        hdr.addStretch()
+        lay.addLayout(hdr)
 
-        header = QHBoxLayout()
-        icon_lbl = QLabel()
-        icon_lbl.setPixmap(qta.icon(icone, color=couleur).pixmap(QSize(20, 20)))
-        icon_lbl.setStyleSheet("border: none; background: transparent;")
-        card._icon_lbl = icon_lbl
-        title_lbl = QLabel(titre)
-        title_lbl.setStyleSheet(f"font-weight:bold; color:{c['text_secondary']}; font-size:11px; border:none;")
-        card._title_lbl = title_lbl
-        header.addWidget(icon_lbl)
-        header.addSpacing(8)
-        header.addWidget(title_lbl)
-        header.addStretch()
-        layout.addLayout(header)
+        val_lbl = QLabel(value)
+        val_lbl.setStyleSheet(
+            f"font-size:28px; font-weight:700; color:{color}; border:none;"
+        )
+        val_lbl.setAlignment(Qt.AlignCenter)
+        lay.addWidget(val_lbl)
 
-        value_lbl = QLabel(valeur)
-        value_lbl.setStyleSheet(f"font-size:28px; font-weight:bold; color:{couleur}; border:none;")
-        value_lbl.setAlignment(Qt.AlignCenter)
-        layout.addWidget(value_lbl)
-        layout.addStretch()
-
-        card.value_label = value_lbl
+        card._value_lbl  = val_lbl
+        card._icon_lbl   = ic_lbl
+        card._icon_name  = icon_name
+        card._accent_key = accent
         return card
 
-    # =========================================================================
-    # SECTION BAS : TABLE + GRAPHE
-    # =========================================================================
+    def _create_form_tab(self) -> QWidget:
+        tab = QWidget()
+        tab.setStyleSheet("background:white;")
+        lay = QVBoxLayout(tab)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(0)
 
-    def _setup_bottom_section(self):
-        bottom_layout = QHBoxLayout()
-        bottom_layout.setSpacing(12)
-
-        self.frame_table = self._creer_cadre_arrondi(
-            "Liste des Commandes de Lunettes", "fa5s.glasses")
-        self._setup_table()
-
-        self.frame_graph = self._creer_cadre_arrondi(
-            "Commandes par Mois", "fa5s.chart-bar")
-        self._setup_graphe()
-
-        bottom_layout.addWidget(self.frame_table, 3)
-        bottom_layout.addWidget(self.frame_graph, 2)
-        self.main_layout.addLayout(bottom_layout)
-
-    def _creer_cadre_arrondi(self, titre: str, icone_name: str) -> AnimatedFrame:
-        c = theme_manager.colors()
-        frame = AnimatedFrame()
-        frame._icon_name = icone_name
-        frame.setStyleSheet(LunetteStyles.card())
-        layout = QVBoxLayout(frame)
-        layout.setContentsMargins(14, 10, 14, 10)
-        layout.setSpacing(6)
-
-        header = QHBoxLayout()
-        icon_lbl = QLabel()
-        icon_lbl.setPixmap(qta.icon(icone_name, color=c['primary']).pixmap(QSize(16, 16)))
-        icon_lbl.setStyleSheet("border: none; background: transparent;")
-        frame._icon_lbl = icon_lbl
-        title_lbl = QLabel(titre)
-        title_lbl.setStyleSheet(f"font-weight:bold; color:{c['text_primary']}; font-size:12px; border:none;")
-        frame._title_lbl = title_lbl
-        header.addWidget(icon_lbl)
-        header.addSpacing(6)
-        header.addWidget(title_lbl)
-        header.addStretch()
-        layout.addLayout(header)
-
-        sep = QFrame()
-        sep.setFixedHeight(1)
-        sep.setStyleSheet(f"background:{c['border_light']}; border:none;")
-        frame._separator = sep
-        layout.addWidget(sep)
-
-        return frame
-
-    def _setup_table(self):
-        self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(
-            ["Code", "Patient", "Numéro Verre Prescrit", "Date Commande", "Actions"]
+        self.form_widget = CommandeLunetteFormWidget(
+            controleur   = self.ctrl,
+            code_session = self.code_session or "",
         )
-        self.table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self._apply_scrollbar_style(self.table)
+        self.form_widget.commande_saved.connect(self._on_commande_saved)
+        lay.addWidget(self.form_widget)
+        return tab
 
-        header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.Stretch)
-        header.setSectionResizeMode(2, QHeaderView.Stretch)
-        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(4, QHeaderView.Fixed)
+    def _create_liste_tab(self) -> QWidget:
+        tab = QWidget()
+        tab.setStyleSheet("background:white;")
+        lay = QVBoxLayout(tab)
+        lay.setContentsMargins(12, 8, 12, 12)
 
-        self.table.setColumnWidth(4, 100)
+        self.table = CommandesTable(self.ctrl)
+        self.table.view_clicked.connect(self._on_view_commande)
+        self.table.edit_clicked.connect(self._on_edit_commande)
+        self.table.new_clicked.connect(self._on_new_commande)
+        lay.addWidget(self.table)
+        return tab
 
-        self.table.setStyleSheet(LunetteStyles.table())
-        self.table.verticalHeader().setVisible(False)
-        self.table.verticalHeader().setDefaultSectionSize(40)
-        self.table.setAlternatingRowColors(True)
-        self.frame_table.layout().addWidget(self.table)
+    def _create_attente_tab(self) -> QWidget:
+        tab = QWidget()
+        tab.setStyleSheet("background:white;")
+        lay = QVBoxLayout(tab)
+        lay.setContentsMargins(12, 8, 12, 12)
+        lay.setSpacing(0)
 
-    def _apply_scrollbar_style(self, widget):
-        widget.verticalScrollBar().setStyleSheet(LunetteStyles.scrollbar())
+        self.vue_attente = PatientsAttenteView(
+            ctrl         = self.ctrl,
+            code_session = self.code_session or "",
+            parent       = tab,
+        )
+        self.vue_attente.ouvrir_formulaire.connect(
+            self._ouvrir_nouveau_avec_consultation
+        )
+        lay.addWidget(self.vue_attente)
+        return tab
 
-    def _setup_graphe(self):
-        from .graphiques import CommandeLunetteAnalyseGraph
-        self.graphe = CommandeLunetteAnalyseGraph(parent=self.frame_graph)
-        self.frame_graph.layout().addWidget(self.graphe)
+    def _create_historique_tab(self) -> QWidget:
+        tab = QWidget()
+        tab.setStyleSheet("background: white;")
+        lay = QVBoxLayout(tab)
+        lay.setContentsMargins(0, 0, 0, 0)
+        self.vue_historique = HistoriqueCommandeLunetteView(
+            self.ctrl,
+            self.code_session or "",
+            parent=tab,
+        )
+        lay.addWidget(self.vue_historique)
+        return tab
+
+    # =========================================================================
+    # CHARGEMENT DONNÉES
+    # =========================================================================
 
     def charger_commandes(self, code_session: str):
-        """
-        Appelée depuis le dashboard lors du clic sur 'Lunettes'.
-        Reçoit le code_session et charge toutes les données.
-        """
+        """Point d'entrée — appelé depuis main_window lors de l'activation du module."""
         self.code_session = code_session
+
+        if hasattr(self, 'vue_attente'):
+            self.vue_attente.code_session = code_session
+        if hasattr(self, 'form_widget'):
+            self.form_widget.code_session = code_session
+        if hasattr(self, 'vue_historique'):
+            self.vue_historique.set_session(code_session)
+
+        self.charger_donnees()
+
+    def charger_donnees(self):
+        if not self.code_session:
+            return
+
+        # Table
         commandes = self.ctrl.lister_commandes(self.code_session)
-        self._remplir_table(commandes)
-        self._mettre_a_jour_stats()
-        self._mettre_a_jour_graphe()
-        
-    def _filtrer_commandes(self, texte: str):
-        """
-        Appelée à chaque fois que l'utilisateur tape une lettre.
-        """
-        critere = texte.strip()
+        self.table.load_commandes(commandes, self.code_session)
+
+        # KPI cards
+        self.kpi_cards.rafraichir(self.code_session)
+
+        # 3 graphiques
         try:
-            if not critere:
-                commandes = self.ctrl.lister_commandes(self.code_session)
-            else:
-                commandes = self.ctrl.rechercher_commande(critere, self.code_session)
-            self._remplir_table(commandes)
+            self._charts.update_data(self.code_session)
         except Exception as e:
-            print(f"Erreur lors de la recherche : {e}")
-            
-    def _action_voir(self, commande):
-        from .modals import DetailsCommandeLunetteModal
-        modal = DetailsCommandeLunetteModal(self, commande.code, self.ctrl)
-        modal.exec()
-        
-    def _ouvrir_alertes(self):
-        if self.code_session:
-            self.panneau_alertes.actualiser(self.code_session)
-            self.panneau_alertes.basculer()
-            
-    def _remplir_table(self, commandes: list):
-        """Remplit la table avec la liste des commandes de lunettes."""
-        self.table.setRowCount(0)
-        self.table.setUpdatesEnabled(False)
+            print(f"[VueLunette] charts: {e}")
 
-        for commande in commandes:
-            row = self.table.rowCount()
-            self.table.insertRow(row)
+        # Patients en attente
+        if hasattr(self, 'vue_attente'):
+            self.vue_attente.charger_patients()
 
-            # 1. Code
-            self.table.setItem(row, 0, QTableWidgetItem(str(commande.code)))
+        # Historique patient
+        if hasattr(self, 'vue_historique'):
+            self.vue_historique.set_session(self.code_session)
 
-            # 2. Patient
-            nom    = getattr(commande, 'patient_nom',    "")
-            prenom = getattr(commande, 'patient_prenom', "")
-            nom_complet = f"{nom} {prenom}".strip() or "Patient inconnu"
-            self.table.setItem(row, 1, QTableWidgetItem(nom_complet))
+    # =========================================================================
+    # ACTIONS
+    # =========================================================================
 
-            # 3. Numéro Verre Prescrit
-            self.table.setItem(row, 2, QTableWidgetItem(
-                str(commande.numero_verre or "—")))
+    def _on_view_commande(self, commande):
+        DetailsCommandeLunetteModal(self, commande.code, self.ctrl).exec()
 
-            # 4. Date Livraison
-            date_val = commande.date_livraison
-            if date_val and hasattr(date_val, "strftime"):
-                date_str = date_val.strftime("%d/%m/%Y")
-            elif date_val:
-                date_str = str(date_val)
-            else:
-                date_str = "—"
-            self.table.setItem(row, 3, QTableWidgetItem(date_str))
+    def _on_edit_commande(self, commande):
+        self.tabs.setCurrentIndex(1)
+        if hasattr(self, 'form_widget'):
+            self.form_widget._commande_obj = commande
+            self.form_widget.edit_numero_cadre.setText(commande.numero_cadre or "")
+            self.form_widget.edit_numero_verre.setText(commande.numero_verre or "")
+            self.form_widget.edit_prix.setText(str(commande.prix or ""))
 
-            # 5. Actions
-            self._ajouter_boutons_actions(row, commande)
+    def _on_new_commande(self):
+        self.tabs.setCurrentIndex(1)
 
-        self.table.setUpdatesEnabled(True)
-        
-    def _ajouter_boutons_actions(self, row: int, commande):
-        """Ajoute les boutons voir / modifier / supprimer sur une ligne."""
-        container = QWidget()
-        layout    = QHBoxLayout(container)
-        layout.setContentsMargins(4, 2, 4, 2)
-        layout.setSpacing(6)
+    def _on_patients_attente(self):
+        self.tabs.setCurrentIndex(3)
 
+    def _on_livraisons(self):
+        self.tabs.setCurrentIndex(2)
+
+    def _on_recherche(self):
+        if not self.code_session:
+            return
+        dlg = _RechercheEntresDatesDialog(self, self.ctrl, self.code_session)
+        if dlg.exec() == QDialog.Accepted and dlg.resultats is not None:
+            self.table.load_commandes(dlg.resultats)
+            self.tabs.setCurrentIndex(2)
+
+    def _on_rapports(self):
+        if not self.code_session:
+            return
+        _ResumeSessionDialog(self, self.ctrl, self.code_session).exec()
+
+    def _on_historique(self):
+        self.tabs.setCurrentIndex(4)
+
+    def _ouvrir_nouveau_avec_consultation(self, code_consultation: str):
+        self.tabs.setCurrentIndex(1)
+        if hasattr(self, 'form_widget'):
+            self.form_widget.recharger_pour_patient(
+                code_consultation, self.code_session or ""
+            )
+
+    def _on_commande_saved(self):
+        self.charger_donnees()
+        self.tabs.setCurrentIndex(2)
+
+    # =========================================================================
+    # STYLE
+    # =========================================================================
+
+    def _apply_main_frame_style(self, frame: QFrame):
         c = theme_manager.colors()
-        btn_view   = QPushButton(qta.icon("fa5s.eye",       color=c['info']), "")
-        btn_edit   = QPushButton(qta.icon("fa5s.edit",      color=c['primary']), "")
-        btn_delete = QPushButton(qta.icon("fa5s.trash-alt", color=c['danger']), "")
+        frame.setStyleSheet(f"""
+            QFrame#MainWhiteFrame {{
+                background   : white;
+                border       : 1px solid {c['border']};
+                border-radius: 16px;
+            }}
+        """)
 
-        btn_style = LunetteStyles.button_table_action()
-        for btn in [btn_view, btn_edit, btn_delete]:
-            btn.setFixedSize(26, 26)
-            btn.setCursor(Qt.PointingHandCursor)
-            btn.setStyleSheet(btn_style)
-            layout.addWidget(btn)
+    def _apply_tab_styles(self):
+        self.tabs.setStyleSheet(LunetteStyles.tab_widget())
 
-        # Connexions — logique à brancher plus tard
-        btn_view.clicked.connect(self._make_handler(self._action_voir, commande))
-        btn_edit.clicked.connect(self._make_handler(self._action_modifier, commande))
-        # btn_delete.clicked.connect(self._make_handler(self._action_supprimer, commande))
-        
-        self.table.setCellWidget(row, 4, container)
-        
-    def _make_handler(self, func, commande):
-        """Évite les problèmes de closure dans les boucles."""
-        def handler():
-            func(commande)
-        return handler
-    
-    def _ouvrir_formulaire(self):
-        from .commande_lunette_form import CommandeLunetteFormDialog
-        dialog = CommandeLunetteFormDialog(
-            controleur   = self.ctrl,
-            code_session = self.code_session,
-            parent       = self
+    def apply_theme(self):
+        c = theme_manager.colors()
+        self.setStyleSheet(f"background:{c['bg_main']};")
+        self._apply_tab_styles()
+
+
+# =============================================================================
+# DIALOGUES ACTIONS RAPIDES
+# =============================================================================
+
+class _RechercheEntresDatesDialog(QDialog):
+    """Recherche de commandes de lunettes entre deux dates."""
+
+    def __init__(self, parent, ctrl, code_session: str):
+        super().__init__(parent)
+        self.ctrl         = ctrl
+        self.code_session = code_session
+        self.resultats    = None
+        self.setWindowTitle("Recherche entre deux dates")
+        self.setMinimumWidth(380)
+        self._build()
+
+    def _build(self):
+        lay = QVBoxLayout(self)
+        lay.setSpacing(12)
+
+        form = QFormLayout()
+        today = QDate.currentDate()
+
+        self._date_debut = QDateEdit(today.addDays(-30))
+        self._date_debut.setCalendarPopup(True)
+        self._date_debut.setDisplayFormat("dd/MM/yyyy")
+
+        self._date_fin = QDateEdit(today)
+        self._date_fin.setCalendarPopup(True)
+        self._date_fin.setDisplayFormat("dd/MM/yyyy")
+
+        form.addRow("Date début :", self._date_debut)
+        form.addRow("Date fin :",   self._date_fin)
+        lay.addLayout(form)
+
+        btns = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel
         )
-        if dialog.exec():
-            self.charger_commandes(self.code_session)
-            
-    def _ouvrir_suivi(self):
-        if self.code_session:
-            self.panneau_suivi.actualiser(self.code_session)
-            self.panneau_suivi.basculer()
-            
-    def _action_modifier(self, commande):
-        """Ouvre le formulaire en mode édition avec les données de la commande lunette."""
-        from .commande_lunette_form import CommandeLunetteFormDialog
-        
-        dialog = CommandeLunetteFormDialog(
-            controleur    = self.ctrl,
-            code_session  = self.code_session,
-            commande_obj = commande,
-            parent        = self
+        btns.accepted.connect(self._rechercher)
+        btns.rejected.connect(self.reject)
+        lay.addWidget(btns)
+
+    def _rechercher(self):
+        debut = self._date_debut.date().toPython()
+        fin   = self._date_fin.date().toPython()
+        self.resultats = self.ctrl.rechercher_entre_dates(
+            self.code_session, debut, fin
         )
-        
-        if dialog.exec():
-            self.charger_commandes(self.code_session)
+        self.accept()
 
-    def _mettre_a_jour_stats(self):
-        """Met à jour les trois cards statistiques depuis le contrôleur."""
-        if not self.code_session:
-            return
 
-        nb_livraison = self.ctrl.obtenir_commandes_en_attente_livraison(self.code_session)
-        nb_session   = self.ctrl.obtenir_total_commandes_session(self.code_session)
-        nb_attente   = self.ctrl.obtenir_commandes_en_attente(self.code_session)
+class _ResumeSessionDialog(QDialog):
+    """Résumé statistique de la session en cours."""
 
-        self.card_livraison.value_label.setText(str(nb_livraison))
-        self.card_session.value_label.setText(str(nb_session))
-        self.card_attente.value_label.setText(str(nb_attente))
+    def __init__(self, parent, ctrl, code_session: str):
+        super().__init__(parent)
+        self.setWindowTitle("Résumé de session")
+        self.setMinimumWidth(400)
+        self._build(ctrl, code_session)
 
-    def _mettre_a_jour_graphe(self):
-        """Met à jour le graphique des commandes par mois."""
-        if not self.code_session:
-            return
+    def _build(self, ctrl, code_session: str):
+        lay = QVBoxLayout(self)
+        lay.setSpacing(10)
 
-        try:
-            stats_mensuelles = self.ctrl.obtenir_commandes_par_mois(self.code_session)
-            self.graphe.update_graph(stats_mensuelles)
-        except Exception as e:
-            print(f"Erreur lors de la mise à jour du graphique : {e}")
+        total      = ctrl.obtenir_total_commandes_session(code_session)
+        attente    = ctrl.obtenir_commandes_en_attente_livraison(code_session)
+        montant    = ctrl.obtenir_revenu_total(code_session)
+        delai_info = ctrl.obtenir_delai_moyen_livraison(code_session) or {}
+
+        lignes = [
+            ("Total commandes session",     str(total)),
+            ("Commandes en attente livraison", str(attente)),
+            ("Revenu total (FCFA)",          f"{montant:,.0f}"),
+            ("Délai moyen livraison (j)",    str(delai_info.get("moyen", "—"))),
+            ("Délai minimum (j)",            str(delai_info.get("minimum", "—"))),
+            ("Délai maximum (j)",            str(delai_info.get("maximum", "—"))),
+            ("Commandes livrées (base calcul)", str(delai_info.get("nombre_livrees", "—"))),
+        ]
+
+        form = QFormLayout()
+        for label, valeur in lignes:
+            lbl_val = QLabel(valeur)
+            lbl_val.setStyleSheet("font-weight: 600;")
+            form.addRow(label + " :", lbl_val)
+        lay.addLayout(form)
+
+        btns = QDialogButtonBox(QDialogButtonBox.Close)
+        btns.rejected.connect(self.reject)
+        lay.addWidget(btns)
+
+

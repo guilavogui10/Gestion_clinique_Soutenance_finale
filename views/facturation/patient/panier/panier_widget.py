@@ -343,7 +343,7 @@ class PanierProduitWidget(AnimatedFrame):
         self.footer_component.update_total(total)
     
     def _finaliser_facture(self) -> None:
-        """Finalise la facture et affiche le panneau de paiement."""
+        """Finalise la facture et redirige vers le panneau de paiement."""
         print("[PanierWidget] _finaliser_facture appelé")
         
         if not self.lignes_panier:
@@ -367,14 +367,19 @@ class PanierProduitWidget(AnimatedFrame):
         
         if ok and msg == "SHOW_PAYMENT_PANEL":
             print("[PanierWidget] Recherche du parent GestionProduitsView...")
-            # Trouver le parent GestionProduitsView (peut être plusieurs niveaux au-dessus)
+            # Trouver le parent GestionProduitsView
             parent = self.parent()
             while parent:
-                print(f"[PanierWidget] Vérification parent: {type(parent).__name__}")
-                if hasattr(parent, 'show_payment_panel'):
-                    print("[PanierWidget] Parent avec show_payment_panel trouvé, appel...")
-                    parent.show_payment_panel()
-                    return
+                parent_name = type(parent).__name__
+                print(f"[PanierWidget] Vérification parent: {parent_name}")
+                
+                if parent_name == 'GestionProduitsView' or hasattr(parent, 'show_payment_panel'):
+                    print(f"[PanierWidget] Parent trouvé: {parent_name}")
+                    if hasattr(parent, 'show_payment_panel'):
+                        print(f"[PanierWidget] Appel de show_payment_panel({self.code_facture_four})")
+                        parent.show_payment_panel(self.code_facture_four)
+                        return
+                
                 parent = parent.parent()
             
             print("[PanierWidget] ERREUR: Aucun parent avec show_payment_panel trouvé")
@@ -418,6 +423,6 @@ class PanierProduitWidget(AnimatedFrame):
     def _afficher_message(self, titre: str, message: str, succes: bool) -> None:
         """Affiche un message à l'utilisateur."""
         if succes:
-            CustomMessageBox.success(self, titre, message, theme_manager.colors()['primary'])
+            CustomMessageBox.success(self, titre, message)
         else:
-            CustomMessageBox.error(self, titre, message, theme_manager.colors()['primary'])
+            CustomMessageBox.error(self, titre, message)

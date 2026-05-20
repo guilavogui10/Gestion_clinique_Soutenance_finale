@@ -1,4 +1,4 @@
-import numpy as np
+﻿import numpy as np
 from scipy.interpolate import make_interp_spline
 import mplcursors
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -157,8 +157,8 @@ class BaseGraph(FigureCanvas):
 
 class ConsultationAnalyseGraph(BaseGraph):
     """
-    Graphique moderne pour l analyse des consultations par mois.
-    Meme architecture que VisiteAnalyseGraph.
+    Graphique à barres verticales pour l'analyse des consultations par mois.
+    Identique à VisiteAnalyseGraph.
     
     Usage dans ConsultationView :
         self.graphe = ConsultationAnalyseGraph(parent=self.frame_graph)
@@ -167,7 +167,6 @@ class ConsultationAnalyseGraph(BaseGraph):
 
     def __init__(self, parent=None, width=5, height=4, dpi=100):
         super().__init__(parent, width, height, dpi)
-        # APRÈS — identique aux clés du DAO
         self.month_labels = [
             'Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin',
             'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'
@@ -181,13 +180,12 @@ class ConsultationAnalyseGraph(BaseGraph):
 
     def update_graph(self, stats_mensuelles: dict):
         """
-        Met a jour le graphique des consultations.
+        Met à jour le graphique des consultations avec barres verticales.
 
-        Parametre :
+        Paramètre :
             stats_mensuelles (dict) : resultat de ctrl.obtenir_nombre_par_mois()
             Exemple : {"Jan": 5, "Fev": 12, "Mar": 0, ..., "Dec": 3}
         """
-        print("[DEBUG] stats reçues:", stats_mensuelles)  # ← à retirer après test
         self._last_stats = stats_mensuelles or {}
         self.axes.clear()
         self._setup_modern_style()
@@ -197,26 +195,176 @@ class ConsultationAnalyseGraph(BaseGraph):
             return
 
         values = [stats_mensuelles.get(mois, 0) for mois in self.month_labels]
-        print("[DEBUG] values extraites:", values)         # ← à retirer après test
         x = np.arange(len(self.month_labels))
-        y = np.array(values, dtype=float)
-
+        
         color = self.theme.COLORS["primary"]
 
-        # Courbe lissee + zone de remplissage
-        self._create_smooth_curve(x, y, color, alpha=0.9)
+        # Barres verticales
+        bars = self.axes.bar(x, values, width=0.6, color=color,
+                            edgecolor='none', alpha=0.8)
+        
+        # Valeurs au-dessus des barres
+        for bar, value in zip(bars, values):
+            if value > 0:
+                self.axes.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    bar.get_height() + 0.5,
+                    str(int(value)),
+                    ha='center', va='bottom',
+                    fontsize=8, fontweight='600',
+                    color=self.theme.COLORS["text"]
+                )
 
-        # Points interactifs avec tooltip au survol
-        self._create_data_points(x, y, color, "Consultations")
-
-        # Configuration des axes
+        # Configuration des axes avec espacement
         self.axes.set_xticks(x)
         self.axes.set_xticklabels(self.month_labels, rotation=0)
+        self.axes.set_xlim(-0.8, len(self.month_labels) - 0.2)
         self._set_intelligent_ylim(values)
 
         # Label axe Y
         self.axes.set_ylabel(
             "Nombre de consultations",
+            color=self.theme.COLORS["subtext"],
+            fontsize=10,
+            fontweight="500"
+        )
+
+        self._finalize_plot()
+
+
+class MontantConsultationsGraph(BaseGraph):
+    """
+    Graphique scatter pour le montant des consultations par mois.
+    
+    Usage :
+        self.graphe = MontantConsultationsGraph(parent=self.frame_graph)
+        self.graphe.update_graph(self.ctrl.obtenir_montant_par_mois(code_session))
+    """
+
+    def __init__(self, parent=None, width=5, height=4, dpi=100):
+        super().__init__(parent, width, height, dpi)
+        self.month_labels = [
+            'Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin',
+            'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'
+        ]
+        self._last_stats = {}
+        theme_manager.theme_changed.connect(self._on_theme_change)
+
+    def _on_theme_change(self):
+        if self._last_stats:
+            self.update_graph(self._last_stats)
+
+    def update_graph(self, stats_mensuelles: dict):
+        """
+        Met à jour le graphique du montant avec scatter.
+
+        Paramètre :
+            stats_mensuelles (dict) : {"Jan": 50000, "Fev": 120000, ...}
+        """
+        self._last_stats = stats_mensuelles or {}
+        self.axes.clear()
+        self._setup_modern_style()
+
+        if not stats_mensuelles:
+            self._finalize_plot()
+            return
+
+        values = [stats_mensuelles.get(mois, 0) for mois in self.month_labels]
+        x = np.arange(len(self.month_labels))
+        y = np.array(values, dtype=float)
+
+        color = self.theme.COLORS["success"]
+
+        # Courbe lissée + zone de remplissage
+        self._create_smooth_curve(x, y, color, alpha=0.9)
+
+        # Points interactifs avec tooltip au survol
+        self._create_data_points(x, y, color, "Montant (GNF)")
+
+        # Configuration des axes avec espacement
+        self.axes.set_xticks(x)
+        self.axes.set_xticklabels(self.month_labels, rotation=0)
+        self.axes.set_xlim(-0.8, len(self.month_labels) - 0.2)
+        self._set_intelligent_ylim(values)
+
+        # Label axe Y
+        self.axes.set_ylabel(
+            "Montant (GNF)",
+            color=self.theme.COLORS["subtext"],
+            fontsize=10,
+            fontweight="500"
+        )
+
+        self._finalize_plot()
+
+
+class MoyenneJournaliereGraph(BaseGraph):
+    """
+    Graphique scatter pour la moyenne journalière par mois.
+    
+    Usage :
+        self.graphe = MoyenneJournaliereGraph(parent=self.frame_graph)
+        self.graphe.update_graph(self.ctrl.obtenir_moyenne_journaliere_par_mois(code_session))
+    """
+
+    def __init__(self, parent=None, width=5, height=4, dpi=100):
+        super().__init__(parent, width, height, dpi)
+        self.month_labels = [
+            'Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin',
+            'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'
+        ]
+        self._last_stats = {}
+        theme_manager.theme_changed.connect(self._on_theme_change)
+
+    def _on_theme_change(self):
+        if self._last_stats:
+            self.update_graph(self._last_stats)
+
+    def update_graph(self, stats_mensuelles: dict):
+        """
+        Met à jour le graphique de la moyenne avec barres verticales.
+
+        Paramètre :
+            stats_mensuelles (dict) : {"Jan": 2.5, "Fev": 3.8, ...}
+        """
+        self._last_stats = stats_mensuelles or {}
+        self.axes.clear()
+        self._setup_modern_style()
+
+        if not stats_mensuelles:
+            self._finalize_plot()
+            return
+
+        values = [stats_mensuelles.get(mois, 0) for mois in self.month_labels]
+        x = np.arange(len(self.month_labels))
+        
+        color = self.theme.COLORS["info"]
+
+        # Barres verticales
+        bars = self.axes.bar(x, values, width=0.6, color=color,
+                            edgecolor='none', alpha=0.8)
+        
+        # Valeurs au-dessus des barres
+        for bar, value in zip(bars, values):
+            if value > 0:
+                self.axes.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    bar.get_height() + 0.1,
+                    f"{value:.1f}",
+                    ha='center', va='bottom',
+                    fontsize=8, fontweight='600',
+                    color=self.theme.COLORS["text"]
+                )
+
+        # Configuration des axes avec espacement
+        self.axes.set_xticks(x)
+        self.axes.set_xticklabels(self.month_labels, rotation=0)
+        self.axes.set_xlim(-0.8, len(self.month_labels) - 0.2)
+        self._set_intelligent_ylim(values)
+
+        # Label axe Y
+        self.axes.set_ylabel(
+            "Moyenne journalière",
             color=self.theme.COLORS["subtext"],
             fontsize=10,
             fontweight="500"

@@ -221,13 +221,40 @@ class FacturePatientDAO:
                 # 2. Synchroniser les statuts de chaque service ────────────────
                 self._synchroniser_statuts_services(cursor, code_visite)
 
-                # 3. Libérer le patient et terminer la visite ──────────────────
+                # 3. Déterminer le statut patient après paiement ──────────
+                # Si le patient a un RDV en attente (statut_rendez_vous = 'attente'),
+                # il doit rester en "Attente rendez-vous [type_acte]"
+                # Sinon, la visite est terminée
+                cursor.execute("""
+                    SELECT am.type_acte
+                    FROM rendez_vous rdv
+                    JOIN acte_medical am ON rdv.code_acte = am.code_acte
+                    WHERE rdv.code_visite = %s
+                      AND LOWER(rdv.statut_rendez_vous) IN ('attente', 'en attente')
+                    LIMIT 1
+                """, (code_visite,))
+                rdv_en_attente = cursor.fetchone()
+                
+                if rdv_en_attente:
+                    # Patient a un RDV en attente → garder statut "Attente rendez-vous [type]"
+                    type_acte = (rdv_en_attente.get('type_acte') or '').lower()
+                    statut_map = {
+                        'examen': 'Attente rendez-vous examen',
+                        'chirurgie': 'Attente rendez-vous chirurgie',
+                        'lunette': 'Attente rendez-vous lunette',
+                        'prescription': 'Attente rendez-vous pharmacie'
+                    }
+                    nouveau_statut = statut_map.get(type_acte, 'Attente rendez-vous')
+                else:
+                    # Pas de RDV en attente → visite terminée
+                    nouveau_statut = 'Terminée'
+                
                 cursor.execute("""
                     UPDATE visite
-                    SET statut_patient = 'Libéré',
+                    SET statut_patient = %s,
                         statut_visite  = 'terminée'
                     WHERE code_visite = %s
-                """, (code_visite,))
+                """, (nouveau_statut, code_visite))
 
                 conn.commit()
                 return True, "Paiement enregistré avec succès. Patient libéré."
@@ -746,7 +773,6 @@ class FacturePatientDAO:
                 cursor.execute("""
                     SELECT
                         c.diagnostique,
-                        c.resultat_consultation,
                         c.frais_consultation,
                         c.date_consultation,
                         per.nom   AS medecin_nom,
@@ -762,14 +788,15 @@ class FacturePatientDAO:
                 cursor.execute("""
                     SELECT
                         e.libelle_examen,
-                        e.resultat_examen,
                         e.frais_examen,
                         e.date_examen,
                         per.nom   AS medecin_nom,
                         per.prenom AS medecin_prenom
                     FROM examen e
+                    INNER JOIN acte_medical am ON e.code_acte        = am.code_acte
+                    INNER JOIN consultation  c  ON am.code_consultation = c.code
                     LEFT JOIN personnel per ON e.code_personnel = per.code
-                    WHERE e.code_visite = %s
+                    WHERE c.code_visite = %s
                     ORDER BY e.date_examen DESC
                 """, (code_visite,))
                 examens = cursor.fetchall()
@@ -777,15 +804,17 @@ class FacturePatientDAO:
                 # Chirurgies
                 cursor.execute("""
                     SELECT
-                        c.libelle_chururgie,
-                        c.frais_chururgie,
-                        c.date_chururgie,
+                        ch.libelle_chururgie,
+                        ch.frais_chururgie,
+                        ch.date_chururgie,
                         per.nom   AS medecin_nom,
                         per.prenom AS medecin_prenom
-                    FROM chururgie c
-                    LEFT JOIN personnel per ON c.code_personnel = per.code
+                    FROM chururgie ch
+                    INNER JOIN acte_medical am ON ch.code_acte        = am.code_acte
+                    INNER JOIN consultation  c  ON am.code_consultation = c.code
+                    LEFT JOIN personnel per ON ch.code_personnel = per.code
                     WHERE c.code_visite = %s
-                    ORDER BY c.date_chururgie DESC
+                    ORDER BY ch.date_chururgie DESC
                 """, (code_visite,))
                 chirurgies = cursor.fetchall()
 
@@ -798,8 +827,10 @@ class FacturePatientDAO:
                         per.nom   AS medecin_nom,
                         per.prenom AS medecin_prenom
                     FROM commandeslunettes cl
+                    INNER JOIN acte_medical am ON cl.code_acte        = am.code_acte
+                    INNER JOIN consultation  c  ON am.code_consultation = c.code
                     LEFT JOIN personnel per ON cl.code_personnel = per.code
-                    WHERE cl.code_visite = %s
+                    WHERE c.code_visite = %s
                     ORDER BY cl.date_commande DESC
                 """, (code_visite,))
                 lunettes = cursor.fetchall()
@@ -813,9 +844,10 @@ class FacturePatientDAO:
                         per.nom   AS medecin_nom,
                         per.prenom AS medecin_prenom
                     FROM prescription_produit pp
-                    LEFT JOIN consultation c ON pp.code_consultation = c.code
+                    INNER JOIN acte_medical am ON pp.code_acte        = am.code_acte
+                    INNER JOIN consultation  c  ON am.code_consultation = c.code
                     LEFT JOIN personnel per ON c.code_personnel = per.code
-                    WHERE pp.code_visite = %s
+                    WHERE c.code_visite = %s
                     ORDER BY pp.code_prescription ASC
                 """, (code_visite,))
                 prescriptions = cursor.fetchall()
@@ -1116,8 +1148,10 @@ class FacturePatientDAO:
         Agrège les frais de chaque service rendu lors de la visite
         en une liste de dictionnaires prêts à construire des PanierFacture.
 
-        Règle : une ligne par service, seulement si montant > 0.
-        La pharmacie est agrégée en UNE seule ligne (SUM multi-lignes).
+        Règle : une ligne par type de service, seulement si montant > 0.
+        Les services (examen, chirurgie, lunettes, pharmacie) sont liés via :
+          acte_medical.code_acte  ←→  service
+          acte_medical.code_consultation  →  consultation.code  →  code_visite
 
         Args:
             cursor    : Curseur actif dans la transaction courante.
@@ -1145,62 +1179,73 @@ class FacturePatientDAO:
                 "prix_applique":    float(row["frais_consultation"]),
             })
 
-        # 2. Examen ────────────────────────────────────────────────────────────
+        # 2. Examen — lié via code_acte → acte_visite (role='execution') OU consultation
         cursor.execute("""
-            SELECT code, frais_examen
-            FROM examen
-            WHERE code_visite = %s
-            LIMIT 1
-        """, (code_visite,))
+            SELECT MIN(e.code)                           AS ref_examen,
+                   COALESCE(SUM(e.frais_examen), 0)     AS total_examen
+            FROM examen e
+            INNER JOIN acte_medical am ON e.code_acte = am.code_acte
+            LEFT JOIN acte_visite av ON am.code_acte = av.code_acte AND av.role_visite = 'execution'
+            LEFT JOIN consultation c ON am.code_consultation = c.code
+            WHERE av.code_visite = %s OR c.code_visite = %s
+        """, (code_visite, code_visite))
         row = cursor.fetchone()
-        if row and row.get("frais_examen") and float(row["frais_examen"]) > 0:
+        if row and row.get("total_examen") and float(row["total_examen"]) > 0:
             lignes.append({
                 "designation":      "Examen",
-                "numero_reference": row["code"],
+                "numero_reference": row["ref_examen"] or "EXM",
                 "quantite_facture": 1,
-                "prix_applique":    float(row["frais_examen"]),
+                "prix_applique":    float(row["total_examen"]),
             })
 
-        # 3. Chirurgie ─────────────────────────────────────────────────────────
+        # 3. Chirurgie — lié via code_acte → acte_visite (role='execution') OU consultation
         cursor.execute("""
-            SELECT code, frais_chururgie
-            FROM chururgie
-            WHERE code_visite = %s
-            LIMIT 1
-        """, (code_visite,))
+            SELECT MIN(ch.code)                              AS ref_chururgie,
+                   COALESCE(SUM(ch.frais_chururgie), 0)     AS total_chururgie
+            FROM chururgie ch
+            INNER JOIN acte_medical am ON ch.code_acte = am.code_acte
+            LEFT JOIN acte_visite av ON am.code_acte = av.code_acte AND av.role_visite = 'execution'
+            LEFT JOIN consultation c ON am.code_consultation = c.code
+            WHERE av.code_visite = %s OR c.code_visite = %s
+        """, (code_visite, code_visite))
         row = cursor.fetchone()
-        if row and row.get("frais_chururgie") and float(row["frais_chururgie"]) > 0:
+        if row and row.get("total_chururgie") and float(row["total_chururgie"]) > 0:
             lignes.append({
                 "designation":      "Chirurgie",
-                "numero_reference": row["code"],
+                "numero_reference": row["ref_chururgie"] or "CHR",
                 "quantite_facture": 1,
-                "prix_applique":    float(row["frais_chururgie"]),
+                "prix_applique":    float(row["total_chururgie"]),
             })
 
-        # 4. Lunettes ──────────────────────────────────────────────────────────
+        # 4. Lunettes — lié via code_acte → acte_visite (role='execution') OU consultation
         cursor.execute("""
-            SELECT code, prix
-            FROM commandeslunettes
-            WHERE code_visite = %s
-            LIMIT 1
-        """, (code_visite,))
+            SELECT MIN(cl.code)                       AS ref_lunette,
+                   COALESCE(SUM(cl.prix), 0)          AS total_lunette
+            FROM commandeslunettes cl
+            INNER JOIN acte_medical am ON cl.code_acte = am.code_acte
+            LEFT JOIN acte_visite av ON am.code_acte = av.code_acte AND av.role_visite = 'execution'
+            LEFT JOIN consultation c ON am.code_consultation = c.code
+            WHERE av.code_visite = %s OR c.code_visite = %s
+        """, (code_visite, code_visite))
         row = cursor.fetchone()
-        if row and row.get("prix") and float(row["prix"]) > 0:
+        if row and row.get("total_lunette") and float(row["total_lunette"]) > 0:
             lignes.append({
                 "designation":      "Lunettes",
-                "numero_reference": row["code"],
+                "numero_reference": row["ref_lunette"] or "LUN",
                 "quantite_facture": 1,
-                "prix_applique":    float(row["prix"]),
+                "prix_applique":    float(row["total_lunette"]),
             })
 
-        # 5. Pharmacie (SUM de toutes les lignes prescription) ─────────────────
+        # 5. Pharmacie (SUM) — lié via code_acte → acte_visite (role='execution') OU consultation
         cursor.execute("""
-            SELECT
-                MIN(code_prescription)                          AS ref_pharmacie,
-                COALESCE(SUM(prix_applique * quantite_prescript), 0) AS total_pharmacie
-            FROM prescription_produit
-            WHERE code_visite = %s
-        """, (code_visite,))
+            SELECT MIN(pp.code_prescription)                              AS ref_pharmacie,
+                   COALESCE(SUM(pp.prix_applique * pp.quantite_prescript), 0) AS total_pharmacie
+            FROM prescription_produit pp
+            INNER JOIN acte_medical am ON pp.code_acte = am.code_acte
+            LEFT JOIN acte_visite av ON am.code_acte = av.code_acte AND av.role_visite = 'execution'
+            LEFT JOIN consultation c ON am.code_consultation = c.code
+            WHERE av.code_visite = %s OR c.code_visite = %s
+        """, (code_visite, code_visite))
         row = cursor.fetchone()
         if row and row.get("total_pharmacie") and float(row["total_pharmacie"]) > 0:
             lignes.append({
@@ -1217,20 +1262,34 @@ class FacturePatientDAO:
         Met à jour statut_facture = 'Payé' dans chaque table de service
         liée à la visite, après validation du paiement.
 
-        Tables synchronisées : consultation, examen, chururgie, commandeslunettes.
-        Note : prescription_produit n'a pas de statut_facture (paiement atomique).
+        - consultation  : liée directement via code_visite
+        - examen, chururgie, commandeslunettes : liées via
+          code_acte → acte_medical → consultation → visite
+        Note : prescription_produit n'a pas de statut_facture.
 
         Args:
             cursor      : Curseur actif dans la transaction courante.
             code_visite (str): Code de la visite.
         """
-        tables = ["consultation", "examen", "chururgie", "commandeslunettes"]
-        for table in tables:
+        # Consultation — lien direct
+        try:
+            cursor.execute(
+                "UPDATE consultation SET statut_facture = 'Payé' WHERE code_visite = %s",
+                (code_visite,)
+            )
+        except pymysql.MySQLError as e:
+            print(f"[FacturePatientDAO] Warning sync statut consultation: {e}")
+
+        # Services liés via acte_medical → consultation → visite
+        for table in ["examen", "chururgie", "commandeslunettes"]:
             try:
-                cursor.execute(
-                    f"UPDATE {table} SET statut_facture = 'Payé' WHERE code_visite = %s",
-                    (code_visite,)
-                )
+                cursor.execute(f"""
+                    UPDATE {table} t
+                    INNER JOIN acte_medical am ON t.code_acte        = am.code_acte
+                    INNER JOIN consultation  c  ON am.code_consultation = c.code
+                    SET t.statut_facture = 'Payé'
+                    WHERE c.code_visite = %s
+                """, (code_visite,))
             except pymysql.MySQLError as e:
                 print(f"[FacturePatientDAO] Warning sync statut {table}: {e}")
 

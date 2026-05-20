@@ -1,426 +1,535 @@
-# Standard library imports
+"""
+Vue Visite - Interface principale de gestion des visites
+Architecture à onglets pour une interface moins chargée
+"""
 import logging
-
-# Third-party imports
-import qtawesome as qta
-from PySide6.QtCore import Qt, QSize, QPropertyAnimation, QPoint, QEasingCurve, QTimer
-from PySide6.QtGui import QColor
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton,
-    QTableWidget, QHeaderView, QFrame, QLabel,
-    QScrollArea, QTableWidgetItem, QDialog, QGraphicsDropShadowEffect
-)
-
-# Local imports
-from .graphe_visite import VisiteAnalyseGraph, AgeAnalyseGraph
-from .details_visite_modal import DetailsVisiteModal
-from .visite_form import VisiteFormDialog
-from .notification_panel import NotificationPanel
-from .performance_dashboard import PerformanceDashboard
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, 
+                                QTabWidget, QPushButton, QFrame)
+from PySide6.QtCore import Qt, QTimer, QEvent, QSize
+from PySide6.QtGui import QIcon
 from views.shared.theme_manager import theme_manager
-from views.visite.styles import VisiteStyles
 
-
-class AnimatedFrame(QFrame):
-    """Frame personnalisé avec animation de survol."""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setup_animation()
-
-    def setup_animation(self):
-        self.shadow = QGraphicsDropShadowEffect(self)
-        self.shadow.setBlurRadius(15)
-        self.shadow.setOffset(0, 4)
-        self.shadow.setColor(QColor(0, 0, 0, 40))
-        self.setGraphicsEffect(self.shadow)
-
-        self.animation = QPropertyAnimation(self, b"pos")
-        self.animation.setDuration(150)
-        self.animation.setEasingCurve(QEasingCurve.OutCubic)
-
-    def enterEvent(self, event):
-        self.animation.setStartValue(self.pos())
-        self.animation.setEndValue(QPoint(self.pos().x(), self.pos().y() - 5))
-        self.shadow.setBlurRadius(25)
-        self.animation.start()
-        super().enterEvent(event)
-
-    def leaveEvent(self, event):
-        self.animation.setStartValue(self.pos())
-        self.animation.setEndValue(QPoint(self.pos().x(), self.pos().y() + 5))
-        self.shadow.setBlurRadius(15)
-        self.animation.start()
-        super().leaveEvent(event)
+# Import des composants modulaires
+from .components import (
+    HeaderSection,
+    KpiCardsSection,
+    ChartsSection,
+    VisitsTable,
+    SidebarStats,
+    QuickActions,
+    VisitCardsPanel,
+)
 
 
 class VisiteView(QWidget):
-    """Vue principale pour la gestion des visites médicales."""
-
+    """Vue principale pour la gestion des visites médicales"""
+    
     def __init__(self, visite_controleur):
         super().__init__()
         self.ctrl = visite_controleur
         self.logger = logging.getLogger(__name__)
-
+        
         self.init_ui()
-        self.notification_panel = NotificationPanel(controleur=self.ctrl, parent=self)
+        self.connect_signals()
         self.load_data()
         self.setup_auto_refresh()
-
-        # Appliquer le thème initial et écouter les changements
-        self.apply_theme()
+        
+        # Appliquer le thème
         theme_manager.theme_changed.connect(self.apply_theme)
+        self.apply_theme()
+        
+        # Installer le filtre d'événements pour la responsivité
+        self.installEventFilter(self)
+    
+    def init_ui(self):
+        """Initialise l'interface utilisateur avec onglets"""
+        # Layout principal
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(12, 12, 12, 12)
+        main_layout.setSpacing(0)
+        
+        # Frame principal blanc qui contient tout
+        main_frame = QFrame()
+        main_frame.setObjectName("MainWhiteFrame")
+        main_frame_layout = QVBoxLayout(main_frame)
+        main_frame_layout.setContentsMargins(0, 0, 0, 0)
+        main_frame_layout.setSpacing(0)
+        
+        # Tabs Widget
+        self.tabs = QTabWidget()
+        self.tabs.setTabPosition(QTabWidget.North)
+        self.tabs.setIconSize(QSize(20, 20))
+        self._apply_tab_styles()
+        main_frame_layout.addWidget(self.tabs)
+        
+        # Onglet 1: Statistiques
+        self.tab_stats = self._create_stats_tab()
+        icon_stats = self._get_icon("chart-line")
+        self.tabs.addTab(self.tab_stats, icon_stats, "Statistiques")
+        
+        # Onglet 2: Nouveau
+        self.tab_nouveau = self._create_nouveau_tab()
+        icon_nouveau = self._get_icon("plus")
+        self.tabs.addTab(self.tab_nouveau, icon_nouveau, "Nouveau")
+        
+        # Onglet 3: Liste des visites
+        self.tab_liste = self._create_liste_tab()
+        icon_liste = self._get_icon("list")
+        self.tabs.addTab(self.tab_liste, icon_liste, "Liste des visites")
+        
+        # Onglet 4: Statut patients
+        self.tab_statut = self._create_statut_tab()
+        icon_statut = self._get_icon("clock")
+        self.tabs.addTab(self.tab_statut, icon_statut, "Statut patients")
+        
+        # Quick Actions (toujours visible en bas)
+        self.quick_actions = QuickActions()
+        main_frame_layout.addWidget(self.quick_actions)
+        
+        # Ajouter le frame principal au layout
+        main_layout.addWidget(main_frame)
+        
+        # Appliquer le style au frame principal
+        self._apply_main_frame_style(main_frame)
+    
+    def _get_icon(self, icon_name):
+        """Récupère une icône Font Awesome ou standard"""
+        try:
+            # Essayer d'utiliser qtawesome si disponible
+            import qtawesome as qta
+            icon_map = {
+                "chart-line": "fa5s.chart-line",
+                "plus": "fa5s.plus-circle",
+                "list": "fa5s.list",
+                "clock": "fa5s.clock"
+            }
+            return qta.icon(icon_map.get(icon_name, "fa5s.circle"), color=theme_manager.colors()['primary'])
+        except:
+            # Fallback sur les icônes standard de Qt
+            from PySide6.QtWidgets import QStyle
+            style_map = {
+                "chart-line": QStyle.SP_FileDialogDetailedView,
+                "plus": QStyle.SP_FileIcon,
+                "list": QStyle.SP_FileDialogListView,
+                "clock": QStyle.SP_BrowserReload
+            }
+            return self.style().standardIcon(style_map.get(icon_name, QStyle.SP_FileIcon))
+    
+    def _create_stats_tab(self):
+        """Crée l'onglet Statistiques"""
+        tab = QWidget()
+        tab.setStyleSheet("background: white;")
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(12, 8, 12, 12)
+        layout.setSpacing(8)
+        
+        # Zone scrollable
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { border: none; background: white; }")
+        
+        content = QWidget()
+        content.setStyleSheet("background: white;")
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(8)
+        
+        # KPI Cards
+        self.kpi_cards = KpiCardsSection(self.ctrl)
+        content_layout.addWidget(self.kpi_cards)
+        
+        # Charts - prennent tout l'espace restant
+        self.charts = ChartsSection(self.ctrl)
+        content_layout.addWidget(self.charts, 1)
+        
+        scroll.setWidget(content)
+        layout.addWidget(scroll)
+        
+        return tab
+    
+    def _create_nouveau_tab(self):
+        """Crée l'onglet Nouveau avec formulaire intégré"""
+        from .visite_form_widget import VisiteFormWidget
+        
+        tab = QWidget()
+        tab.setStyleSheet("background: white;")
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Formulaire intégré
+        self.form_widget = VisiteFormWidget(self.ctrl)
+        self.form_widget.visite_saved.connect(self.load_data)
+        layout.addWidget(self.form_widget)
+        
+        return tab
+    
+    def _create_liste_tab(self):
+        """Crée l'onglet Liste des visites"""
+        tab = QWidget()
+        tab.setStyleSheet("background: white;")
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(12, 8, 12, 12)
+        
+        # Table des visites
+        self.visits_table = VisitsTable(self.ctrl)
+        layout.addWidget(self.visits_table)
+        
+        return tab
+    
+    def _create_statut_tab(self):
+        """Crée l'onglet Statut patients (surveillance en temps réel)"""
+        tab = QWidget()
+        tab.setStyleSheet("background: white;")
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(12, 8, 12, 12)
+        layout.setSpacing(12)
 
-    def apply_theme(self):
-        """Applique le thème actif à tous les composants de la vue visite."""
+        horizontal_layout = QHBoxLayout()
+        horizontal_layout.setSpacing(12)
+
+        # --- Panneau gauche : cartes de visites actives ---
+        self.visits_cards_panel = VisitCardsPanel()
+        left_frame = QFrame()
+        left_frame.setObjectName("StatutFrame")
+        left_layout = QVBoxLayout(left_frame)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(0)
+        left_layout.addWidget(self.visits_cards_panel)
+        self._apply_statut_frame_style(left_frame)
+
+        # --- Panneau droit : alertes & attentes ---
+        self.sidebar = SidebarStats(self.ctrl)
+        right_frame = QFrame()
+        right_frame.setObjectName("StatutFrame")
+        right_layout = QVBoxLayout(right_frame)
+        right_layout.setContentsMargins(15, 15, 15, 15)
+        right_layout.addWidget(self.sidebar.alerts_frame)
+        right_layout.addStretch()
+        self._apply_statut_frame_style(right_frame)
+
+        horizontal_layout.addWidget(left_frame, 3)
+        horizontal_layout.addWidget(right_frame, 2)
+        layout.addLayout(horizontal_layout)
+
+        return tab
+    
+    def _apply_main_frame_style(self, frame):
+        """Applique le style au frame principal blanc"""
         c = theme_manager.colors()
-        self.setStyleSheet(f"background: {c['bg_main']};")
-        self.search_bar.setStyleSheet(VisiteStyles.search_bar())
-        self.btn_add.setStyleSheet(VisiteStyles.button_primary())
-        self.btn_add.setIcon(qta.icon("fa5s.plus-square", color=c['text_inverse']))
-        round_btn = VisiteStyles.button_secondary()
-        for btn, ico in [(self.btn_dashboard, "fa5s.tachometer-alt"), (self.btn_notif, "fa5s.bell")]:
-            btn.setStyleSheet(round_btn)
-            btn.setIcon(qta.icon(ico, color=c['primary']))
-        for frame in [self.frame_mensuel, self.frame_age, self.frame_table, self.frame_flux]:
-            frame.setStyleSheet(VisiteStyles.card())
-            frame._icon_lbl.setPixmap(qta.icon(frame._icon_name, color=c['primary']).pixmap(QSize(16, 16)))
-            frame._title_lbl.setStyleSheet(f"font-weight:bold; color:{c['text_primary']}; font-size:12px; border:none;")
-            frame._separator.setStyleSheet(f"background:{c['border_light']}; border:none;")
-        self.table.setStyleSheet(VisiteStyles.table())
-        self.table.verticalScrollBar().setStyleSheet(VisiteStyles.scrollbar())
+        frame.setStyleSheet(f"""
+            QFrame#MainWhiteFrame {{
+                background: white;
+                border: 1px solid {c['border']};
+                border-radius: 16px;
+            }}
+        """)
+    
+    def _apply_statut_frame_style(self, frame):
+        """Applique le style aux frames de l'onglet statut"""
+        c = theme_manager.colors()
+        frame.setStyleSheet(f"""
+            QFrame#StatutFrame {{
+                background: white;
+                border: 1px solid {c['border']};
+                border-radius: 8px;
+            }}
+        """)
+    
+    def connect_signals(self):
+        """Connecte tous les signaux des composants"""
+        self.visits_table.btn_new_visit.clicked.connect(self._ouvrir_formulaire_visite)
+        self.visits_table.view_clicked.connect(self._voir_details_visite)
+        
+        self.quick_actions.new_visit_clicked.connect(self._ouvrir_formulaire_visite)
+        self.quick_actions.progression_clicked.connect(self._ouvrir_suivi_progression)
+        self.quick_actions.priorities_clicked.connect(self._ouvrir_priorites)
+        self.quick_actions.details_clicked.connect(self._ouvrir_details)
+        self.quick_actions.export_clicked.connect(self._exporter_rapport)
+        
+        self.sidebar.view_all_alerts.connect(self._voir_toutes_alertes)
+    
+    def load_data(self):
+        """Charge toutes les données"""
+        try:
+            actif, code_session = self.ctrl.verifier_session_active()
+            if not actif:
+                self.logger.warning("Aucune session active")
+                return
+            
+            self._load_kpi_data()
+            self._load_charts_data()
+            self._load_table_data()
+            self._load_sidebar_data()
+            
+        except Exception as e:
+            self.logger.error(f"Erreur lors du chargement des données: {e}")
+    
+    def _load_kpi_data(self):
+        """Charge les données des KPI cards"""
+        try:
+            today_count = self.ctrl.obtenir_nombre_visites_aujourdhui()
+            completed_count = self.ctrl.obtenir_nombre_visites_terminees()
+            urgent_count = self.ctrl.obtenir_nombre_urgences()
+            
+            perf_stats = self.ctrl.obtenir_statistiques_performance()
+            ongoing_count = perf_stats.get('visites_actives', 0)
+            avg_duration = perf_stats.get('duree_moyenne', 0)
+            tendance = perf_stats.get('tendance', '+0%')
+            
+            try:
+                today_vs_yesterday = int(tendance.replace('%', '').replace('+', ''))
+            except:
+                today_vs_yesterday = 0
+            
+            total = today_count + completed_count + ongoing_count
+            completed_pct = round((completed_count / total * 100), 1) if total > 0 else 0
+            
+            stats = {
+                'today_count': today_count,
+                'today_vs_yesterday': today_vs_yesterday,
+                'completed_count': completed_count,
+                'completed_pct': completed_pct,
+                'ongoing_count': ongoing_count,
+                'urgent_count': urgent_count,
+                'avg_duration': avg_duration
+            }
+            
+            self.kpi_cards.update_data(stats)
+            
+        except Exception as e:
+            self.logger.error(f"Erreur chargement KPI: {e}")
+    
+    def _load_charts_data(self):
+        """Charge les données des graphiques"""
+        try:
+            stats_mensuelles = self.ctrl.obtenir_stats_mensuelles()
+            stats_ages = self.ctrl.get_stat_visites_par_age()
+            stats_performance = self.ctrl.obtenir_statistiques_performance()
+            
+            self.charts.update_data(stats_mensuelles, stats_ages, stats_performance)
+            
+        except Exception as e:
+            self.logger.error(f"Erreur chargement graphiques: {e}")
+    
+    def _load_table_data(self):
+        """Charge les données de la table"""
+        try:
+            visites = self.ctrl.obtenir_visites_prioritaires()
+            self.visits_table.load_visits(visites)
+            
+        except Exception as e:
+            self.logger.error(f"Erreur chargement table: {e}")
+    
+    def _load_sidebar_data(self):
+        """Charge les données du sidebar et du panneau de visites actives"""
+        try:
+            # Panneau gauche : visites actives avec durée
+            visites_actives = self.ctrl.obtenir_visites_actives_avec_duree()
+            self.visits_cards_panel.update_cards(visites_actives)
 
-    # ── Timer ──────────────────────────────────────────────────────────
+            # Panneau droit : alertes
+            bilan = self.ctrl.obtenir_bilan_performance_session()
+            self.sidebar.update_repartition(bilan)
+
+            codes_actifs = self.ctrl.obtenir_visites_surveillance_active()
+            alertes = self.ctrl.verifier_alertes_temps_attente(codes_actifs, seuil_minutes=20)
+            self.sidebar.update_alerts(alertes)
+
+        except Exception as e:
+            self.logger.error(f"Erreur chargement sidebar: {e}")
+    
+    def _is_today(self, date_visite):
+        """Vérifie si une date est aujourd'hui"""
+        from datetime import datetime, date
+        
+        if isinstance(date_visite, str):
+            try:
+                date_obj = datetime.strptime(date_visite, "%Y-%m-%d %H:%M:%S").date()
+            except:
+                return False
+        elif hasattr(date_visite, 'date'):
+            date_obj = date_visite.date()
+        else:
+            date_obj = date_visite
+        
+        return date_obj == date.today()
+    
     def setup_auto_refresh(self):
+        """Configure le rafraîchissement automatique"""
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.safe_load_data)
-        self.timer.start(30_000)
-
+        self.timer.start(30_000)  # 30 secondes
+    
     def safe_load_data(self):
+        """Rafraîchissement sécurisé"""
         try:
             self.load_data()
         except Exception as e:
             self.logger.error(f"Erreur rafraîchissement automatique: {e}")
-
-    # ── Construction UI ────────────────────────────────────────────────
-    def init_ui(self):
-        self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(15, 15, 15, 15)
-        self.main_layout.setSpacing(12)
-
-        self.setup_top_bar()
-        self._setup_graphs_section()
-        self._setup_bottom_section()
-
-    def _setup_graphs_section(self):
-        graphs_layout = QHBoxLayout()
-        graphs_layout.setSpacing(12)
-
-        self.frame_mensuel = self.creer_cadre_arondi("Flux Mensuel des Visites", "fa5s.chart-line")
-        self.frame_age     = self.creer_cadre_arondi("Analyse par Tranches d'Âge", "fa5s.chart-pie")
-
-        self.graph_mensuel_plot = VisiteAnalyseGraph(self.frame_mensuel)
-        self.frame_mensuel.layout().addWidget(self.graph_mensuel_plot)
-
-        self.graph_age_plot = AgeAnalyseGraph(self.frame_age)
-        self.frame_age.layout().addWidget(self.graph_age_plot)
-
-        self.frame_mensuel.setMinimumHeight(220)
-        self.frame_age.setMinimumHeight(220)
-
-        graphs_layout.addWidget(self.frame_mensuel, 1)
-        graphs_layout.addWidget(self.frame_age, 1)
-        self.main_layout.addLayout(graphs_layout, 2)
-
-    def _setup_bottom_section(self):
-        bottom_layout = QHBoxLayout()
-        bottom_layout.setSpacing(12)
-
-        self.frame_table = self.creer_cadre_arondi("Registre des Visites", "fa5s.list-ul")
-        self.setup_table_minimal()
-
-        self.frame_flux = self.creer_cadre_arondi("Suivi des Services (Workflow)", "fa5s.project-diagram")
-        self.setup_workflow_rings()
-
-        bottom_layout.addWidget(self.frame_table, 4)
-        bottom_layout.addWidget(self.frame_flux, 6)
-        self.main_layout.addLayout(bottom_layout, 3)
-
-    # ── Barre du haut ──────────────────────────────────────────────────
-    def setup_top_bar(self):
-        hbox = QHBoxLayout()
-
-        self.search_bar = QLineEdit()
-        self.search_bar.setPlaceholderText(" Rechercher un patient ou un code de visite...")
-        self.search_bar.setFixedHeight(45)
-        self.search_bar.textChanged.connect(self.filtrer_visite)
-
-        self.btn_add = QPushButton(qta.icon("fa5s.plus-square", color="white"), " Enregistrer")
-        self.btn_add.setFixedSize(150, 45)
-        self.btn_add.clicked.connect(self.ouvrir_formulaire_visite)
-
-        self.btn_dashboard = QPushButton(qta.icon("fa5s.tachometer-alt", color=theme_manager.colors()['primary']), "")
-        self.btn_dashboard.setFixedSize(45, 45)
-        self.btn_dashboard.setToolTip("Tableau de bord performance")
-        self.btn_dashboard.clicked.connect(self._ouvrir_dashboard)
-
-        self.btn_notif = QPushButton(qta.icon("fa5s.bell", color=theme_manager.colors()['primary']), "")
-        self.btn_notif.setFixedSize(45, 45)
-        self.btn_notif.clicked.connect(self._toggle_notifications)
-
-        hbox.addWidget(self.search_bar)
-        hbox.addWidget(self.btn_add)
-        hbox.addSpacing(10)
-        hbox.addWidget(self.btn_dashboard)
-        hbox.addWidget(self.btn_notif)
-        self.main_layout.addLayout(hbox)
-
-    # ── Cadre arrondi ──────────────────────────────────────────────────
-    def creer_cadre_arondi(self, titre: str, icone_name: str) -> AnimatedFrame:
-        c = theme_manager.colors()
-        frame = AnimatedFrame()
-        frame._icon_name = icone_name
-        frame.setStyleSheet(VisiteStyles.card())
-        layout = QVBoxLayout(frame)
-        layout.setContentsMargins(14, 10, 14, 10)
-        layout.setSpacing(6)
-
-        header = QHBoxLayout()
-        icon_lbl = QLabel()
-        icon_lbl.setPixmap(qta.icon(icone_name, color=c['primary']).pixmap(QSize(16, 16)))
-        icon_lbl.setStyleSheet("border: none; background: transparent;")
-        frame._icon_lbl = icon_lbl
-        title_lbl = QLabel(titre)
-        title_lbl.setStyleSheet(f"font-weight:bold; color:{c['text_primary']}; font-size:12px; border:none;")
-        frame._title_lbl = title_lbl
-        header.addWidget(icon_lbl)
-        header.addSpacing(6)
-        header.addWidget(title_lbl)
-        header.addStretch()
-        layout.addLayout(header)
-
-        sep = QFrame()
-        sep.setFixedHeight(1)
-        sep.setStyleSheet(f"background:{c['border_light']}; border:none;")
-        frame._separator = sep
-        layout.addWidget(sep)
-
-        return frame
-
-    # ── Table ──────────────────────────────────────────────────────────
-    def setup_table_minimal(self):
-        self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["Code", "Patient", "Statut", "Actions"])
-        self.table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.apply_modern_scrollbar(self.table)
-
-        header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.Stretch)
-        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.Fixed)
-        self.table.setColumnWidth(3, 100)
-
-        self.table.setStyleSheet(VisiteStyles.table())
-        self.table.verticalHeader().setVisible(False)
-        self.table.verticalHeader().setDefaultSectionSize(40)
-        self.table.setAlternatingRowColors(True)
-        self.frame_table.layout().addWidget(self.table)
-
-    def apply_modern_scrollbar(self, widget):
-        widget.verticalScrollBar().setStyleSheet(VisiteStyles.scrollbar())
-
-    # ── Workflow ───────────────────────────────────────────────────────
-    def setup_workflow_rings(self):
-        self.workflow_scroll = QScrollArea()
-        self.workflow_scroll.setWidgetResizable(True)
-        self.workflow_scroll.setStyleSheet("border: none; background: transparent;")
-
-        self.workflow_container = QWidget()
-        self.workflow_container.setStyleSheet("background: transparent;")
-        self.workflow_layout = QVBoxLayout(self.workflow_container)
-        self.workflow_layout.setContentsMargins(4, 4, 4, 4)
-        self.workflow_layout.setSpacing(8)
-        self.workflow_layout.setAlignment(Qt.AlignTop)
-
-        self.workflow_scroll.setWidget(self.workflow_container)
-        self.frame_flux.layout().addWidget(self.workflow_scroll)
-
-    # ── Notifications ──────────────────────────────────────────────────
+    
+    # ========================================================================
+    # SLOTS - Actions des composants
+    # ========================================================================
+    
     def _toggle_notifications(self):
-        self.notification_panel.toggle()
-        count = self.notification_panel.get_alert_count()
-        if count > 0:
-            c = theme_manager.colors()
-            self.btn_notif.setText(f" {count}")
-            self.btn_notif.setStyleSheet(
-                f"background: {c.get('danger_bg','#FEF2F2')}; border: 2px solid {c['danger']}; "
-                f"border-radius: 22px; color: {c['danger']}; font-weight: 800; font-size: 11px;"
-            )
-        else:
-            c = theme_manager.colors()
-            self.btn_notif.setText("")
-            self.btn_notif.setStyleSheet(VisiteStyles.button_secondary())
-
-    def _ouvrir_dashboard(self):
+        """Affiche/masque le panneau de notifications"""
         try:
-            dlg = PerformanceDashboard(controleur=self.ctrl, parent=self)
-            dlg.exec()
+            from .notification_panel import NotificationPanel
+            
+            if not hasattr(self, 'notification_panel'):
+                self.notification_panel = NotificationPanel(controleur=self.ctrl, parent=self)
+            
+            self.notification_panel.toggle()
+            
         except Exception as e:
-            self.logger.error(f"Erreur ouverture dashboard: {e}")
-
-    # ── Mise à jour UI ─────────────────────────────────────────────────
-    def update_table_ui(self, visites):
-        self.table.setRowCount(0)
-        for v in visites:
-            row = self.table.rowCount()
-            self.table.insertRow(row)
-
-            self.table.setItem(row, 0, QTableWidgetItem(str(v.get_code_visite()).upper()))
-            nom_complet = (
-                f"{getattr(v, 'nom_patient', '')} {getattr(v, 'prenom_patient', '')}"
-                .strip().title()
-            )
-            self.table.setItem(row, 1, QTableWidgetItem(nom_complet))
-
-            item_statut = QTableWidgetItem(str(v.get_statut_visite()).capitalize())
-            item_statut.setTextAlignment(Qt.AlignCenter)
-            self.table.setItem(row, 2, item_statut)
-
-            actions_container = QWidget()
-            actions_layout = QHBoxLayout(actions_container)
-            actions_layout.setContentsMargins(4, 2, 4, 2)
-            actions_layout.setSpacing(6)
-
-            c = theme_manager.colors()
-            btn_view   = QPushButton(qta.icon("fa5s.eye",       color=c['info']), "")
-            btn_edit   = QPushButton(qta.icon("fa5s.edit",      color=c['primary']), "")
-            btn_consult = QPushButton(qta.icon("fa5s.stethoscope", color=c['success']),"")
-            btn_delete = QPushButton(qta.icon("fa5s.trash-alt", color=c['danger']), "")
-
-            btn_style = VisiteStyles.button_table_action()
-            for btn in [btn_view, btn_edit,btn_consult, btn_delete]:
-                btn.setFixedSize(26, 26)
-                btn.setCursor(Qt.PointingHandCursor)
-                btn.setStyleSheet(btn_style)
-                actions_layout.addWidget(btn)
-
-            btn_view.clicked.connect(self.create_action_handler(self.action_voir,        v))
-            btn_edit.clicked.connect(self.create_action_handler(self.action_editer,      v))
-            btn_consult.clicked.connect(self.create_action_handler(self._ouvrir_consultation, v))
-            btn_delete.clicked.connect(self.create_action_handler(self.action_supprimer, v))
-
-            self.table.setCellWidget(row, 3, actions_container)
-
-    def update_workflow_ui(self, visites_objets):
-        from .workflow_tracker import PatientRowWidget
-
-        while self.workflow_layout.count():
-            item = self.workflow_layout.takeAt(0)
-            if item.widget():
-                if hasattr(item.widget(), 'cleanup'):
-                    item.widget().cleanup()
-                item.widget().deleteLater()
-
-        count = 0
-        for v in visites_objets:
-            statut_p = v.get_statut_patient() or ""
-            statut_v = v.get_statut_visite()  or ""
-
-            if statut_p.lower() != "libéré" and statut_v.lower() != "terminée":
-                nom_complet = (
-                    f"{getattr(v, 'nom_patient', '')} {getattr(v, 'prenom_patient', '')}"
-                    .strip()
-                )
-                row = PatientRowWidget(
-                    patient_name=nom_complet,
-                    statut_db=statut_p,
-                    controleur=self.ctrl,
-                    code_visite=v.get_code_visite()
-                )
-                self.workflow_layout.addWidget(row)
-                count += 1
-
-        if count == 0:
-            empty_lbl = QLabel("Aucune visite active dans les services")
-            empty_lbl.setStyleSheet(
-                f"color: {theme_manager.colors()['text_muted']}; font-style: italic; font-size: 11px; border: none;"
-            )
-            empty_lbl.setAlignment(Qt.AlignCenter)
-            self.workflow_layout.addWidget(empty_lbl)
-
-    def filtrer_visite(self, texte: str):
-        texte = texte.strip()
-        if not texte:
-            self.load_data()
-        else:
-            visites = self.ctrl.rechercher_visites(texte)
-            self.update_table_ui(visites)
-
-    # ── Chargement des données ─────────────────────────────────────────
-    def load_data(self):
+            self.logger.error(f"Erreur notifications: {e}")
+    
+    def _ouvrir_formulaire_visite(self):
+        """Ouvre l'onglet Nouveau avec le formulaire intégré"""
+        self.tabs.setCurrentIndex(1)  # Onglet 2 = Nouveau
+    
+    def _voir_details_visite(self, visite):
+        """Affiche les détails d'une visite"""
         try:
-            actif, _ = self.ctrl.verifier_session_active()
-            if not actif:
-                return
-
-            visites = self.ctrl.obtenir_visites_prioritaires()
-            self.update_table_ui(visites)
-            self.update_workflow_ui(visites)
-
-            self.graph_mensuel_plot.update_graph(self.ctrl.obtenir_stats_mensuelles())
-            self.graph_age_plot.update_graph(self.ctrl.get_stat_visites_par_age())
-
-        except Exception as e:
-            self.logger.error(f"Erreur lors du chargement: {e}")
-
-    # ── Handlers actions ───────────────────────────────────────────────
-    def create_action_handler(self, action_func, visite_obj):
-        def handler():
-            action_func(visite_obj)
-        return handler
-
-    def action_voir(self, visite):
-        try:
+            from .details_visite_modal import DetailsVisiteModal
+            
             details = self.ctrl.obtenir_dossier_complet_visite(visite.get_code_visite())
-            patient_name = (
-                f"{getattr(visite, 'nom_patient', '')} {getattr(visite, 'prenom_patient', '')}"
-                .strip()
-            )
+            patient_name = f"{getattr(visite, 'nom_patient', '')} {getattr(visite, 'prenom_patient', '')}".strip()
+            cabinet_info = self.ctrl.get_cabinet_info()
+            
             modal = DetailsVisiteModal(
-                self, visite.get_code_visite(), patient_name,
-                details, self.ctrl.get_cabinet_info()
+                self,
+                visite.get_code_visite(),
+                patient_name,
+                details,
+                cabinet_info
             )
             modal.exec()
+            
         except Exception as e:
-            self.logger.error(f"Erreur ouverture détails: {e}")
-
-    def ouvrir_formulaire_visite(self, visite_obj=None):
-        try:
-            dialog = VisiteFormDialog(
-                controleur=self.ctrl, visite_obj=visite_obj, parent=self
-            )
-            if dialog.exec() == QDialog.Accepted:
-                self.load_data()
-        except Exception as e:
-            self.logger.error(f"Erreur formulaire: {e}")
-
-    def action_editer(self, visite):
-        self.ouvrir_formulaire_visite(visite)
-
-    def action_supprimer(self, visite):
-        self.logger.info(f"Suppression demandée pour: {visite.get_code_visite()}")
-        pass
+            self.logger.error(f"Erreur détails visite: {e}")
     
-    def _ouvrir_consultation(self, code_visite: str, code_personnel: str):
-        from views.consultation.consultation_form import ConsultationFormDialog
-        dialog = ConsultationFormDialog(
-            controleur     = self.consultation_ctrl,
-            code_session   = self.code_session,
-            code_visite    = code_visite,      # ← pré-rempli et verrouillé
-            code_personnel = code_personnel,   # ← pré-sélectionné
-            parent         = self
-        )
-        if dialog.exec():
-            self.rafraichir()  # ou votre méthode de rechargement
+    def _ouvrir_suivi_progression(self):
+        """Navigue vers la liste des visites pour suivre la progression"""
+        self.tabs.setCurrentIndex(2)
+    
+    def _ouvrir_priorites(self):
+        self._toggle_notifications()
+    
+    def _ouvrir_details(self):
+        """Navigue vers la liste pour sélectionner une visite et voir ses détails"""
+        self.tabs.setCurrentIndex(2)
+    
+    def _exporter_rapport(self):
+        """Affiche le rapport du flux hebdomadaire de visites"""
+        try:
+            from PySide6.QtWidgets import (QDialog, QVBoxLayout, QLabel,
+                                            QTableWidget, QTableWidgetItem,
+                                            QHeaderView, QPushButton)
+            from PySide6.QtCore import Qt
+            from views.shared.theme_manager import theme_manager
+
+            flux = self.ctrl.obtenir_analyse_flux_hebdomadaire()
+
+            c = theme_manager.colors()
+            dlg = QDialog(self)
+            dlg.setWindowTitle("Rapport — Flux hebdomadaire des visites")
+            dlg.setMinimumWidth(420)
+            dlg.setStyleSheet(f"background: {c['bg_main']}; color: {c['text_primary']};")
+
+            layout = QVBoxLayout(dlg)
+            layout.setSpacing(14)
+            layout.setContentsMargins(20, 20, 20, 20)
+
+            title = QLabel("Flux de visites par jour de la semaine")
+            title.setStyleSheet(
+                f"font-size: 15px; font-weight: bold; color: {c['primary']};"
+            )
+            layout.addWidget(title)
+
+            if not flux:
+                msg = QLabel("Aucune donnée disponible.")
+                msg.setStyleSheet(f"color: {c['text_muted']}; font-size: 12px;")
+                layout.addWidget(msg)
+            else:
+                table = QTableWidget(len(flux), 2)
+                table.setHorizontalHeaderLabels(["Jour", "Visites"])
+                table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+                table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+                table.verticalHeader().setVisible(False)
+                table.setEditTriggers(QTableWidget.NoEditTriggers)
+                table.setAlternatingRowColors(True)
+                table.setStyleSheet(f"""
+                    QTableWidget {{
+                        background: {c['bg_card']};
+                        border: 1px solid {c['border']};
+                        border-radius: 8px;
+                        gridline-color: {c['border_light']};
+                    }}
+                    QHeaderView::section {{
+                        background: {c['table_header_bg']};
+                        color: {c['text_primary']};
+                        padding: 6px;
+                        border: none;
+                        font-weight: 600;
+                    }}
+                    QTableWidget::item {{ padding: 6px; }}
+                    QTableWidget::item:alternate {{ background: {c['bg_main']}; }}
+                """)
+                for i, item in enumerate(flux):
+                    table.setItem(i, 0, QTableWidgetItem(str(item.get('jour', ''))))
+                    count_item = QTableWidgetItem(str(item.get('total', 0)))
+                    count_item.setTextAlignment(Qt.AlignCenter)
+                    table.setItem(i, 1, count_item)
+                layout.addWidget(table)
+
+            btn_close = QPushButton("Fermer")
+            btn_close.setFixedHeight(36)
+            btn_close.setCursor(Qt.PointingHandCursor)
+            btn_close.setStyleSheet(f"""
+                QPushButton {{
+                    background: {c['primary']}; color: {c['text_inverse']};
+                    border: none; border-radius: 8px; font-weight: 600;
+                    padding: 0 20px;
+                }}
+                QPushButton:hover {{ background: {c['primary_hover']}; }}
+            """)
+            btn_close.clicked.connect(dlg.accept)
+            layout.addWidget(btn_close, alignment=Qt.AlignRight)
+
+            dlg.exec()
+        except Exception as e:
+            self.logger.error(f"Erreur export rapport: {e}")
+    
+    def _voir_toutes_alertes(self):
+        self._toggle_notifications()
+    
+    def apply_theme(self):
+        """Applique le thème à la vue"""
+        c = theme_manager.colors()
+        self.setStyleSheet(f"background: {c['bg_main']};")
+        self._apply_tab_styles()
+        if hasattr(self, 'tabs'):
+            # Réappliquer le style au frame principal
+            main_frame = self.findChild(QFrame, "MainWhiteFrame")
+            if main_frame:
+                self._apply_main_frame_style(main_frame)
+    
+    def _apply_tab_styles(self):
+        """Applique les styles aux onglets"""
+        from .styles import VisiteStyles
+        self.tabs.setStyleSheet(VisiteStyles.tab_widget())
+    
+    def eventFilter(self, obj, event):
+        """Filtre d'événements — réservé pour extensions futures"""
+        return super().eventFilter(obj, event)
+    
+    def resizeEvent(self, event):
+        """Gère le redimensionnement de la fenêtre"""
+        super().resizeEvent(event)
+    
+    def cleanup(self):
+        """Nettoyage avant fermeture"""
+        if hasattr(self, 'timer'):
+            self.timer.stop()

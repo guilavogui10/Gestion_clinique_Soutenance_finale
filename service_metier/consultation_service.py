@@ -35,8 +35,6 @@ class ConsultationService:
         self.dao = dao or ConsultationDAO()
         self.cabinet_dao = cabinet_dao or CabinetDAO()
         self.logger = logging.getLogger(__name__)
-        from data.dao_visite import Visitedao
-        self.dao_visite = Visitedao()
 
     # =========================================================================
     # MÉTHODES DE VALIDATION (LOGIQUE MÉTIER)
@@ -87,17 +85,14 @@ class ConsultationService:
         return True, ""
 
     def valider_codes_obligatoires(self, consultation: Consultation) -> tuple:
-        """Valide que les codes visite, session et personnel sont renseignés."""
-        if not consultation.code_visite or not consultation.code_session or not consultation.code_personnel:
-            return False, "Tous les codes (visite, session, personnel) sont obligatoires"
+        """Valide que les codes visite, session et personne sont renseignés."""
+        if not consultation.code_visite or not consultation.code_session or not consultation.code_personne:
+            return False, "Tous les codes (visite, session, personne) sont obligatoires"
         return True, ""
 
     def valider_consultation(self, consultation: Consultation) -> tuple:
         """Regroupe toutes les validations communes à la création et modification."""
         valide, msg = self.valider_texte(consultation.diagnostique, "diagnostique")
-        if not valide:
-            return False, msg
-        valide, msg = self.valider_texte(consultation.resultat_consultation, "résultat de consultation")
         if not valide:
             return False, msg
         valide, msg = self.valider_date(consultation.date_consultation)
@@ -106,35 +101,13 @@ class ConsultationService:
         valide, msg = self.valider_frais(consultation.frais_consultation)
         if not valide:
             return False, msg
-        for champ, valeur in [
-            ("examen", consultation.examen),
-            ("chirurgie", consultation.chirurgie),
-            ("commande lunette", consultation.commandelunette),
-            ("prescription produit", consultation.prescription_produit)
-        ]:
-            valide, msg = self.valider_choix(valeur, champ)
-            if not valide:
-                return False, msg
         return True, ""
 
     def _nettoyer_consultation(self, consultation: Consultation) -> None:
         """Nettoie les champs texte (supprime les espaces superflus)."""
         consultation.diagnostique = consultation.diagnostique.strip()
-        consultation.resultat_consultation = consultation.resultat_consultation.strip()
 
-    def _determiner_prochain_statut(self, consultation: Consultation) -> str:
-        """
-        Détermine le prochain statut du patient selon les services prescrits.
-        Règle de priorité : Examen > Chirurgie > Pharmacie > Paiement
-        """
-        if consultation.examen == 'Oui':
-            return "Attente examen"
-        elif consultation.chirurgie == 'Oui':
-            return "Attente operation"
-        elif consultation.prescription_produit == 'Oui':
-            return "Attente Pharmacie"
-        else:
-            return "Attente payement"
+
 
     # =========================================================================
     # MÉTHODES CRUD
@@ -181,12 +154,26 @@ class ConsultationService:
 
     def obtenir_par_code(self, code: str):
         return self.dao.obtenir_par_code(code)
+    
+    def obtenir_consultation(self, code: str):
+        """Alias pour obtenir_par_code"""
+        return self.obtenir_par_code(code)
 
     def obtenir_par_visite(self, code_visite: str):
         return self.dao.obtenir_par_visite(code_visite)
+    
+    def lister_consultations_par_visite(self, code_visite: str) -> list:
+        """Retourne toutes les consultations d'une visite (retourne une liste)"""
+        consultation = self.dao.obtenir_par_visite(code_visite)
+        if consultation:
+            return [consultation]
+        return []
 
     def lister_consultations(self, code_session: str) -> list:
         return self.dao.lister_par_session(code_session)
+
+    def lister_toutes(self) -> list:
+        return self.dao.lister_toutes()
 
     def rechercher_consultation(self, critere: str, code_session: str) -> list:
         return self.dao.rechercher_par_critere(critere, code_session)
@@ -267,6 +254,9 @@ class ConsultationService:
         return self.dao.moyenne_consultations_journalieres_mois(code_session)
 
     def obtenir_moyenne_nombre_journalier_par_mois(self, code_session: str) -> dict:
+        return self.dao.moyenne_consultations_journalieres_mois(code_session)
+
+    def obtenir_moyenne_journaliere_par_mois(self, code_session: str) -> dict:
         return self.dao.moyenne_consultations_journalieres_mois(code_session)
 
     def obtenir_resume_session(self, code_session: str) -> dict:

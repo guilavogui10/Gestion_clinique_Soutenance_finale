@@ -44,25 +44,25 @@ class PrescriptionControleur:
         """Delegue la suppression au service."""
         return self.service.supprimer_ligne(code_prescription)
 
-    def valider_prescription_visite(self, code_visite: str, code_consultation: str) -> Tuple[bool, str]:
-        """Delegue la validation au service."""
-        return self.service.valider_prescription_visite(code_visite, code_consultation)
+    def valider_prescription_visite(self, code_acte: str) -> Tuple[bool, str]:
+        """Delègue la validation au service."""
+        return self.service.valider_prescription_visite(code_acte)
 
     def obtenir_par_code(self, code_prescription: str) -> Optional[PanierPrescriptionProduit]:
         """Retourne un objet PanierPrescriptionProduit ou None."""
         return self.service.obtenir_par_code(code_prescription)
 
-    def lister_par_consultation(self, code_consultation: str) -> List[PanierPrescriptionProduit]:
-        """Retourne les lignes du panier prescription d une consultation."""
-        return self.service.lister_par_consultation(code_consultation)
+    def lister_par_acte(self, code_acte: str) -> List[PanierPrescriptionProduit]:
+        """Retourne les lignes du panier prescription d un acte médical."""
+        return self.service.lister_par_acte(code_acte)
 
     def lister_par_session(self, code_session: str) -> List[PanierPrescriptionProduit]:
         """Toutes les prescriptions de la session (tableau principal)."""
         return self.service.lister_par_session(code_session)
 
-    def lister_groupes_par_consultation(self, code_session: str) -> List[Dict]:
-        """Liste regroupée : 1 ligne par consultation."""
-        return self.service.lister_groupes_par_consultation(code_session)
+    def lister_groupes_par_acte(self, code_session: str) -> List[Dict]:
+        """Liste regroupée : 1 ligne par acte médical."""
+        return self.service.lister_groupes_par_acte(code_session)
 
     def lister_par_visite(self, code_visite: str) -> List[PanierPrescriptionProduit]:
         """Toutes les prescriptions liées à une visite."""
@@ -92,13 +92,13 @@ class PrescriptionControleur:
         """Retourne (designation, prix_vente_unitaire) d un produit."""
         return self.service.obtenir_infos_produit(code_produit)
 
-    def obtenir_montant_total_consultation(self, code_consultation: str) -> float:
+    def obtenir_montant_total_acte(self, code_acte: str) -> float:
         """Total du panier prescription en cours."""
-        return self.service.obtenir_montant_total_consultation(code_consultation)
+        return self.service.obtenir_montant_total_acte(code_acte)
 
-    def obtenir_nombre_lignes_consultation(self, code_consultation: str) -> int:
+    def obtenir_nombre_lignes_acte(self, code_acte: str) -> int:
         """Nombre de produits dans le panier en cours."""
-        return self.service.obtenir_nombre_lignes_consultation(code_consultation)
+        return self.service.obtenir_nombre_lignes_acte(code_acte)
 
     def get_montant_pharmacie_par_visite(self, code_visite: str) -> float:
         """Agrège TOUTES les lignes d une visite en UN seul montant pharmacie."""

@@ -13,8 +13,6 @@ from PySide6.QtGui import QColor
 from PySide6.QtCore import QPropertyAnimation, QPoint, QEasingCurve
 from .patient_form import PatientFormDialog
 
-from views.visite.visite_form import VisiteFormDialog  # Import depuis le domaine visite
-
 from controllers.controleur_visite import VisiteControleur # Import du contrôleur visite
 from views.shared.theme_manager import theme_manager
 from views.patient.styles import PatientStyles
@@ -398,14 +396,13 @@ class PatientView(QWidget):
                 self.load_all_data()
                 
     def ouvrir_formulaire_visite(self):
+        """Ouvre l'onglet Nouveau de la vue visite pour créer une visite"""
         button = self.sender()
         if button:
             patient = button.property("patient_data")
-            ctrl_visite = VisiteControleur() 
-            
-            # On passe bien le code_patient ici
-            dialog = VisiteFormDialog(ctrl_visite, code_patient=patient.get_code_patient(), parent=self)
-            dialog.exec()
+            # TODO: Implémenter l'ouverture de l'onglet Nouveau de la vue visite
+            # avec le code_patient pré-rempli
+            self.show_message(False, "Fonctionnalité en cours d'implémentation.\nUtilisez la vue Visite pour créer une nouvelle visite.")
 
     # def confirmer_suppression(self):
     #     """Demande confirmation avant de supprimer définitivement"""

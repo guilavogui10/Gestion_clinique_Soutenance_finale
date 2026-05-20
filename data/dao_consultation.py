@@ -31,35 +31,27 @@ class ConsultationDAO:
             consultation.code = self._generer_code(cursor)
             query = """
                 INSERT INTO consultation (
-                    code, diagnostique, resultat_consultation,
-                    examen, chiurgie, commandelunette, prescription_produit,
+                    code, diagnostique,
                     frais_consultation, statut_facture, date_consultation,
                     code_visite, code_session, code_personnel
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """
             cursor.execute(query, (
                 consultation.code,
                 consultation.diagnostique,
-                consultation.resultat_consultation,
-                consultation.examen,
-                consultation.chirurgie,
-                consultation.commandelunette,
-                consultation.prescription_produit,
                 consultation.frais_consultation,
                 consultation.statut_facture,
                 consultation.date_consultation,
                 consultation.code_visite,
                 consultation.code_session,
-                consultation.code_personnel
+                consultation.code_personne
             ))
             
-            # Mise à jour du statut_patient dans visite selon les services choisis
-            nouveau_statut = self._determiner_prochain_statut(consultation)
-            if nouveau_statut:
-                cursor.execute(
-                    "UPDATE visite SET statut_patient=%s WHERE code_visite=%s",
-                    (nouveau_statut, consultation.code_visite)
-                )
+            # Mettre à jour le statut du patient : consultation terminée
+            cursor.execute(
+                "UPDATE visite SET statut_patient = %s WHERE code_visite = %s",
+                ('Consultation terminée', consultation.code_visite)
+            )
             
             conn.commit()
             return True
@@ -78,26 +70,19 @@ class ConsultationDAO:
             cursor = conn.cursor()
             query = """
                 UPDATE consultation SET
-                    diagnostique=%s, resultat_consultation=%s,
-                    examen=%s, chiurgie=%s, commandelunette=%s,
-                    prescription_produit=%s, frais_consultation=%s,
-                    statut_facture=%s, date_consultation=%s,
+                    diagnostique=%s,
+                    frais_consultation=%s, statut_facture=%s, date_consultation=%s,
                     code_visite=%s, code_session=%s, code_personnel=%s
                 WHERE code=%s
             """
             cursor.execute(query, (
                 consultation.diagnostique,
-                consultation.resultat_consultation,
-                consultation.examen,
-                consultation.chirurgie,       # modèle → colonne chiurgie
-                consultation.commandelunette,
-                consultation.prescription_produit,
                 consultation.frais_consultation,
                 consultation.statut_facture,
                 consultation.date_consultation,
                 consultation.code_visite,
                 consultation.code_session,
-                consultation.code_personnel,
+                consultation.code_personne,
                 consultation.code
             ))
             conn.commit()
@@ -177,6 +162,24 @@ class ConsultationDAO:
         finally:
             self.db.close()
 
+    def lister_toutes(self) -> list:
+        """Retourne toutes les consultations, triées par date décroissante."""
+        conn = self.db.connect()
+        if not conn:
+            return []
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT * FROM consultation ORDER BY date_consultation DESC"
+            )
+            rows = cursor.fetchall()
+            return [self._row_to_object(row) for row in rows]
+        except Exception as e:
+            print(f"[ConsultationDAO] Erreur lister_toutes: {e}")
+            return []
+        finally:
+            self.db.close()
+
     def rechercher_par_critere(self, critere: str, code_session: str) -> list:
         conn = self.db.connect()
         if not conn:
@@ -190,14 +193,13 @@ class ConsultationDAO:
                 AND (
                     code LIKE %s OR
                     DATE(date_consultation) LIKE %s OR
-                    diagnostique LIKE %s OR
-                    resultat_consultation LIKE %s
+                    diagnostique LIKE %s
                 )
                 ORDER BY date_consultation DESC
             """
             cursor.execute(query, (
                 code_session, critere_like, critere_like,
-                critere_like, critere_like
+                critere_like
             ))
             rows = cursor.fetchall()
             return [self._row_to_object(row) for row in rows]
@@ -240,7 +242,7 @@ class ConsultationDAO:
             self.db.close()
 
     def services_lies(self, code_consultation: str) -> dict:
-        """Retourne tous les services liés à une consultation."""
+        """Retourne tous les services liés à une consultation via acte_medical."""
         conn = self.db.connect()
         if not conn:
             return {}
@@ -248,16 +250,48 @@ class ConsultationDAO:
             cursor = conn.cursor()
             services = {}
 
-            cursor.execute("SELECT * FROM examen WHERE code_consultation=%s", (code_consultation,))
+            # Récupérer code_visite de la consultation
+            cursor.execute("SELECT code_visite FROM consultation WHERE code=%s", (code_consultation,))
+            result = cursor.fetchone()
+            if not result:
+                return services
+            
+            code_visite = result['code_visite'] if isinstance(result, dict) else result[0]
+
+            # Examens via acte_medical
+            cursor.execute("""
+                SELECT e.*, a.decision_medicale, a.choix_patient, a.statu_acte
+                FROM examen e
+                INNER JOIN acte_medical a ON e.code_acte = a.code_acte
+                WHERE a.code_visite_origine = %s
+            """, (code_visite,))
             services['examens'] = cursor.fetchall()
 
-            cursor.execute("SELECT * FROM chiururgie WHERE code_consultation=%s", (code_consultation,))
+            # Chirurgies via acte_medical
+            cursor.execute("""
+                SELECT c.*, a.decision_medicale, a.choix_patient, a.statu_acte
+                FROM chururgie c
+                INNER JOIN acte_medical a ON c.code_acte = a.code_acte
+                WHERE a.code_visite_origine = %s
+            """, (code_visite,))
             services['chirurgies'] = cursor.fetchall()
 
-            cursor.execute("SELECT * FROM lunette WHERE code_consultation=%s", (code_consultation,))
+            # Lunettes via acte_medical
+            cursor.execute("""
+                SELECT l.*, a.decision_medicale, a.choix_patient, a.statu_acte
+                FROM commandeslunettes l
+                INNER JOIN acte_medical a ON l.code_acte = a.code_acte
+                WHERE a.code_visite_origine = %s
+            """, (code_visite,))
             services['lunettes'] = cursor.fetchall()
 
-            cursor.execute("SELECT * FROM prescription_produit WHERE code_consultation=%s", (code_consultation,))
+            # Prescriptions via acte_medical
+            cursor.execute("""
+                SELECT p.*, a.decision_medicale, a.choix_patient, a.statu_acte
+                FROM prescription_produit p
+                INNER JOIN acte_medical a ON p.code_acte = a.code_acte
+                WHERE a.code_visite_origine = %s
+            """, (code_visite,))
             services['prescriptions'] = cursor.fetchall()
 
             return services
@@ -698,6 +732,7 @@ class ConsultationDAO:
             self.db.close()
 
     def taux_conversion_services(self, code_session: str) -> dict:
+        """Calcule le taux de conversion des services via acte_medical."""
         conn = self.db.connect()
         if not conn:
             return {}
@@ -709,20 +744,23 @@ class ConsultationDAO:
             )
             total = cursor.fetchone()['total']
             if total == 0:
-                return {'examen': 0.0, 'chiurgie': 0.0, 'lunette': 0.0, 'prescription': 0.0}
+                return {'examen': 0.0, 'chirurgie': 0.0, 'lunette': 0.0, 'prescription': 0.0}
 
             services = {
-                'examen':       "examen='Oui'",
-                'chiurgie':     "chiurgie='Oui'",
-                'lunette':      "commandelunette='Oui'",
-                'prescription': "prescription_produit='Oui'"
+                'examen': 'examen',
+                'chirurgie': 'chirurgie',
+                'lunette': 'lunette',
+                'prescription': 'prescription'
             }
             taux = {}
-            for nom, condition in services.items():
-                cursor.execute(
-                    f"SELECT COUNT(*) AS nb FROM consultation WHERE code_session=%s AND {condition}",
-                    (code_session,)
-                )
+            for nom, type_acte in services.items():
+                cursor.execute("""
+                    SELECT COUNT(DISTINCT c.code) AS nb
+                    FROM consultation c
+                    INNER JOIN visite v ON c.code_visite = v.code_visite
+                    INNER JOIN acte_medical a ON v.code_visite = a.code_visite_origine
+                    WHERE c.code_session=%s AND a.type_acte=%s
+                """, (code_session, type_acte))
                 nb = cursor.fetchone()['nb']
                 taux[nom] = round((nb / total) * 100, 2)
             return taux
@@ -787,8 +825,17 @@ class ConsultationDAO:
             cursor = conn.cursor()
             query = """
                 SELECT
-                    v.code_visite, v.date_visite,
-                    p.code_patient, p.nom, p.prenom, p.telephone
+                    v.code_visite,
+                    v.code_session,
+                    v.date_visite,
+                    v.type_visite,
+                    v.statut_patient,
+                    v.urgent,
+                    ABS(TIMESTAMPDIFF(MINUTE, v.date_visite, NOW())) AS temps_attente_minutes,
+                    p.code_patient,
+                    p.nom,
+                    p.prenom,
+                    p.telephone
                 FROM visite v
                 INNER JOIN patients p       ON v.code_patient  = p.code_patient
                 LEFT JOIN  consultation c   ON v.code_visite   = c.code_visite
@@ -804,16 +851,16 @@ class ConsultationDAO:
             self.db.close()
 
     def patients_pour_examen(self, code_session: str) -> list:
-        return self._patients_par_service(code_session, "examen='Oui'")
+        return self._patients_par_service_acte(code_session, "examen")
 
     def patients_pour_chirurgie(self, code_session: str) -> list:
-        return self._patients_par_service(code_session, "chiurgie='Oui'")
+        return self._patients_par_service_acte(code_session, "chirurgie")
 
     def patients_pour_lunette(self, code_session: str) -> list:
-        return self._patients_par_service(code_session, "commandelunette='Oui'")
+        return self._patients_par_service_acte(code_session, "lunette")
 
     def patients_pour_prescription(self, code_session: str) -> list:
-        return self._patients_par_service(code_session, "prescription_produit='Oui'")
+        return self._patients_par_service_acte(code_session, "prescription")
 
     def historique_patient(self, code_patient: str) -> list:
         conn = self.db.connect()
@@ -900,50 +947,56 @@ class ConsultationDAO:
     def rechercher_par_services(self, code_session: str, examen=None, chirurgie=None, 
                                commandelunette=None, prescription=None) -> list:
         """
-        Recherche les consultations selon les services supplémentaires.
-        Chaque paramètre peut être :
-        - None (ignoré)
-        - "Oui" (filtre consultations où le service = Oui)
-        - "Non" (filtre consultations où le service = Non)
-        
+        Recherche les consultations selon les services via acte_medical.
+        Chaque paramètre peut être True (inclure ce service) ou None (ignorer).
         Si plusieurs filtres sont fournis, ils sont combinés avec AND.
         Retourne une liste d'objets Consultation.
         """
         if not code_session:
             return []
 
-        conditions = ["c.code_session=%s"]
-        params = [code_session]
-
-        if examen is not None:
-            conditions.append(f"c.examen=%s")
-            params.append(examen)
-        if chirurgie is not None:
-            conditions.append(f"c.chiurgie=%s")  # Note: colonne 'chiurgie' en base
-            params.append(chirurgie)
-        if commandelunette is not None:
-            conditions.append(f"c.commandelunette=%s")
-            params.append(commandelunette)
-        if prescription is not None:
-            conditions.append(f"c.prescription_produit=%s")
-            params.append(prescription)
-
-        where_clause = " AND ".join(conditions)
-
         conn = self.db.connect()
         if not conn:
             return []
         try:
             cursor = conn.cursor(DictCursor)
-            query = f"""
-                SELECT c.*, v.code_patient, p.nom AS patient_nom, p.prenom AS patient_prenom
-                FROM consultation c
-                INNER JOIN visite v ON c.code_visite = v.code_visite
-                INNER JOIN patients p ON v.code_patient = p.code_patient
-                WHERE {where_clause}
-                ORDER BY c.date_consultation DESC
-            """
-            cursor.execute(query, tuple(params))
+            
+            # Construction dynamique des filtres
+            types_actes = []
+            if examen:
+                types_actes.append('examen')
+            if chirurgie:
+                types_actes.append('chirurgie')
+            if commandelunette:
+                types_actes.append('lunette')
+            if prescription:
+                types_actes.append('prescription')
+            
+            if not types_actes:
+                # Aucun filtre, retourner toutes les consultations
+                query = """
+                    SELECT c.*, v.code_patient, p.nom AS patient_nom, p.prenom AS patient_prenom
+                    FROM consultation c
+                    INNER JOIN visite v ON c.code_visite = v.code_visite
+                    INNER JOIN patients p ON v.code_patient = p.code_patient
+                    WHERE c.code_session=%s
+                    ORDER BY c.date_consultation DESC
+                """
+                cursor.execute(query, (code_session,))
+            else:
+                # Filtrer par types d'actes
+                placeholders = ','.join(['%s'] * len(types_actes))
+                query = f"""
+                    SELECT DISTINCT c.*, v.code_patient, p.nom AS patient_nom, p.prenom AS patient_prenom
+                    FROM consultation c
+                    INNER JOIN visite v ON c.code_visite = v.code_visite
+                    INNER JOIN patients p ON v.code_patient = p.code_patient
+                    INNER JOIN acte_medical a ON v.code_visite = a.code_visite_origine
+                    WHERE c.code_session=%s AND a.type_acte IN ({placeholders})
+                    ORDER BY c.date_consultation DESC
+                """
+                cursor.execute(query, (code_session, *types_actes))
+            
             result = cursor.fetchall()
             return [self._row_to_object(row) for row in result]
         except Exception as e:
@@ -1014,40 +1067,16 @@ class ConsultationDAO:
         finally:
             self.db.close()
 
-    def nombre_par_mois_filtre(self, code_session: str, examen: str = None, 
-                               chirurgie: str = None, commandelunette: str = None, 
-                               prescription: str = None) -> dict:
+    def nombre_par_mois_filtre(self, code_session: str, examen: bool = None, 
+                               chirurgie: bool = None, commandelunette: bool = None, 
+                               prescription: bool = None) -> dict:
         """
-        Retourne le nombre de consultations par mois (étiquette mois)
-        avec les filtres optionnels sur les services.
-        
-        Chaque paramètre (examen, chirurgie, commandelunette, prescription) peut être :
-        - None : inclure toutes les consultations (ignorer ce service)
-        - "Oui" : inclure seulement celles avec ce service = Oui
-        - "Non" : inclure seulement celles avec ce service = Non
-        
+        Retourne le nombre de consultations par mois avec filtres sur les services via acte_medical.
+        Chaque paramètre peut être True (inclure ce service) ou None (ignorer).
         Format retourné : { "Jan": 5, "Fév": 3, ... }
         """
         stats = self._stats_mensuels_int()
         mois_mapping = self._mois_mapping()
-
-        conditions = ["c.code_session=%s"]
-        params = [code_session]
-
-        if examen is not None:
-            conditions.append("c.examen=%s")
-            params.append(examen)
-        if chirurgie is not None:
-            conditions.append("c.chiurgie=%s")
-            params.append(chirurgie)
-        if commandelunette is not None:
-            conditions.append("c.commandelunette=%s")
-            params.append(commandelunette)
-        if prescription is not None:
-            conditions.append("c.prescription_produit=%s")
-            params.append(prescription)
-
-        where_clause = " AND ".join(conditions)
 
         conn = self.db.connect()
         if not conn:
@@ -1055,13 +1084,40 @@ class ConsultationDAO:
 
         try:
             cursor = conn.cursor(DictCursor)
-            query = f"""
-                SELECT MONTH(c.date_consultation) AS num_mois, COUNT(*) AS total
-                FROM consultation c
-                WHERE {where_clause}
-                GROUP BY MONTH(c.date_consultation)
-            """
-            cursor.execute(query, tuple(params))
+            
+            # Construction dynamique des filtres
+            types_actes = []
+            if examen:
+                types_actes.append('examen')
+            if chirurgie:
+                types_actes.append('chirurgie')
+            if commandelunette:
+                types_actes.append('lunette')
+            if prescription:
+                types_actes.append('prescription')
+            
+            if not types_actes:
+                # Aucun filtre
+                query = """
+                    SELECT MONTH(c.date_consultation) AS num_mois, COUNT(*) AS total
+                    FROM consultation c
+                    WHERE c.code_session=%s
+                    GROUP BY MONTH(c.date_consultation)
+                """
+                cursor.execute(query, (code_session,))
+            else:
+                # Filtrer par types d'actes
+                placeholders = ','.join(['%s'] * len(types_actes))
+                query = f"""
+                    SELECT MONTH(c.date_consultation) AS num_mois, COUNT(DISTINCT c.code) AS total
+                    FROM consultation c
+                    INNER JOIN visite v ON c.code_visite = v.code_visite
+                    INNER JOIN acte_medical a ON v.code_visite = a.code_visite_origine
+                    WHERE c.code_session=%s AND a.type_acte IN ({placeholders})
+                    GROUP BY MONTH(c.date_consultation)
+                """
+                cursor.execute(query, (code_session, *types_actes))
+            
             for row in cursor.fetchall():
                 m = row['num_mois']
                 if m in mois_mapping:
@@ -1107,24 +1163,26 @@ class ConsultationDAO:
     # MÉTHODES PRIVÉES
     # =========================================================================
 
-    def _patients_par_service(self, code_session: str, condition: str) -> list:
+    def _patients_par_service_acte(self, code_session: str, type_acte: str) -> list:
+        """Récupère les patients ayant un acte médical spécifique via acte_medical."""
         conn = self.db.connect()
         if not conn:
             return []
         try:
             cursor = conn.cursor()
-            query = f"""
-                SELECT c.code, c.date_consultation, p.nom, p.prenom, p.telephone
+            query = """
+                SELECT DISTINCT c.code, c.date_consultation, p.nom, p.prenom, p.telephone
                 FROM consultation c
-                INNER JOIN visite v    ON c.code_visite   = v.code_visite
-                INNER JOIN patients p  ON v.code_patient  = p.code_patient
-                WHERE c.code_session=%s AND {condition}
+                INNER JOIN visite v ON c.code_visite = v.code_visite
+                INNER JOIN patients p ON v.code_patient = p.code_patient
+                INNER JOIN acte_medical a ON v.code_visite = a.code_visite_origine
+                WHERE c.code_session=%s AND a.type_acte=%s
                 ORDER BY c.date_consultation DESC
             """
-            cursor.execute(query, (code_session,))
+            cursor.execute(query, (code_session, type_acte))
             return cursor.fetchall()
         except Exception as e:
-            print(f"[ConsultationDAO] Erreur _patients_par_service ({condition}): {e}")
+            print(f"[ConsultationDAO] Erreur _patients_par_service_acte ({type_acte}): {e}")
             return []
         finally:
             self.db.close()
@@ -1150,31 +1208,13 @@ class ConsultationDAO:
     def _row_to_object(self, row) -> Consultation:
         """Convertit une ligne DB en objet Consultation."""
         return Consultation(
-            code                  = row['code'],
-            diagnostique          = row['diagnostique'],
-            resultat_consultation = row['resultat_consultation'],
-            examen                = row['examen'],
-            chirurgie             = row['chiurgie'],
-            commandelunette       = row['commandelunette'],
-            prescription_produit  = row['prescription_produit'],
-            frais_consultation    = row['frais_consultation'],
-            statut_facture        = row['statut_facture'],
-            date_consultation     = row['date_consultation'],
-            code_visite           = row['code_visite'],
-            code_session          = row['code_session'],
-            code_personnel        = row['code_personnel']
+            code                 = row['code'],
+            diagnostique         = row['diagnostique'],
+            frais_consultation   = row['frais_consultation'],
+            statut_facture       = row['statut_facture'],
+            date_consultation    = row['date_consultation'],
+            code_visite          = row['code_visite'],
+            code_session         = row['code_session'],
+            code_personne        = row['code_personnel']
         )
     
-    def _determiner_prochain_statut(self, consultation: Consultation) -> str:
-        """Détermine le prochain statut du patient selon les services choisis."""
-        # Ordre de priorité : examen > chirurgie > lunette > prescription > payement
-        if consultation.examen == "Oui":
-            return "Attente examen"
-        elif consultation.chirurgie == "Oui":
-            return "Attente chirurgie"
-        elif consultation.commandelunette == "Oui":
-            return "Attente lunette"
-        elif consultation.prescription_produit == "Oui":
-            return "Attente pharmacie"
-        else:
-            return "Attente payement"

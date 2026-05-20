@@ -1,1 +1,1 @@
-from .vue_fournisseur import FournisseurView
+from .vue_fournisseur import VueFournisseur as FournisseurView

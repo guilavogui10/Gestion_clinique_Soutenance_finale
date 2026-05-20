@@ -400,9 +400,8 @@ class FacturePatientInvoiceDialog(QDialog):
         # Demander si l'utilisateur veut imprimer
         if self.pdf_exporter:
             from views.shared.message_box import CustomMessageBox
-            if CustomMessageBox.question(
-                self, "Impression", "Voulez-vous imprimer la facture ?",
-                FacturePatientStyles.BLEU_PRINCIPAL
+            if CustomMessageBox.confirm(
+                self, "Impression", "Voulez-vous imprimer la facture ?"
             ):
                 self._export_pdf()
         self.accept()
@@ -428,6 +427,6 @@ class FacturePatientInvoiceDialog(QDialog):
         ok, msg = self.pdf_exporter(path)
         from views.shared.message_box import CustomMessageBox
         if ok:
-            CustomMessageBox.success(self, "PDF", msg, FacturePatientStyles.BLEU_PRINCIPAL)
+            CustomMessageBox.success(self, "PDF", msg)
         else:
-            CustomMessageBox.error(self, "PDF", msg, FacturePatientStyles.BLEU_PRINCIPAL)
+            CustomMessageBox.error(self, "PDF", msg)

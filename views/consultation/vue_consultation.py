@@ -1,473 +1,454 @@
-import qtawesome as qta
-from PySide6.QtCore import Qt, QSize, QPropertyAnimation, QPoint, QEasingCurve
-from PySide6.QtGui import QColor
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton,
-    QTableWidget, QHeaderView, QFrame, QLabel, QGraphicsDropShadowEffect,
-    QTableWidgetItem, QMessageBox
-)
-# Après
-from .graphe_consultation import ConsultationAnalyseGraph
+"""
+Vue Consultation - interface principale de gestion des consultations.
+Architecture à onglets pour une interface moins chargée
+"""
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
+                                QTabWidget, QFrame, QDialog, QDialogButtonBox,
+                                QLabel, QDateEdit, QFormLayout)
+from PySide6.QtCore import Qt, QSize, QDate
 from views.shared.theme_manager import theme_manager
-from views.consultation.styles import ConsultationStyles
+from .components import (
+    KpiCardsSection,
+    ConsultationsTable,
+    QuickActions,
+    ChartsSection
+)
+from .historique_consultation import HistoriqueConsultationView
 
 
-class AnimatedFrame(QFrame):
-    """Cadre arrondi avec effet d'ombre et animation de survol."""
-
-    def __init__(self, parent=None):
+class VueConsultation(QWidget):
+    """Vue principale consultation."""
+    
+    def __init__(self, controleur, permission_ctrl=None, user_info=None, parent=None):
         super().__init__(parent)
-        self._setup_animation()
-
-    def _setup_animation(self):
-        self.shadow = QGraphicsDropShadowEffect(self)
-        self.shadow.setBlurRadius(15)
-        self.shadow.setOffset(0, 4)
-        self.shadow.setColor(QColor(0, 0, 0, 40))
-        self.setGraphicsEffect(self.shadow)
-
-        self.animation = QPropertyAnimation(self, b"pos")
-        self.animation.setDuration(150)
-        self.animation.setEasingCurve(QEasingCurve.OutCubic)
-
-    def enterEvent(self, event):
-        self.animation.setStartValue(self.pos())
-        self.animation.setEndValue(QPoint(self.pos().x(), self.pos().y() - 5))
-        self.shadow.setBlurRadius(25)
-        self.animation.start()
-        super().enterEvent(event)
-
-    def leaveEvent(self, event):
-        self.animation.setStartValue(self.pos())
-        self.animation.setEndValue(QPoint(self.pos().x(), self.pos().y() + 5))
-        self.shadow.setBlurRadius(15)
-        self.animation.start()
-        super().leaveEvent(event)
-
-
-class ConsultationView(QWidget):
-    """
-    Vue principale pour la gestion des consultations médicales.
-    Reçoit le contrôleur consultation en paramètre (cohérent avec les autres vues).
-    La session active est injectée via charger_consultations() depuis le dashboard.
-    """
-
-    def __init__(self, consultation_ctrl):
-        super().__init__()
-        self.ctrl         = consultation_ctrl
+        self.ctrl = controleur
+        self.permission_ctrl = permission_ctrl
+        self.user_info = user_info or {}
         self.code_session = None
-        self._init_ui()
-        from views.shared.panneau_statistiques import PanneauStatistiques
-        self.panneau_stats = PanneauStatistiques(parent=self, ctrl=self.ctrl)
-
-        # Appliquer le thème initial et écouter les changements
-        self.apply_theme()
+        
+        # Créer le helper de permissions si disponible
+        self.permission_helper = None
+        if self.permission_ctrl and self.user_info:
+            from views.shared.permission_helper import PermissionHelper
+            self.permission_helper = PermissionHelper(self, self.permission_ctrl, self.user_info)
+        
+        self.init_ui()
         theme_manager.theme_changed.connect(self.apply_theme)
+        self.apply_theme()
+    
+    def init_ui(self):
+        # Layout principal
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(12, 12, 12, 12)
+        main_layout.setSpacing(0)
+        
+        # Frame principal blanc qui contient tout
+        main_frame = QFrame()
+        main_frame.setObjectName("MainWhiteFrame")
+        main_frame_layout = QVBoxLayout(main_frame)
+        main_frame_layout.setContentsMargins(0, 0, 0, 0)
+        main_frame_layout.setSpacing(0)
+        
+        # Tabs Widget
+        self.tabs = QTabWidget()
+        self.tabs.setTabPosition(QTabWidget.North)
+        self.tabs.setIconSize(QSize(20, 20))
+        self._apply_tab_styles()
+        main_frame_layout.addWidget(self.tabs)
+        
+        # Onglet 1: Statistiques
+        self.tab_stats = self._create_stats_tab()
+        icon_stats = self._get_icon("chart-line")
+        self.tabs.addTab(self.tab_stats, icon_stats, "Statistiques")
+        
+        # Onglet 2: Nouveau
+        self.tab_nouveau = self._create_nouveau_tab()
+        icon_nouveau = self._get_icon("plus")
+        self.tabs.addTab(self.tab_nouveau, icon_nouveau, "Nouveau")
+        
+        # Onglet 3: Liste des consultations
+        self.tab_liste = self._create_liste_tab()
+        icon_liste = self._get_icon("list")
+        self.tabs.addTab(self.tab_liste, icon_liste, "Liste des consultations")
+        
+        # Onglet 4: Statut patients
+        self.tab_statut = self._create_statut_tab()
+        icon_statut = self._get_icon("clock")
+        self.tabs.addTab(self.tab_statut, icon_statut, "Statut patients")
 
-    # =========================================================================
-    # CONSTRUCTION DE L'INTERFACE
-    # =========================================================================
+        # Onglet 5: Historique patient
+        self.tab_historique = self._create_historique_tab()
+        icon_hist = self._get_icon("history")
+        self.tabs.addTab(self.tab_historique, icon_hist, "Historique patient")
+        
+        # Quick Actions (toujours visible en bas)
+        self.quick_actions = QuickActions()
+        self.quick_actions.new_consultation_clicked.connect(self.on_new_consultation)
+        self.quick_actions.patients_waiting_clicked.connect(self.on_patients_waiting)
+        self.quick_actions.advanced_search_clicked.connect(self.on_advanced_search)
+        self.quick_actions.reports_clicked.connect(self.on_reports)
+        self.quick_actions.patient_history_clicked.connect(self.on_patient_history)
+        main_frame_layout.addWidget(self.quick_actions)
+        
+        # Ajouter le frame principal au layout
+        main_layout.addWidget(main_frame)
+        
+        # Appliquer le style au frame principal
+        self._apply_main_frame_style(main_frame)
+    
+    def charger_consultations(self, code_session):
+        self.code_session = code_session
+        if hasattr(self, 'patients_attente_view'):
+            self.patients_attente_view.code_session = code_session
+        if hasattr(self, 'form_widget'):
+            self.form_widget.code_session = code_session
+            self.form_widget.edit_session.setText(code_session or "")
+            self.form_widget.recharger_liste_visites(code_session)
+        if hasattr(self, 'vue_historique'):
+            self.vue_historique.set_session(code_session)
+        self.charger_donnees()
+    
+    def charger_donnees(self):
+        if not self.code_session:
+            return
+        consultations = self.ctrl.lister_consultations(self.code_session)
+        self.table.load_consultations(consultations, self.code_session)
+        self.kpi_cards.rafraichir(self.code_session)
+        if hasattr(self, 'charts'):
+            self.charts.update_data(self.code_session)
+        if hasattr(self, 'patients_attente_view'):
+            self.patients_attente_view.charger_patients()
+        if hasattr(self, 'vue_historique'):
+            self.vue_historique.set_session(self.code_session)
+    
+    def on_view_consultation(self, consultation):
+        from .detail_consultation_modal import DetailsConsultationModal
 
-    def _init_ui(self):
-        self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(15, 15, 15, 15)
-        self.main_layout.setSpacing(15)
+        DetailsConsultationModal(self, consultation.code, self.ctrl).exec()
+    
+    def on_edit_consultation(self, consultation):
+        """Modifier une consultation - Vérification des permissions"""
+        if not self.permission_helper:
+            print(f"Éditer consultation: {consultation.code}")
+            return
+        
+        def executer_modification():
+            print(f"Éditer consultation: {consultation.code}")
+        
+        self.permission_helper.verifier_et_executer(
+            action=self.permission_ctrl.ACTION_MODIFICATION,
+            contexte=f"Consultation {consultation.code}",
+            callback_success=executer_modification
+        )
+    
+    def on_new_consultation(self):
+        """Créer une nouvelle consultation - Vérification des permissions"""
+        if not self.permission_helper:
+            self.tabs.setCurrentIndex(1)
+            return
+        
+        if not self.permission_helper.peut_creer():
+            def executer_creation():
+                self.tabs.setCurrentIndex(1)
+            
+            self.permission_helper.verifier_et_executer(
+                action=self.permission_ctrl.ACTION_MODIFICATION,
+                contexte="Création d'une nouvelle consultation",
+                callback_success=executer_creation
+            )
+        else:
+            self.tabs.setCurrentIndex(1)
+    
+    def on_patients_waiting(self):
+        self.tabs.setCurrentIndex(3)
 
-        self._setup_top_bar()
-        self._setup_stats_section()
-        self._setup_bottom_section()
+    def on_patient_history(self):
+        self.tabs.setCurrentIndex(4)
 
-    # =========================================================================
-    # BARRE DU HAUT
-    # =========================================================================
+    def _ouvrir_nouveau_avec_visite(self, code_visite: str):
+        self.tabs.setCurrentIndex(1)
+        if hasattr(self, 'form_widget'):
+            self.form_widget.recharger_pour_patient(code_visite, self.code_session)
+
+    def on_advanced_search(self):
+        if not self.code_session:
+            return
+        dialog = _RechercheEntresDatesDialog(self.ctrl, self.code_session, parent=self)
+        if dialog.exec():
+            resultats = dialog.resultats
+            self.table.load_consultations(resultats)
+            self.tabs.setCurrentIndex(2)
+
+    def on_reports(self):
+        if not self.code_session:
+            return
+        _ResumeSessionDialog(self.ctrl, self.code_session, parent=self).exec()
 
     def apply_theme(self):
-        """Applique le thème actif à tous les composants de la vue consultation."""
         c = theme_manager.colors()
-        # Fond principal
-        self.setStyleSheet(f"background: {c['bg_main']};")
-        # Barre de recherche
-        self.search_bar.setStyleSheet(ConsultationStyles.search_bar())
-        # Bouton Ajouter
-        self.btn_add.setStyleSheet(ConsultationStyles.button_primary())
-        self.btn_add.setIcon(qta.icon("fa5s.plus-square", color=c['text_inverse']))
-        # Boutons ronds (notification, export, import)
-        round_btn_style = ConsultationStyles.button_secondary()
-        for btn, ico in [(self.btn_notification, "fa5s.bell"), (self.btn_export, "fa5s.file-export"), (self.btn_import, "fa5s.file-import")]:
-            btn.setStyleSheet(round_btn_style)
-            btn.setIcon(qta.icon(ico, color=c['primary']))
-        # Cartes statistiques
-        for card, key in [(self.card_jour, 'primary'), (self.card_session, 'success'), (self.card_attente, 'warning')]:
-            color = c[key]
-            card.setStyleSheet(ConsultationStyles.stat_card_style(color))
-            card._icon_lbl.setPixmap(qta.icon(card._icon_name, color=color).pixmap(QSize(20, 20)))
-            card._title_lbl.setStyleSheet(f"font-weight:bold; color:{c['text_secondary']}; font-size:11px; border:none;")
-            card.value_label.setStyleSheet(f"font-size:28px; font-weight:bold; color:{color}; border:none;")
-        # Cadres arrondis (table + graphe)
-        for frame in [self.frame_table, self.frame_graph]:
-            frame.setStyleSheet(ConsultationStyles.card())
-            frame._icon_lbl.setPixmap(qta.icon(frame._icon_name, color=c['primary']).pixmap(QSize(16, 16)))
-            frame._title_lbl.setStyleSheet(f"font-weight:bold; color:{c['text_primary']}; font-size:12px; border:none;")
-            frame._separator.setStyleSheet(f"background:{c['border_light']}; border:none;")
-        # Tableau + scrollbar
-        self.table.setStyleSheet(ConsultationStyles.table())
-        self.table.verticalScrollBar().setStyleSheet(ConsultationStyles.scrollbar())
-
-    def _setup_top_bar(self):
-        hbox = QHBoxLayout()
-
-        self.search_bar = QLineEdit()
-        self.search_bar.setPlaceholderText(" Rechercher une consultation...")
-        self.search_bar.setFixedHeight(45)
-        self.search_bar.textChanged.connect(self._filtrer_consultations)
-
-        self.btn_add = QPushButton(qta.icon("fa5s.plus-square", color="white"), " Ajouter")
-        self.btn_add.setFixedSize(120, 45)
-        self.btn_add.clicked.connect(self._ouvrir_formulaire)
-
-        c = theme_manager.colors()
-        self.btn_notification = QPushButton(qta.icon("fa5s.bell", color=c['primary']), "")
-        self.btn_notification.setFixedSize(45, 45)
-        self.btn_notification.setToolTip("Notifications")
-        self.btn_notification.clicked.connect(self._basculer_stats)
-
-        self.btn_export = QPushButton(qta.icon("fa5s.file-export", color=c['primary']), "")
-        self.btn_export.setFixedSize(45, 45)
-        self.btn_export.setToolTip("Exporter")
-
-        self.btn_import = QPushButton(qta.icon("fa5s.file-import", color=c['primary']), "")
-        self.btn_import.setFixedSize(45, 45)
-        self.btn_import.setToolTip("Importer")
-
-        hbox.addWidget(self.search_bar)
-        hbox.addWidget(self.btn_add)
-        hbox.addSpacing(10)
-        hbox.addWidget(self.btn_notification)
-        hbox.addWidget(self.btn_export)
-        hbox.addWidget(self.btn_import)
-        self.main_layout.addLayout(hbox)
-
-    # =========================================================================
-    # CARDS STATISTIQUES
-    # =========================================================================
-
-    def _setup_stats_section(self):
-        stats_layout = QHBoxLayout()
-        stats_layout.setSpacing(12)
-
-        self.card_jour    = self._creer_stat_card("Consultations du Jour", "0", "fa5s.calendar-day", "primary")
-        self.card_session = self._creer_stat_card("Session en Cours",      "—", "fa5s.clock",        "success")
-        self.card_attente = self._creer_stat_card("Patients en Attente",   "0", "fa5s.users",        "warning")
-
-        stats_layout.addWidget(self.card_jour)
-        stats_layout.addWidget(self.card_session)
-        stats_layout.addWidget(self.card_attente)
-        self.main_layout.addLayout(stats_layout)
-
-    def _creer_stat_card(self, titre: str, valeur: str, icone: str, accent_key: str) -> AnimatedFrame:
-        """Crée une carte statistique avec titre, icône et valeur."""
-        c = theme_manager.colors()
-        couleur = c.get(accent_key, accent_key)
-        card = AnimatedFrame()
-        card.setFixedHeight(120)
-        card._icon_name = icone
-        card._accent_key = accent_key
-        card.setStyleSheet(ConsultationStyles.stat_card_style(couleur))
-
-        layout = QVBoxLayout(card)
-        layout.setContentsMargins(15, 10, 15, 10)
-        layout.setSpacing(5)
-
-        header = QHBoxLayout()
-        icon_lbl = QLabel()
-        icon_lbl.setPixmap(qta.icon(icone, color=couleur).pixmap(QSize(20, 20)))
-        icon_lbl.setStyleSheet("border: none; background: transparent;")
-        card._icon_lbl = icon_lbl
-        title_lbl = QLabel(titre)
-        title_lbl.setStyleSheet(f"font-weight:bold; color:{c['text_secondary']}; font-size:11px; border:none;")
-        card._title_lbl = title_lbl
-        header.addWidget(icon_lbl)
-        header.addSpacing(8)
-        header.addWidget(title_lbl)
-        header.addStretch()
-        layout.addLayout(header)
-
-        value_lbl = QLabel(valeur)
-        value_lbl.setStyleSheet(f"font-size:28px; font-weight:bold; color:{couleur}; border:none;")
-        value_lbl.setAlignment(Qt.AlignCenter)
-        layout.addWidget(value_lbl)
-        layout.addStretch()
-
-        card.value_label = value_lbl
-        return card
-
-    # =========================================================================
-    # SECTION BAS : TABLE + GRAPHE
-    # =========================================================================
-
-    def _setup_bottom_section(self):
-        bottom_layout = QHBoxLayout()
-        bottom_layout.setSpacing(12)
-
-        self.frame_table = self._creer_cadre_arrondi("Liste des Consultations", "fa5s.stethoscope")
-        self._setup_table()
-
-        self.frame_graph = self._creer_cadre_arrondi("Consultations par Mois", "fa5s.chart-line")
-        self._setup_graphe()
-
-        bottom_layout.addWidget(self.frame_table, 3)
-        bottom_layout.addWidget(self.frame_graph, 2)
-        self.main_layout.addLayout(bottom_layout)
+        self.setStyleSheet(f"""
+            QWidget {{
+                background: {c['bg_main']};
+            }}
+        """)
+        self._apply_tab_styles()
+        if hasattr(self, 'tabs'):
+            main_frame = self.findChild(QFrame, "MainWhiteFrame")
+            if main_frame:
+                self._apply_main_frame_style(main_frame)
+    
+    def _get_icon(self, icon_name):
+        """Récupère une icône Font Awesome ou standard"""
+        try:
+            import qtawesome as qta
+            icon_map = {
+                "chart-line": "fa5s.chart-line",
+                "list": "fa5s.list",
+                "clock": "fa5s.clock",
+                "plus": "fa5s.plus-circle",
+                "history": "fa5s.history",
+            }
+            return qta.icon(icon_map.get(icon_name, "fa5s.circle"), color=theme_manager.colors()['primary'])
+        except:
+            from PySide6.QtWidgets import QStyle
+            style_map = {
+                "chart-line": QStyle.SP_FileDialogDetailedView,
+                "list": QStyle.SP_FileDialogListView,
+                "clock": QStyle.SP_BrowserReload
+            }
+            return self.style().standardIcon(style_map.get(icon_name, QStyle.SP_FileIcon))
+    
+    def _create_nouveau_tab(self):
+        """Crée l'onglet Nouveau avec le formulaire de consultation"""
+        from .consultation_form_widget import ConsultationFormWidget
         
-
-
-    def _creer_cadre_arrondi(self, titre: str, icone_name: str) -> AnimatedFrame:
-        """Crée un cadre arrondi avec en-tête titre + icône."""
-        c = theme_manager.colors()
-        frame = AnimatedFrame()
-        frame._icon_name = icone_name
-        frame.setStyleSheet(ConsultationStyles.card())
-        layout = QVBoxLayout(frame)
-        layout.setContentsMargins(14, 10, 14, 10)
-        layout.setSpacing(6)
-
-        header = QHBoxLayout()
-        icon_lbl = QLabel()
-        icon_lbl.setPixmap(qta.icon(icone_name, color=c['primary']).pixmap(QSize(16, 16)))
-        icon_lbl.setStyleSheet("border: none; background: transparent;")
-        frame._icon_lbl = icon_lbl
-        title_lbl = QLabel(titre)
-        title_lbl.setStyleSheet(f"font-weight:bold; color:{c['text_primary']}; font-size:12px; border:none;")
-        frame._title_lbl = title_lbl
-        header.addWidget(icon_lbl)
-        header.addSpacing(6)
-        header.addWidget(title_lbl)
-        header.addStretch()
-        layout.addLayout(header)
-
-        sep = QFrame()
-        sep.setFixedHeight(1)
-        sep.setStyleSheet(f"background:{c['border_light']}; border:none;")
-        frame._separator = sep
-        layout.addWidget(sep)
-
-        return frame
-
-    def _setup_table(self):
-        """Crée la table vide avec ses 5 colonnes."""
-        self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(
-            ["Code", "Patient", "Statut Facture", "Date", "Actions"]
-        )
-        self.table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self._apply_scrollbar_style(self.table)
-
-        header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.Stretch)
-        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(4, QHeaderView.Fixed)
-        self.table.setColumnWidth(4, 100)
-
-        self.table.setStyleSheet(ConsultationStyles.table())
-        self.table.verticalHeader().setVisible(False)
-        self.table.verticalHeader().setDefaultSectionSize(40)
-        self.table.setAlternatingRowColors(True)
-        self.frame_table.layout().addWidget(self.table)
-
-    def _apply_scrollbar_style(self, widget):
-        widget.verticalScrollBar().setStyleSheet(ConsultationStyles.scrollbar())
+        tab = QWidget()
+        tab.setStyleSheet("background: white;")
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
         
-    def _basculer_stats(self):
-        if not self.code_session:
-            return
-        self.panneau_stats.actualiser(self.code_session)
-        self.panneau_stats.basculer()
-
-    def _setup_graphe(self):
-        self.graphe = ConsultationAnalyseGraph(
-            parent=self.frame_graph, width=8, height=6
+        # Scroll area pour le formulaire
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        
+        # Widget formulaire
+        self.form_widget = ConsultationFormWidget(self.ctrl, self.code_session)
+        self.form_widget.consultation_saved.connect(self._on_consultation_saved)
+        scroll.setWidget(self.form_widget)
+        
+        layout.addWidget(scroll)
+        
+        return tab
+    
+    def _on_consultation_saved(self):
+        """Appelé quand une consultation est enregistrée"""
+        self.charger_donnees()
+        # Revenir à l'onglet Liste
+        self.tabs.setCurrentIndex(2)
+    
+    def _create_stats_tab(self):
+        """Crée l'onglet Statistiques"""
+        tab = QWidget()
+        tab.setStyleSheet("background: white;")
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(12, 8, 12, 12)
+        layout.setSpacing(8)
+        layout.setAlignment(Qt.AlignTop)
+        
+        # KPI Cards directement dans le layout
+        self.kpi_cards = KpiCardsSection(self.ctrl)
+        layout.addWidget(self.kpi_cards)
+        
+        # Charts Section - 3 graphiques
+        self.charts = ChartsSection(self.ctrl)
+        layout.addWidget(self.charts, 1)
+        
+        return tab
+    
+    def _create_liste_tab(self):
+        """Crée l'onglet Liste des consultations"""
+        tab = QWidget()
+        tab.setStyleSheet("background: white;")
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(12, 8, 12, 12)
+        
+        self.table = ConsultationsTable(self.ctrl)
+        self.table.view_clicked.connect(self.on_view_consultation)
+        self.table.edit_clicked.connect(self.on_edit_consultation)
+        self.table.new_clicked.connect(self.on_new_consultation)
+        layout.addWidget(self.table)
+        
+        return tab
+    
+    def _create_statut_tab(self):
+        """Crée l'onglet Statut patients"""
+        tab = QWidget()
+        tab.setStyleSheet("background: white;")
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(12, 8, 12, 12)
+        layout.setSpacing(0)
+        
+        # Importer et afficher la vue des patients en attente
+        from .patients_consultation_attente import PatientsAttenteConsultationView
+        
+        self.patients_attente_view = PatientsAttenteConsultationView(
+            self.ctrl, 
+            self.code_session if hasattr(self, 'code_session') and self.code_session else "",
+            parent=tab
         )
-        self.frame_graph.layout().addWidget(self.graphe)
+        self.patients_attente_view.ouvrir_formulaire.connect(self._ouvrir_nouveau_avec_visite)
+        layout.addWidget(self.patients_attente_view)
+        
+        return tab
+    
+    def _create_historique_tab(self):
+        """Crée l'onglet Historique patient"""
+        tab = QWidget()
+        tab.setStyleSheet("background: white;")
+        lay = QVBoxLayout(tab)
+        lay.setContentsMargins(0, 0, 0, 0)
+        self.vue_historique = HistoriqueConsultationView(
+            self.ctrl,
+            self.code_session or "",
+            parent=tab,
+        )
+        lay.addWidget(self.vue_historique)
+        return tab
 
-    # =========================================================================
-    # CHARGEMENT DES DONNÉES (appelé depuis le dashboard)
-    # =========================================================================
+    def _apply_main_frame_style(self, frame):
+        """Applique le style au frame principal blanc"""
+        c = theme_manager.colors()
+        frame.setStyleSheet(f"""
+            QFrame#MainWhiteFrame {{
+                background: white;
+                border: 1px solid {c['border']};
+                border-radius: 16px;
+            }}
+        """)
+    
+    def _apply_statut_frame_style(self, frame):
+        """Applique le style aux frames de l'onglet statut"""
+        c = theme_manager.colors()
+        frame.setStyleSheet(f"""
+            QFrame#StatutFrame {{
+                background: white;
+                border: 1px solid {c['border']};
+                border-radius: 8px;
+            }}
+        """)
+    
+    def _apply_tab_styles(self):
+        """Applique les styles aux onglets"""
+        from .styles import ConsultationStyles
+        self.tabs.setStyleSheet(ConsultationStyles.tab_widget())
 
-    def charger_consultations(self, code_session: str):
-        """
-        Point d'entrée principal appelé depuis le dashboard.
-        Reçoit le code_session et charge toutes les données de la vue.
-        """
+
+# ─── Dialogues auxiliaires ────────────────────────────────────────────────────
+
+class _RechercheEntresDatesDialog(QDialog):
+    """Recherche de consultations entre deux dates."""
+
+    def __init__(self, ctrl, code_session: str, parent=None):
+        super().__init__(parent)
+        self.ctrl = ctrl
         self.code_session = code_session
-        consultations = self.ctrl.lister_consultations(self.code_session)
-        self._remplir_table(consultations)
-        self._mettre_a_jour_stats()       # ← ajouter
-        self._mettre_a_jour_graphe()     # ← ajouter
+        self.resultats = []
+        self.setWindowTitle("Recherche entre deux dates")
+        self.setFixedSize(400, 220)
+        self.setWindowFlags(Qt.Dialog | Qt.WindowCloseButtonHint)
+        self._init_ui()
 
-    # =========================================================================
-    # REMPLISSAGE DE LA TABLE
-    # =========================================================================
-
-    def _remplir_table(self, consultations: list):
-        """Remplit la table avec la liste des consultations."""
-        self.table.setRowCount(0)
-
-        for consultation in consultations:
-            row = self.table.rowCount()
-            self.table.insertRow(row)
-
-            # Colonne Code
-            self.table.setItem(row, 0, QTableWidgetItem(str(consultation.code)))
-
-            # Colonne Patient — récupéré via consultation_complete (JOIN patient)
-            nom_patient = self._get_nom_patient(consultation.code)
-            self.table.setItem(row, 1, QTableWidgetItem(nom_patient))
-
-            # Colonne Statut Facture
-            self.table.setItem(row, 2, QTableWidgetItem(str(consultation.statut_facture)))
-
-            # Colonne Date
-            date_val = consultation.date_consultation
-            date_str = (
-                date_val.strftime("%d/%m/%Y")
-                if hasattr(date_val, 'strftime') else str(date_val)
-            )
-            self.table.setItem(row, 3, QTableWidgetItem(date_str))
-
-            # Colonne Actions
-            self._ajouter_boutons_actions(row, consultation)
-
-    def _get_nom_patient(self, code_consultation: str) -> str:
-        """
-        Récupère le nom complet du patient via consultation_complete.
-        Retourne '—' si introuvable.
-        """
-        data = self.ctrl.obtenir_consultation_complete(code_consultation)
-        if not data:
-            return "—"
-        nom    = data.get('patient_nom',    '') or ''
-        prenom = data.get('patient_prenom', '') or ''
-        return f"{nom} {prenom}".strip() or "—"
-
-    def _ajouter_boutons_actions(self, row: int, consultation):
-        """Ajoute les boutons voir / modifier / supprimer sur une ligne."""
-        container = QWidget()
-        layout = QHBoxLayout(container)
-        layout.setContentsMargins(4, 2, 4, 2)
-        layout.setSpacing(6)
-
+    def _init_ui(self):
         c = theme_manager.colors()
-        btn_view   = QPushButton(qta.icon("fa5s.eye",       color=c['info']), "")
-        btn_edit   = QPushButton(qta.icon("fa5s.edit",      color=c['primary']), "")
-        btn_delete = QPushButton(qta.icon("fa5s.trash-alt", color=c['danger']), "")
+        self.setStyleSheet(f"background: {c['bg_card']}; color: {c['text_primary']};")
+        layout = QVBoxLayout(self)
+        layout.setSpacing(16)
+        layout.setContentsMargins(24, 20, 24, 20)
 
-        btn_style = ConsultationStyles.button_table_action()
-        for btn in [btn_view, btn_edit, btn_delete]:
-            btn.setFixedSize(26, 26)
-            btn.setCursor(Qt.PointingHandCursor)
-            btn.setStyleSheet(btn_style)
-            layout.addWidget(btn)
+        layout.addWidget(QLabel("<b>Rechercher des consultations entre deux dates</b>"))
 
-        btn_view.clicked.connect(self._make_handler(self._action_voir, consultation))
-        btn_edit.clicked.connect(self._make_handler(self._action_modifier, consultation))
-        btn_delete.clicked.connect(self._make_handler(self._action_supprimer, consultation))
+        form = QFormLayout()
+        form.setSpacing(10)
+        today = QDate.currentDate()
 
-        self.table.setCellWidget(row, 4, container)
+        self.date_debut = QDateEdit()
+        self.date_debut.setCalendarPopup(True)
+        self.date_debut.setDate(today.addDays(-30))
+        self.date_debut.setDisplayFormat("dd/MM/yyyy")
 
-    def _make_handler(self, func, consultation):
-        """Évite les problèmes de closure dans les boucles."""
-        def handler():
-            func(consultation)
-        return handler
+        self.date_fin = QDateEdit()
+        self.date_fin.setCalendarPopup(True)
+        self.date_fin.setDate(today)
+        self.date_fin.setDisplayFormat("dd/MM/yyyy")
 
-    # =========================================================================
-    # ACTIONS SUR LES CONSULTATIONS
-    # =========================================================================
+        form.addRow("Date début :", self.date_debut)
+        form.addRow("Date fin :", self.date_fin)
+        layout.addLayout(form)
 
-    def _action_voir(self, consultation):
-        from .detail_consultation_modal import DetailsConsultationModal
-        modal = DetailsConsultationModal(self, consultation.code, self.ctrl)
-        modal.exec()
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self._rechercher)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
 
-    def _action_modifier(self, consultation):
-        from .consultation_form import ConsultationFormDialog
-        # On récupère les infos complètes pour avoir code_visite et code_personnel
-        data = self.ctrl.obtenir_par_code(consultation.code)
-        if not data:
-            return
-        dialog = ConsultationFormDialog(
-            controleur       = self.ctrl,
-            code_visite      = data.code_visite,
-            code_session     = self.code_session,
-            code_personnel   = data.code_personnel,
-            consultation_obj = data,
-            parent           = self
-        )
-        if dialog.exec():
-            self.charger_consultations(self.code_session)
+    def _rechercher(self):
+        debut = self.date_debut.date().toPython()
+        fin = self.date_fin.date().toPython()
+        try:
+            self.resultats = self.ctrl.rechercher_entre_dates(self.code_session, debut, fin) or []
+        except Exception:
+            self.resultats = []
+        self.accept()
 
-    def _action_supprimer(self, consultation):
-        confirm = QMessageBox.question(
-            self, "Confirmation",
-            f"Voulez-vous vraiment supprimer la consultation {consultation.code} ?",
-            QMessageBox.Yes | QMessageBox.No
-        )
-        if confirm != QMessageBox.Yes:
-            return
-        ok, msg = self.ctrl.supprimer_consultation(consultation.code)
-        if ok:
-            QMessageBox.information(self, "Succès", msg)
-            self.charger_consultations(self.code_session)
-        else:
-            QMessageBox.critical(self, "Erreur", msg)
 
-    def _ouvrir_formulaire(self):
-        from .consultation_form import ConsultationFormDialog
-        dialog = ConsultationFormDialog(
-            controleur   = self.ctrl,
-            code_session = self.code_session,  # pas de code_visite → combo libre
-            parent       = self
-        )
-        if dialog.exec():
-            self.charger_consultations(self.code_session)
+class _ResumeSessionDialog(QDialog):
+    """Résumé statistique de la session de consultation."""
 
-        # =========================================================================
-        # FILTRAGE
-        # =========================================================================
+    def __init__(self, ctrl, code_session: str, parent=None):
+        super().__init__(parent)
+        self.ctrl = ctrl
+        self.code_session = code_session
+        self.setWindowTitle("Résumé de la session")
+        self.setFixedSize(450, 360)
+        self.setWindowFlags(Qt.Dialog | Qt.WindowCloseButtonHint)
+        self._init_ui()
 
-    def _filtrer_consultations(self, texte: str):
-        """Filtre la table en temps réel selon la saisie."""
-        if not self.code_session:
-            return
-        texte = texte.strip()
-        if not texte:
-            self.charger_consultations(self.code_session)
-        else:
-            resultats = self.ctrl.rechercher_consultation(texte, self.code_session)
-            self._remplir_table(resultats)
+    def _init_ui(self):
+        c = theme_manager.colors()
+        self.setStyleSheet(f"background: {c['bg_card']}; color: {c['text_primary']};")
+        layout = QVBoxLayout(self)
+        layout.setSpacing(12)
+        layout.setContentsMargins(24, 20, 24, 20)
 
-        # =========================================================================
-        # FORMULAIRE (à implémenter)
-        # =========================================================================
+        layout.addWidget(QLabel(f"<b style='font-size:15px'>Résumé — Session {self.code_session}</b>"))
 
-        # def _ouvrir_formulaire(self):
-        #     print("Ouverture formulaire ajout consultation")
-    def _mettre_a_jour_stats(self):
-        if not self.code_session:
-            return
-        nb_jour    = self.ctrl.obtenir_consultations_aujourd_hui(self.code_session)
-        nb_session = self.ctrl.obtenir_nombre_total(self.code_session)
-        nb_attente = self.ctrl.obtenir_nombre_patients_en_attente(self.code_session)
+        try:
+            resume = self.ctrl.obtenir_resume_session(self.code_session) or {}
+        except Exception:
+            resume = {}
 
-        self.card_jour.value_label.setText(str(nb_jour))
-        self.card_session.value_label.setText(str(nb_session))
-        self.card_attente.value_label.setText(str(nb_attente))
-        
-    def _mettre_a_jour_graphe(self):
-        if not self.code_session:
-            return
-        stats = self.ctrl.obtenir_nombre_par_mois(self.code_session)
-        self.graphe.update_graph(stats)
+        def _row(label, val):
+            lbl = QLabel(f"<b>{label}</b>&nbsp;&nbsp;{val}")
+            lbl.setStyleSheet(f"padding: 6px 0; border-bottom: 1px solid {c['border_light']};")
+            layout.addWidget(lbl)
+
+        total = resume.get("total_consultations", 0)
+        aujourd_hui = resume.get("consultations_du_jour", 0)
+        en_attente = resume.get("patients_en_attente", 0)
+        revenu = resume.get("revenu_total", 0.0)
+        taux = resume.get("taux_services", {})
+
+        _row("Consultations totales :", total)
+        _row("Consultations du jour :", aujourd_hui)
+        _row("Patients en attente :", en_attente)
+        _row("Revenu total :", f"{float(revenu):,.0f} GNF".replace(",", " "))
+        if taux:
+            taux_str = " | ".join(f"{k}: {v}%" for k, v in taux.items())
+            _row("Taux services :", taux_str)
+
+        layout.addStretch()
+        close_btn = QDialogButtonBox(QDialogButtonBox.Close)
+        close_btn.rejected.connect(self.reject)
+        layout.addWidget(close_btn)

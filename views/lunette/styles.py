@@ -92,3 +92,38 @@ class LunetteStyles:
                 font-weight: 700;
             }}
         """
+
+    @staticmethod
+    def tab_widget() -> str:
+        c = theme_manager.colors()
+        primary = c.get('primary', '#2ecc71')
+        return f"""
+            QTabWidget::pane {{
+                border: none;
+                background: {c['bg_card']};
+            }}
+            QTabBar::tab {{
+                background    : {c['bg_main']};
+                color         : {c['text_muted']};
+                padding       : 10px 22px;
+                margin-right  : 3px;
+                border        : 1px solid {c['border_light']};
+                border-bottom : none;
+                border-top-left-radius  : 8px;
+                border-top-right-radius : 8px;
+                font-size     : 13px;
+                font-weight   : 500;
+                min-width     : 110px;
+            }}
+            QTabBar::tab:selected {{
+                background  : {c['bg_card']};
+                color       : {primary};
+                font-weight : 700;
+                border-color: {primary};
+                border-bottom: 2px solid {primary};
+            }}
+            QTabBar::tab:hover:!selected {{
+                background: {c['bg_alt'] if 'bg_alt' in c else c['bg_card']};
+                color: {c['text_secondary']};
+            }}
+        """

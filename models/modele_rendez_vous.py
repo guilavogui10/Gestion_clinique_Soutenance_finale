@@ -2,7 +2,8 @@ from datetime import datetime
 
 class RendezVous:
     def __init__(self, code_rendez_vous=None, code_visite=None, code_personnel=None,
-                 code_session=None, date_rendez_vous=None, statut_rendez_vous="En attente"):
+                 code_session=None, date_rendez_vous=None, statut_rendez_vous="En attente",
+                 code_acte=None):
         
         self._code_rendez_vous   = code_rendez_vous
         self._code_visite        = code_visite
@@ -10,6 +11,7 @@ class RendezVous:
         self._code_session       = code_session
         self._date_rendez_vous   = date_rendez_vous or datetime.now()
         self._statut_rendez_vous = statut_rendez_vous
+        self._code_acte          = code_acte
 
     # -------------------------------------------------------------------------
     # code_rendez_vous
@@ -76,3 +78,14 @@ class RendezVous:
     @statut_rendez_vous.setter
     def statut_rendez_vous(self, value):
         self._statut_rendez_vous = value
+
+    # -------------------------------------------------------------------------
+    # code_acte
+    # -------------------------------------------------------------------------
+    @property
+    def code_acte(self):
+        return self._code_acte
+
+    @code_acte.setter
+    def code_acte(self, value):
+        self._code_acte = value

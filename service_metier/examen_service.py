@@ -90,9 +90,11 @@ class ExamenService:
             return False, "Les frais doivent etre un nombre valide"
 
     def valider_codes_obligatoires(self, examen: Examen) -> tuple:
-        """Valide que les codes visite, session et personnel sont renseignés."""
-        if not examen.code_visite or not examen.code_session or not examen.code_personnel:
-            return False, "Tous les codes (visite, session, personnel) sont obligatoires"
+        """Valide que les codes session, personnel et acte sont renseignés."""
+        if not examen.code_session or not examen.code_personnel:
+            return False, "Tous les codes (session, personnel) sont obligatoires"
+        if not examen.code_acte:
+            return False, "Le code acte medical est obligatoire"
         return True, ""
 
     def valider_examen(self, examen: Examen) -> tuple:
@@ -101,10 +103,6 @@ class ExamenService:
         Évite la duplication de code entre créer et modifier.
         """
         valide, msg = self.valider_texte(examen.libelle_examen, "libelle examen")
-        if not valide:
-            return False, msg
-
-        valide, msg = self.valider_texte(examen.resultat_examen, "resultat examen")
         if not valide:
             return False, msg
 
@@ -124,42 +122,9 @@ class ExamenService:
 
     def _nettoyer_examen(self, examen: Examen) -> None:
         """Nettoie les champs texte (supprime les espaces superflus)."""
-        examen.libelle_examen  = examen.libelle_examen.strip()
-        examen.resultat_examen = examen.resultat_examen.strip()
-
-    def _determiner_prochain_statut(self, examen: Examen) -> str:
-        """
-        Après un examen terminé, le prochain statut dépend
-        des services prescrits dans la CONSULTATION liée.
-
-        Règle :
-        chirurgie = Oui  → Attente operation
-        chirurgie = Non  et prescription = Oui → Attente Pharmacie
-        chirurgie = Non  et prescription = Non → Attente payement
-        """
-        try:
-            consultation = self.dao_visite.reeVisite_ByCode_visite(examen.code_visite)
-            if not consultation:
-                return "Attente payement"
-
-            # On récupère la consultation liée à cette visite
-            from data.dao_consultation import ConsultationDAO
-            dao_cls = ConsultationDAO()
-            consult = dao_cls.obtenir_par_visite(examen.code_visite)
-
-            if not consult:
-                return "Attente payement"
-
-            if consult.chirurgie == "Oui":
-                return "Attente operation"
-            elif consult.prescription_produit == "Oui":
-                return "Attente Pharmacie"
-            else:
-                return "Attente payement"
-
-        except Exception as e:
-            self.logger.warning(f"_determiner_prochain_statut examen: {e}")
-            return "Attente payement"
+        examen.libelle_examen = examen.libelle_examen.strip()
+        if examen.conclusion_medicale:
+            examen.conclusion_medicale = examen.conclusion_medicale.strip()
 
     # =========================================================================
     # METHODES CRUD
@@ -179,13 +144,13 @@ class ExamenService:
             return False, msg
 
         # Vérifie qu'un examen n'existe pas déjà pour cette consultation
-        if self.dao.obtenir_par_consultation(examen.code_consultation):
-            return False, "Un examen existe deja pour cette consultation"
+        if self.dao.obtenir_par_acte(examen.code_acte):
+            return False, "Un examen existe deja pour cet acte medical"
 
         self._nettoyer_examen(examen)
 
         if self.dao.ajouter(examen):
-            self.logger.info(f"Examen {examen.code} cree pour visite {examen.code_visite}")
+            self.logger.info(f"Examen {examen.code} cree pour acte {examen.code_acte}")
             return True, "Examen cree avec succes"
 
         return False, "Erreur lors de la creation de l examen"
@@ -193,10 +158,13 @@ class ExamenService:
     def modifier_examen(self, examen: Examen) -> tuple:
         """
         Valide et met à jour un examen existant.
-        Note : La modification d'un examen ne change PAS le statut de la visite
-        car le patient est déjà dans son parcours.
+        La date n'est pas revalidee (peut etre dans le passe).
         """
-        valide, msg = self.valider_examen(examen)
+        valide, msg = self.valider_texte(examen.libelle_examen, "libelle examen")
+        if not valide:
+            return False, msg
+
+        valide, msg = self.valider_frais(examen.frais_examen)
         if not valide:
             return False, msg
 
@@ -224,9 +192,9 @@ class ExamenService:
         """Retourne un examen par son code."""
         return self.dao.obtenir_par_code(code)
 
-    def obtenir_par_consultation(self, code_consultation: str):
-        """Retourne l'examen lié à une consultation."""
-        return self.dao.obtenir_par_consultation(code_consultation)
+    def obtenir_par_acte(self, code_acte: str):
+        """Retourne l'examen lié à un acte medical."""
+        return self.dao.obtenir_par_acte(code_acte)
 
     def obtenir_par_visite(self, code_visite: str):
         """Retourne l'examen lié à une visite."""
@@ -419,12 +387,6 @@ class ExamenService:
     def rechercher_par_libelle(self, code_session: str, libelle: str = None) -> list:
         return self.dao.rechercher_par_libelle(code_session, libelle)
 
-    def rechercher_par_services(self, code_session: str, examen=None, chirurgie=None,
-                               commandelunette=None, prescription=None) -> list:
-        return self.dao.rechercher_par_services(
-            code_session, examen, chirurgie, commandelunette, prescription
-        )
-
     def obtenir_nombre_par_mois_filtre(self, code_session: str, libelle: str = None) -> dict:
         return self.dao.nombre_par_mois_filtre(code_session, libelle)
 
@@ -444,11 +406,8 @@ class ExamenService:
     def obtenir_patients_examen(self, code_session: str) -> list:
         return self.dao.patients_pour_examen(code_session)
 
-    def obtenir_patients_chirurgie(self, code_session: str) -> list:
-        return self.dao.patients_pour_chirurgie(code_session)
+    def obtenir_moyenne_consultations_journalieres_par_mois(self, code_session: str) -> dict:
+        return self.dao.moyenne_consultations_journalieres_mois(code_session)
 
-    def obtenir_patients_lunette(self, code_session: str) -> list:
-        return self.dao.patients_pour_lunette(code_session)
-
-    def obtenir_patients_prescription(self, code_session: str) -> list:
-        return self.dao.patients_pour_prescription(code_session)
+    def obtenir_moyenne_consultations_par_mois(self, code_session: str) -> dict:
+        return self.dao.moyenne_consultations_par_mois(code_session)

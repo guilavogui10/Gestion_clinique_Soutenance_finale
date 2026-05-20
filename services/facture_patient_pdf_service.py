@@ -389,16 +389,15 @@ class FacturePatientPDFService:
             for e in examens:
                 exam_rows.append([
                     e.get("libelle_examen", "-"),
-                    e.get("resultat_examen", "-"),
                     FacturePatientPDFService._fmt_money(e.get("frais_examen", 0)),
                     FacturePatientPDFService._medecin(e.get("medecin_nom"), e.get("medecin_prenom")),
                 ])
             y_right = FacturePatientPDFService._draw_section_table(
                 pdf, x_right, y_right, col_w,
                 "Examens",
-                ["Libelle", "Resultat", "Prix", "Medecin"],
+                ["Libelle", "Prix", "Medecin"],
                 exam_rows,
-                [34, 26, 14, 22],
+                [44, 14, 22],
                 font_name
             )
 

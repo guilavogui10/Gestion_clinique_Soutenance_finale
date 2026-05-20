@@ -210,10 +210,10 @@ class VisiteService:
             self.logger.error(f"Erreur lors de la récupération des stats: {e}")
             return stats_defaut
 
-    def get_stat_visites_par_age(self) -> Dict[str, int]:
+    def get_stat_visites_par_age(self) -> Dict:
         """Récupère la répartition des visites par tranche d'âge."""
         code_session = self.dao.get_code_session_active()
-        stats_defaut = {'enfants': 0, 'jeunes': 0, 'adultes': 0}
+        stats_defaut = {'enfants': [0]*12, 'jeunes': [0]*12, 'adultes': [0]*12}
         if not code_session:
             return stats_defaut
         try:
@@ -272,9 +272,15 @@ class VisiteService:
             return False, "Code visite requis"
 
         statuts_valides = [
-            "Attente consultation", "Attente examen", "Attente chirurgie",
-            "Attente lunette", "Attente pharmacie", "Attente payement",
-            "Attente rendez-vous", "Libéré"
+            "Attente consultation",
+            "Attente examen",
+            "Attente chirurgie",
+            "Attente rendez-vous",
+            "Attente rendez-vous chirurgie",
+            "Attente commande lunette",
+            "Attente prescription",
+            "Attente paiement",
+            "Libéré"
         ]
         if nouveau_statut not in statuts_valides:
             return False, f"Statut invalide. Statuts autorisés: {', '.join(statuts_valides)}"
@@ -388,6 +394,17 @@ class VisiteService:
             self.logger.error(f"Erreur lors de l'analyse de performance: {e}")
             return {'moyenne_globale': 0, 'details_par_statut': []}
 
+    def obtenir_visites_actives_avec_duree(self) -> List[Dict]:
+        """Retourne les visites actives de la session courante avec durée écoulée."""
+        code_session = self.dao.get_code_session_active()
+        if not code_session:
+            return []
+        try:
+            return self.dao.get_visites_actives_avec_duree(code_session)
+        except Exception as e:
+            self.logger.error(f"Erreur obtenir_visites_actives_avec_duree: {e}")
+            return []
+
     # =========================================================================
     # SESSION
     # =========================================================================
@@ -437,3 +454,138 @@ class VisiteService:
                 "adresse_cabinet": "",
                 "logo_url": None
             }
+
+    def obtenir_statistiques_performance(self) -> Dict:
+        """
+        Récupère les statistiques de performance pour le monitoring.
+        
+        Returns:
+            Dict: Statistiques de performance
+        """
+        code_session = self.dao.get_code_session_active()
+        
+        if not code_session:
+            return {
+                'duree_moyenne': 0,
+                'attente_max': 0,
+                'visites_actives': 0,
+                'tendance': '+0%',
+                'efficacite': 0,
+                'satisfaction': 0
+            }
+        
+        try:
+            stats = self.dao.get_statistiques_performance_session(code_session)
+            return stats
+        except Exception as e:
+            self.logger.error(f"Erreur lors de la récupération des stats de performance: {e}")
+            return {
+                'duree_moyenne': 0,
+                'attente_max': 0,
+                'visites_actives': 0,
+                'tendance': '+0%',
+                'efficacite': 0,
+                'satisfaction': 0
+            }
+    
+    def obtenir_nombre_visites_aujourdhui(self) -> int:
+        """
+        Récupère le nombre de visites créées aujourd'hui.
+        
+        Returns:
+            int: Nombre de visites aujourd'hui
+        """
+        code_session = self.dao.get_code_session_active()
+        if not code_session:
+            return 0
+        try:
+            return self.dao.get_nombre_visites_aujourdhui(code_session)
+        except Exception as e:
+            self.logger.error(f"Erreur lors de la récupération du nombre de visites aujourd'hui: {e}")
+            return 0
+    
+    def obtenir_nombre_visites_terminees(self) -> int:
+        """
+        Récupère le nombre total de visites terminées.
+        
+        Returns:
+            int: Nombre de visites terminées
+        """
+        code_session = self.dao.get_code_session_active()
+        if not code_session:
+            return 0
+        try:
+            return self.dao.get_nombre_visites_terminees(code_session)
+        except Exception as e:
+            self.logger.error(f"Erreur lors de la récupération du nombre de visites terminées: {e}")
+            return 0
+    
+    def obtenir_nombre_urgences(self) -> int:
+        """
+        Récupère le nombre de visites urgentes.
+        
+        Returns:
+            int: Nombre d'urgences
+        """
+        code_session = self.dao.get_code_session_active()
+        if not code_session:
+            return 0
+        try:
+            return self.dao.get_nombre_urgences(code_session)
+        except Exception as e:
+            self.logger.error(f"Erreur lors de la récupération du nombre d'urgences: {e}")
+            return 0
+
+    def demarrer_consultation(self, code_visite: str) -> tuple:
+        """
+        Démarre la consultation pour une visite :
+          - Renseigne date_debut_consultation
+          - Change statut_patient à 'En consultation'
+
+        Returns:
+            tuple: (bool, message)
+        """
+        if not code_visite:
+            return False, "Code visite invalide"
+        try:
+            return self.dao.demarrer_consultation(code_visite)
+        except Exception as e:
+            self.logger.error(f"Erreur demarrer_consultation {code_visite}: {e}")
+            return False, str(e)
+
+    def lister_visites_par_patient(self, code_patient: str) -> List[Visite]:
+        """
+        Récupère toutes les visites d'un patient.
+        
+        Args:
+            code_patient: Code du patient
+            
+        Returns:
+            Liste d'objets Visite
+        """
+        if not code_patient:
+            return []
+        try:
+            toutes_visites = self.dao.reedAllvisite()
+            return [v for v in toutes_visites if v.get_code_patient() == code_patient]
+        except Exception as e:
+            self.logger.error(f"Erreur lister_visites_par_patient: {e}")
+            return []
+    
+    def obtenir_visite(self, code_visite: str) -> Optional[Visite]:
+        """
+        Récupère une visite par son code.
+        
+        Args:
+            code_visite: Code de la visite
+            
+        Returns:
+            Objet Visite ou None
+        """
+        if not code_visite:
+            return None
+        try:
+            return self.dao.reeVisite_ByCode_visite(code_visite)
+        except Exception as e:
+            self.logger.error(f"Erreur obtenir_visite: {e}")
+            return None

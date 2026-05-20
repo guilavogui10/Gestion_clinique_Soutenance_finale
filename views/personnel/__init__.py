@@ -1,1 +1,1 @@
-from .vue_personnel import PersonnelView
+from .vue_personnel import VuePersonnel as PersonnelView

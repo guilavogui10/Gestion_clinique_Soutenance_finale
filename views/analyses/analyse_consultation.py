@@ -1491,7 +1491,46 @@ class ServiceMiniCard(QFrame):
         )
 
 
+# Import de la nouvelle vue moderne
+from views.analyses.consultation_analysis import VueAnalyseConsultationModerne
+
+
 class AnalyseConsultationView(QWidget):
+    """Vue d'analyse consultation - Utilise la nouvelle architecture modulaire"""
+    
+    def __init__(self, controleur, code_session: str, parent=None):
+        super().__init__(parent)
+        self.controleur = controleur
+        self.code_session = code_session
+        
+        # Utiliser la nouvelle vue moderne
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.vue_moderne = VueAnalyseConsultationModerne(controleur, code_session)
+        layout.addWidget(self.vue_moderne)
+        
+        theme_manager.theme_changed.connect(self.apply_theme)
+        self.apply_theme()
+    
+    def rafraichir(self):
+        """Rafraîchit les données"""
+        if hasattr(self, 'vue_moderne'):
+            self.vue_moderne.rafraichir()
+    
+    def charger_donnees(self):
+        """Charge les données"""
+        if hasattr(self, 'vue_moderne'):
+            self.vue_moderne.charger_donnees()
+    
+    def apply_theme(self):
+        """Applique le thème"""
+        c = theme_manager.colors()
+        self.setStyleSheet(f"QWidget {{ background: {c['bg_main']}; }}")
+
+
+# Ancienne classe conservée pour compatibilité
+class LegacyAnalyseConsultationView_OLD(QWidget):
     KPI_COLORS = ["#1D73E8", "#2FB344", "#FF9800", "#7A44D5", "#14A7A0"]
     DIAG_COLORS = ["#2F7AE5", "#20B486", "#FF9800", "#7A44D5", "#14A7A0"]
 

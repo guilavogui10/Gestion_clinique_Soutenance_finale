@@ -52,9 +52,12 @@ class PrescriptionForm:
     # CRÉATION DU FORMULAIRE
     # =========================================================================
 
-    def create(self, parent_layout, appliquer_style_scrollbar_callback):
+    def create(self, parent_layout, appliquer_style_scrollbar_callback, afficher_panier_interne=True):
         """
         Crée le formulaire complet dans un QScrollArea.
+
+        Args:
+            afficher_panier_interne: Si False, ne crée pas la section "Produits prescrits" dans le formulaire
 
         Returns:
             tuple: (container_panier, layout_lignes)
@@ -98,16 +101,21 @@ class PrescriptionForm:
         # 9. Bouton prescrire
         self._create_bouton_prescrire(body_layout)
 
-        # 10. Séparateur + container lignes
-        self._ajouter_separateur(body_layout, "Produits prescrits")
+        # 10. Séparateur + container lignes (seulement si afficher_panier_interne=True)
+        if afficher_panier_interne:
+            self._ajouter_separateur(body_layout, "Produits prescrits")
 
-        self.container_panier = QWidget()
-        self.container_panier.setStyleSheet("background: transparent;")
-        self.layout_lignes = QVBoxLayout(self.container_panier)
-        self.layout_lignes.setContentsMargins(0, 0, 0, 0)
-        self.layout_lignes.setSpacing(6)
-        self.layout_lignes.addStretch()
-        body_layout.addWidget(self.container_panier)
+            self.container_panier = QWidget()
+            self.container_panier.setStyleSheet("background: transparent;")
+            self.layout_lignes = QVBoxLayout(self.container_panier)
+            self.layout_lignes.setContentsMargins(0, 0, 0, 0)
+            self.layout_lignes.setSpacing(6)
+            self.layout_lignes.addStretch()
+            body_layout.addWidget(self.container_panier)
+        else:
+            # Créer des containers vides pour éviter les erreurs
+            self.container_panier = None
+            self.layout_lignes = None
 
         body_scroll.setWidget(body)
         parent_layout.addWidget(body_scroll, stretch=1)
@@ -120,14 +128,14 @@ class PrescriptionForm:
 
     def _create_combo_consultation_section(self, layout):
         """
-        Combo listant les consultations 'Attente pharmacie'.
+        Combo listant les actes médicaux 'Attente pharmacie'.
         userData = dict complet retourné par patients_en_attente_prescription :
-          {'code_consultation', 'code_visite', 'nom', 'prenom', ...}
+          {'code_acte', 'nom', 'prenom', ...}
         """
         vbox = QVBoxLayout()
         vbox.setSpacing(4)
 
-        lbl = QLabel("Consultation (patient en attente pharmacie)")
+        lbl = QLabel("Acte médical (patient en attente pharmacie)")
         lbl.setStyleSheet(
             f"font-size: 10px; font-weight: bold; color: {theme_manager.colors()['text_muted']};"
             "text-transform: uppercase; border: none; background: transparent;"
@@ -138,14 +146,14 @@ class PrescriptionForm:
         self.combo_consultation.setFixedHeight(40)
         self.combo_consultation.addItem(
             qta.icon("fa5s.file-medical", color=self.bleu_principal),
-            "  — Sélectionner une consultation —",
+            "  — Sélectionner un acte médical —",
             None
         )
         self.combo_consultation.setStyleSheet(
             PrescriptionStyles.combo_produit(self.bleu_principal)
         )
         self.combo_consultation.setToolTip(
-            "Consultations avec statut 'Attente pharmacie' sans prescription enregistrée"
+            "Actes médicaux avec statut 'Attente pharmacie' sans prescription enregistrée"
         )
         vbox.addWidget(self.combo_consultation)
 
@@ -161,12 +169,12 @@ class PrescriptionForm:
 
     def _create_code_visite_section(self, layout):
         """
-        Champ code_visite readonly — auto-rempli à la sélection de la consultation.
+        Champ code_acte readonly — auto-rempli à la sélection de la consultation.
         """
         vbox = QVBoxLayout()
         vbox.setSpacing(4)
 
-        lbl = QLabel("Code Visite (auto)")
+        lbl = QLabel("Code Acte (auto)")
         lbl.setStyleSheet(
             f"font-size: 10px; font-weight: bold; color: {theme_manager.colors()['text_muted']};"
             "border: none; background: transparent;"
@@ -364,17 +372,14 @@ class PrescriptionForm:
     # API PUBLIQUE
     # =========================================================================
 
-    def charger_patient(self, nom: str, prenom: str,
-                        code_visite: str, code_consultation: str) -> None:
+    def charger_patient(self, nom: str, prenom: str, code_acte: str) -> None:
         """
-        Auto-remplit la carte patient et le champ code_visite.
+        Auto-remplit la carte patient.
         Appelé depuis _on_consultation_change() dans le widget principal.
         """
         self.lbl_patient_nom.setText(f"{prenom} {nom}".strip())
-        self.lbl_patient_code.setText(
-            f"Visite : {code_visite}  •  Consultation : {code_consultation}"
-        )
-        self.edit_code_visite.setText(code_visite)
+        self.lbl_patient_code.setText(f"Acte médical : {code_acte}")
+        self.edit_code_visite.setText(code_acte)
         self.btn_prescrire.setEnabled(True)
 
     def vider_patient(self) -> None:

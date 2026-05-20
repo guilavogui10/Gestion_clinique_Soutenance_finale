@@ -94,10 +94,8 @@ class PrescriptionService:
         """Valide que tous les codes FK sont renseignés."""
         if not prescription.code_produit:
             return False, "Le produit est obligatoire."
-        if not prescription.code_visite:
-            return False, "La visite est obligatoire."
-        if not prescription.code_consultation:
-            return False, "La consultation est obligatoire."
+        if not prescription.code_acte:
+            return False, "L'acte médical est obligatoire."
         if not prescription.code_session:
             return False, "La session est obligatoire."
         return True, ""
@@ -167,7 +165,7 @@ class PrescriptionService:
         if self.dao.ajouter(prescription):
             self.logger.info(
                 f"Prescription ajoutée — produit: {prescription.code_produit} "
-                f"| consultation: {prescription.code_consultation} "
+                f"| acte: {prescription.code_acte} "
                 f"| qté: {prescription.quantite_prescript}"
             )
             return True, "Produit prescrit avec succès."
@@ -202,27 +200,25 @@ class PrescriptionService:
 
         return False, "Erreur lors de la suppression de la prescription."
 
-    def valider_prescription_visite(self, code_visite: str, code_consultation: str) -> Tuple[bool, str]:
+    def valider_prescription_visite(self, code_acte: str) -> Tuple[bool, str]:
         """
-        Valide la prescription d'une visite.
+        Valide la prescription d'un acte médical.
         Met le statut_patient à 'Attente payement'.
         """
-        if not code_visite:
-            return False, "Code visite invalide."
-        if not code_consultation:
-            return False, "Code consultation invalide."
+        if not code_acte:
+            return False, "Code acte médical invalide."
 
         # Sécurité : vérifier qu'il existe au moins une ligne
         try:
-            nb_lignes = self.dao.nombre_lignes_consultation(code_consultation)
+            nb_lignes = self.dao.nombre_lignes_acte(code_acte)
         except Exception:
             nb_lignes = 0
 
         if nb_lignes <= 0:
             return False, "La prescription est vide."
 
-        if self.dao.valider_prescription_visite(code_visite, code_consultation):
-            self.logger.info(f"Prescription validée — visite {code_visite} vers paiement.")
+        if self.dao.valider_prescription_visite(code_acte):
+            self.logger.info(f"Prescription validée — acte {code_acte} vers paiement.")
             return True, "Prescription validée — patient orienté vers le paiement."
 
         return False, "Erreur lors de la validation de la prescription."
@@ -235,17 +231,17 @@ class PrescriptionService:
         """Retourne un objet PanierPrescriptionProduit ou None."""
         return self.dao.obtenir_par_code(code_prescription)
 
-    def lister_par_consultation(self, code_consultation: str) -> List[PanierPrescriptionProduit]:
-        """Retourne les lignes du panier prescription d'une consultation."""
-        return self.dao.obtenir_par_consultation(code_consultation)
+    def lister_par_acte(self, code_acte: str) -> List[PanierPrescriptionProduit]:
+        """Retourne les lignes du panier prescription d'un acte médical."""
+        return self.dao.obtenir_par_acte(code_acte)
 
     def lister_par_session(self, code_session: str) -> List[PanierPrescriptionProduit]:
         """Toutes les prescriptions de la session (tableau principal)."""
         return self.dao.lister_par_session(code_session)
 
-    def lister_groupes_par_consultation(self, code_session: str) -> List[Dict]:
-        """Liste regroupée : 1 ligne par consultation."""
-        return self.dao.lister_groupes_par_consultation(code_session)
+    def lister_groupes_par_acte(self, code_session: str) -> List[Dict]:
+        """Liste regroupée : 1 ligne par acte médical."""
+        return self.dao.lister_groupes_par_acte(code_session)
 
     def lister_par_visite(self, code_visite: str) -> List[PanierPrescriptionProduit]:
         """Toutes les prescriptions liées à une visite."""
@@ -300,20 +296,20 @@ class PrescriptionService:
     # CALCULS PAR CONSULTATION
     # =========================================================================
 
-    def obtenir_montant_total_consultation(self, code_consultation: str) -> float:
+    def obtenir_montant_total_acte(self, code_acte: str) -> float:
         """Total du panier prescription en cours."""
         try:
-            return self.dao.montant_total_consultation(code_consultation) or 0.0
+            return self.dao.montant_total_acte(code_acte) or 0.0
         except Exception as e:
-            self.logger.error(f"Erreur montant_total_consultation: {e}")
+            self.logger.error(f"Erreur montant_total_acte: {e}")
             return 0.0
 
-    def obtenir_nombre_lignes_consultation(self, code_consultation: str) -> int:
+    def obtenir_nombre_lignes_acte(self, code_acte: str) -> int:
         """Nombre de produits dans le panier en cours."""
         try:
-            return self.dao.nombre_lignes_consultation(code_consultation) or 0
+            return self.dao.nombre_lignes_acte(code_acte) or 0
         except Exception as e:
-            self.logger.error(f"Erreur nombre_lignes_consultation: {e}")
+            self.logger.error(f"Erreur nombre_lignes_acte: {e}")
             return 0
 
     # =========================================================================
@@ -378,6 +374,10 @@ class PrescriptionService:
         except Exception as e:
             self.logger.error(f"Erreur montant_total_session: {e}")
             return 0.0
+
+    def obtenir_montant_total_par_session(self, code_session: str) -> float:
+        """Alias pour obtenir_montant_total_session (compatibilité statistiques)."""
+        return self.obtenir_montant_total_session(code_session)
 
     # =========================================================================
     # CARDS STOCK (depuis PanierFactureFourniDAO)

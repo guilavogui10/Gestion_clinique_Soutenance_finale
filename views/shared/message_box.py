@@ -69,11 +69,6 @@ class CustomMessageBox(QDialog):
     
     def _animate_in(self):
         """Animation d'apparition de la boîte."""
-        self.frame.setGraphicsEffect(None)  # Retire temporairement l'ombre
-        
-        # Animation d'échelle (zoom in)
-        self.frame.setStyleSheet(self.frame.styleSheet() + "QFrame#MessageBoxFrame { transform: scale(0.8); }")
-        
         # Réappliquer l'ombre après un court délai
         from PySide6.QtCore import QTimer
         QTimer.singleShot(50, self._restore_shadow)
@@ -327,6 +322,28 @@ class CustomMessageBox(QDialog):
         """Affiche une boîte de confirmation avec boutons OK/Annuler."""
         dialog = CustomMessageBox(title, message, "info", show_cancel=True, parent=parent)
         return dialog.exec() == QDialog.Accepted
+
+    # ── Alias courts (compatibilité avec les appels warning/success/confirm/info/error) ──
+
+    @staticmethod
+    def warning(parent, title, message):
+        return CustomMessageBox.show_warning(message, title, parent=parent)
+
+    @staticmethod
+    def success(parent, title, message):
+        return CustomMessageBox.show_success(message, title, parent=parent)
+
+    @staticmethod
+    def confirm(parent, title, message):
+        return CustomMessageBox.show_question(message, title, parent=parent)
+
+    @staticmethod
+    def info(parent, title, message):
+        return CustomMessageBox.show_info(message, title, parent=parent)
+
+    @staticmethod
+    def error(parent, title, message):
+        return CustomMessageBox.show_error(message, title, parent=parent)
 
 
 

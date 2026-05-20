@@ -149,13 +149,26 @@ class PrescriptionStyles:
         c = theme_manager.colors()
         return f"""
             QPushButton {{
-                background-color: {c['success']};
-                color: {c['text_inverse']}; border-radius: 10px;
-                font-weight: bold; font-size: 12px; border: none;
+                background-color: transparent;
+                color: {c['success']};
+                border: 2px solid {c['success']};
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 12px;
+                padding: 8px 16px;
             }}
-            QPushButton:hover   {{ background-color: {c['success']}; }}
-            QPushButton:pressed {{ background-color: {c['success']}; }}
-            QPushButton:disabled {{ background-color: {c['border']}; }}
+            QPushButton:hover {{
+                background-color: {c['success_bg']};
+            }}
+            QPushButton:pressed {{
+                background-color: {c['success']};
+                color: white;
+            }}
+            QPushButton:disabled {{
+                background-color: transparent;
+                border-color: {c['border']};
+                color: {c['text_muted']};
+            }}
         """
 
     @staticmethod
@@ -164,12 +177,21 @@ class PrescriptionStyles:
         c = theme_manager.colors()
         return f"""
             QPushButton {{
-                background-color: {c['danger']};
-                color: {c['text_inverse']}; border-radius: 10px;
-                font-weight: bold; font-size: 12px; border: none;
+                background-color: transparent;
+                color: {c['danger']};
+                border: 2px solid {c['danger']};
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 12px;
+                padding: 8px 16px;
             }}
-            QPushButton:hover   {{ background-color: {c['danger']}; }}
-            QPushButton:pressed {{ background-color: {c['danger']}; }}
+            QPushButton:hover {{
+                background-color: {c['danger_bg']};
+            }}
+            QPushButton:pressed {{
+                background-color: {c['danger']};
+                color: white;
+            }}
         """
 
     # -------------------------------------------------------------------------

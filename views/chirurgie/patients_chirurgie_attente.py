@@ -279,6 +279,8 @@ class PatientsAttenteChirurgieView(QWidget):
 
     # Signal émis quand une chirurgie est créée pour rafraîchir la vue parent
     chirurgie_creee = Signal()
+    # Signal émis pour ouvrir le formulaire dans l'onglet Nouveau
+    ouvrir_formulaire = Signal(str)
 
     # Nombre de colonnes dans la grille
     NB_COLS = 5
@@ -397,27 +399,12 @@ class PatientsAttenteChirurgieView(QWidget):
     # ─── Action "Procéder" ────────────────────────────────────────────────
 
     def _on_proceder(self, patient):
-        """Ouvre ChirurgieFormDialog pré-rempli avec les données du patient."""
-        from views.chirurgie.chirurgie_form import ChirurgieFormDialog
-
-        # Récupérer le code_consultation du patient (dictionnaire)
+        """Émet le signal ouvrir_formulaire avec le code_consultation du patient."""
         if isinstance(patient, dict):
             code_consultation = patient.get('code_consultation', '')
         else:
             code_consultation = getattr(patient, 'code_consultation', '')
-
-        dialog = ChirurgieFormDialog(
-            controleur        = self.ctrl,
-            code_session      = self.code_session,
-            code_consultation = code_consultation,
-            chururgie_obj     = None,
-            parent            = self
-        )
-        if dialog.exec():
-            # Rafraîchir la grille locale
-            self.charger_patients()
-            # Émettre le signal pour rafraîchir la vue parent (ChirurgieView)
-            self.chirurgie_creee.emit()
+        self.ouvrir_formulaire.emit(code_consultation)
 
     # ─── Thème ────────────────────────────────────────────────────────────
 
@@ -475,14 +462,11 @@ class PatientsAttenteChirurgieView(QWidget):
 class PatientsAttenteDialog(QDialog):
     """
     QDialog encapsulant PatientsAttenteChirurgieView.
-    Appelé depuis ChirurgieView._ouvrir_formulaire.
-
-    Usage
-    -----
-    dialog = PatientsAttenteDialog(self.ctrl, self.code_session, parent=self)
-    dialog.exec()
-    self.charger_chururgies(self.code_session)   # rafraîchit la liste principale
+    Appelé depuis ChirurgieView.on_patients_waiting.
+    Émet ouvrir_nouveau_tab(code_consultation) pour basculer sur l'onglet Nouveau.
     """
+
+    ouvrir_nouveau_tab = Signal(str)
 
     def __init__(self, ctrl, code_session: str, parent=None):
         super().__init__(parent)
@@ -534,7 +518,13 @@ class PatientsAttenteDialog(QDialog):
 
         # ── Vue principale ────────────────────────────────────────────────
         self._view = PatientsAttenteChirurgieView(ctrl, code_session, parent=self)
+        self._view.ouvrir_formulaire.connect(self._on_ouvrir_formulaire)
         root.addWidget(self._view, 1)
+
+    def _on_ouvrir_formulaire(self, code_consultation: str):
+        """Relaie le signal vers la vue parente puis ferme le dialog."""
+        self.ouvrir_nouveau_tab.emit(code_consultation)
+        self.accept()
 
     def _apply_theme(self):
         c = theme_manager.colors()

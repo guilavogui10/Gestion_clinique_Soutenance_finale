@@ -52,7 +52,10 @@ class RendezVousDAO:
             rdv.code_rendez_vous = self._generer_code(cursor)
             statut_normalise = self._normaliser_statut(rdv.statut_rendez_vous)
 
-            if self._existe_doublon_visite(cursor, rdv.code_visite):
+            # Le contrôle doublon ne s'applique qu'aux RDV sans acte spécifique (généraux).
+            # Si code_acte est renseigné, on autorise la création même si un autre RDV existe.
+            code_acte_rdv = getattr(rdv, 'code_acte', None)
+            if not code_acte_rdv and self._existe_doublon_visite(cursor, rdv.code_visite):
                 return False
 
             if not self._personnel_est_disponible(
@@ -69,8 +72,9 @@ class RendezVousDAO:
                     code_personnel,
                     code_session,
                     date_rendez_vous,
-                    statut_rendez_vous
-                ) VALUES (%s, %s, %s, %s, %s, %s)
+                    statut_rendez_vous,
+                    code_acte
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
             cursor.execute(query, (
                 rdv.code_rendez_vous,
@@ -78,7 +82,8 @@ class RendezVousDAO:
                 rdv.code_personnel,
                 rdv.code_session,
                 rdv.date_rendez_vous,
-                statut_normalise
+                statut_normalise,
+                getattr(rdv, 'code_acte', None)
             ))
             conn.commit()
             rdv.statut_rendez_vous = statut_normalise
@@ -115,7 +120,8 @@ class RendezVousDAO:
                     code_personnel = %s,
                     code_session = %s,
                     date_rendez_vous = %s,
-                    statut_rendez_vous = %s
+                    statut_rendez_vous = %s,
+                    code_acte = %s
                 WHERE code_rendez_vous = %s
             """
             cursor.execute(query, (
@@ -124,6 +130,7 @@ class RendezVousDAO:
                 rdv.code_session,
                 rdv.date_rendez_vous,
                 statut_normalise,
+                getattr(rdv, 'code_acte', None),
                 rdv.code_rendez_vous
             ))
             conn.commit()
@@ -1131,7 +1138,7 @@ class RendezVousDAO:
                 INNER JOIN patients p ON v.code_patient = p.code_patient
                 LEFT JOIN rendez_vous r ON v.code_visite = r.code_visite
                 WHERE v.code_session = %s
-                  AND v.statut_patient = 'Attente rendez-vous'
+                  AND LOWER(v.statut_patient) LIKE 'attente rendez-vous%%'
                   AND r.code_rendez_vous IS NULL
                 ORDER BY v.urgent DESC, v.date_visite ASC
             """
@@ -1245,6 +1252,207 @@ class RendezVousDAO:
         except Exception:
             return "RDV" + datetime.now().strftime("%H%M%S")
 
+    def get_par_acte(self, code_acte: str):
+        """Retourne le RDV lié à un acte médical (le plus récent actif)."""
+        conn = self.db.connect()
+        if not conn:
+            return None
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                """SELECT * FROM rendez_vous
+                   WHERE code_acte = %s
+                   ORDER BY date_rendez_vous DESC LIMIT 1""",
+                (code_acte,)
+            )
+            row = cursor.fetchone()
+            return self._row_to_object(row) if row else None
+        except Exception as e:
+            print(f"[RendezVousDAO] Erreur get_par_acte: {e}")
+            return None
+        finally:
+            self.db.close()
+
+    def lister_par_acte(self, code_acte: str) -> list:
+        """Retourne tous les RDV liés à un acte médical (historique)."""
+        conn = self.db.connect()
+        if not conn:
+            return []
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                """SELECT * FROM rendez_vous
+                   WHERE code_acte = %s
+                   ORDER BY date_rendez_vous ASC""",
+                (code_acte,)
+            )
+            return [self._row_to_object(row) for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"[RendezVousDAO] Erreur lister_par_acte: {e}")
+            return []
+        finally:
+            self.db.close()
+
+    def traiter_rdv_du_jour(self, code_session: str) -> int:
+        """
+        Pour tous les RDV échus (date <= NOW()) encore en statut 'attente'/'confirme' :
+          - Met à jour statut_rendez_vous → 'en_cours'
+          - Si code_acte est renseigné et correspond à un type connu :
+              * Crée une NOUVELLE visite (même patient, nouveau code_visite, statut=Attente X)
+              * Crée un nouvel enregistrement acte_visite avec role='execution' lié à
+                la NOUVELLE visite — c'est ce qui fait apparaître le bouton "Démarrer"
+        La visite d'origine (role='origine') n'est pas modifiée.
+        Idempotent : si une visite d'exécution existe déjà pour le code_acte, on ne la recrée pas.
+        Retourne le nombre de RDV traités.
+        """
+        _TYPE_TO_STATUT = {
+            'examen':       'Attente examen',
+            'chirurgie':    'Attente chirurgie',
+            'lunette':      'Attente lunette',
+            'prescription': 'Attente pharmacie',
+        }
+        conn = self.db.connect()
+        if not conn:
+            return 0
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT r.code_rendez_vous, r.code_visite, r.code_acte, a.type_acte
+                FROM rendez_vous r
+                LEFT JOIN acte_medical a ON r.code_acte = a.code_acte
+                WHERE r.code_session = %s
+                  AND r.date_rendez_vous <= NOW()
+                  AND LOWER(r.statut_rendez_vous) IN ('attente', 'confirme')
+            """, (code_session,))
+            rdvs = cursor.fetchall()
+
+            count = 0
+            now = datetime.now()
+            for rdv in rdvs:
+                code_rdv         = rdv.get('code_rendez_vous')
+                code_visite_orig = rdv.get('code_visite')
+                code_acte        = rdv.get('code_acte')
+                type_acte        = (rdv.get('type_acte') or '').lower()
+
+                try:
+                    # 1. Marque le RDV en cours (toujours, même sans code_acte)
+                    cursor.execute(
+                        "UPDATE rendez_vous SET statut_rendez_vous='en_cours' WHERE code_rendez_vous=%s",
+                        (code_rdv,)
+                    )
+
+                    # 2. Uniquement si le RDV est lié à un acte connu
+                    nouveau_statut = _TYPE_TO_STATUT.get(type_acte)
+                    if code_acte and code_visite_orig and nouveau_statut:
+                        # Idempotence : skip seulement si une visite d'exécution DIFFÉRENTE
+                        # de la visite d'origine existe déjà. Cela permet de ne pas recréer
+                        # si mon nouveau code a déjà tourné, tout en ignorant les anciens
+                        # enregistrements 'execution' dans la visite d'origine (ancienne logique).
+                        cursor.execute("""
+                            SELECT 1 FROM acte_visite
+                            WHERE code_acte = %s
+                              AND role_visite = 'execution'
+                              AND code_visite != %s
+                            LIMIT 1
+                        """, (code_acte, code_visite_orig))
+                        if cursor.fetchone():
+                            count += 1
+                            continue
+
+                        # Récupérer code_patient + urgent depuis la visite d'origine
+                        cursor.execute("""
+                            SELECT code_patient, urgent
+                            FROM visite WHERE code_visite = %s
+                        """, (code_visite_orig,))
+                        orig = cursor.fetchone()
+                        if not orig:
+                            count += 1
+                            continue
+
+                        code_patient = orig.get('code_patient')
+                        urgent       = orig.get('urgent', 0)
+
+                        # Générer un nouveau code_visite unique
+                        cursor.execute(
+                            "SELECT code_visite FROM visite ORDER BY code_visite DESC LIMIT 1"
+                        )
+                        last_row = cursor.fetchone()
+                        try:
+                            last_num = int((last_row or {}).get('code_visite', 'VIST000')[4:])
+                            new_code_visite = f"VIST{last_num + 1:03d}"
+                        except (ValueError, TypeError):
+                            new_code_visite = f"VIST{now.strftime('%H%M%S')}"
+
+                        # 3. Créer la nouvelle visite d'exécution
+                        cursor.execute("""
+                            INSERT INTO visite (
+                                code_visite, code_patient, code_session,
+                                type_visite, statut_visite, statut_patient,
+                                urgent, date_visite
+                            ) VALUES (%s, %s, %s, 'rendez-vous', 'en cours', %s, %s, %s)
+                        """, (new_code_visite, code_patient, code_session,
+                              nouveau_statut, urgent, now))
+
+                        # 4. Créer l'acte_visite role='execution' lié à la NOUVELLE visite
+                        cursor.execute("""
+                            INSERT INTO acte_visite
+                                (code_acte, code_visite, role_visite, date_liaison, date_entre)
+                            VALUES (%s, %s, 'execution', %s, %s)
+                        """, (code_acte, new_code_visite, now, now))
+
+                    count += 1
+
+                except Exception as e_rdv:
+                    print(f"[RendezVousDAO] Erreur RDV {code_rdv}: {e_rdv}")
+
+            conn.commit()
+            return count
+        except Exception as e:
+            conn.rollback()
+            print(f"[RendezVousDAO] Erreur traiter_rdv_du_jour: {e}")
+            return 0
+        finally:
+            self.db.close()
+
+    def lister_en_cours(self, code_session: str) -> list:
+        """Retourne les RDV actifs (attente/confirme) enrichis avec type_acte."""
+        conn = self.db.connect()
+        if not conn:
+            return []
+        try:
+            cursor = conn.cursor()
+            query = """
+                SELECT
+                    r.code_rendez_vous,
+                    r.code_visite,
+                    r.code_personnel,
+                    r.code_session,
+                    r.date_rendez_vous,
+                    r.statut_rendez_vous,
+                    r.code_acte,
+                    p.nom AS patient_nom,
+                    p.prenom AS patient_prenom,
+                    per.nom AS personnel_nom,
+                    per.prenom AS personnel_prenom,
+                    per.fonction AS personnel_fonction,
+                    a.type_acte
+                FROM rendez_vous r
+                LEFT JOIN visite v ON r.code_visite = v.code_visite
+                LEFT JOIN patients p ON v.code_patient = p.code_patient
+                LEFT JOIN personnel per ON r.code_personnel = per.code
+                LEFT JOIN acte_medical a ON r.code_acte = a.code_acte
+                WHERE r.code_session = %s
+                  AND LOWER(r.statut_rendez_vous) IN ('attente', 'confirme', 'en_cours')
+                ORDER BY r.date_rendez_vous ASC
+            """
+            cursor.execute(query, (code_session,))
+            return cursor.fetchall()
+        except Exception as e:
+            print(f"[RendezVousDAO] Erreur lister_en_cours: {e}")
+            return []
+        finally:
+            self.db.close()
+
     def _row_to_object(self, row) -> RendezVous:
         obj = RendezVous(
             code_rendez_vous=row.get("code_rendez_vous"),
@@ -1252,7 +1460,8 @@ class RendezVousDAO:
             code_personnel=row.get("code_personnel"),
             code_session=row.get("code_session"),
             date_rendez_vous=row.get("date_rendez_vous"),
-            statut_rendez_vous=row.get("statut_rendez_vous")
+            statut_rendez_vous=row.get("statut_rendez_vous"),
+            code_acte=row.get("code_acte")
         )
 
         # Champs enrichis pratiques pour les vues / tableaux.

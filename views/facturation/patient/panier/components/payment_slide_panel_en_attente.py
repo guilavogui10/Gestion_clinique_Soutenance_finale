@@ -1,4 +1,4 @@
-"""
+﻿"""
 Composant PaymentSlidePanel - Interface de paiement fournisseur glissante.
 Responsabilité : Affichage des produits et formulaire de paiement.
 Design fidèle à l'image de référence. Fond transparent, thème dynamique.
@@ -489,7 +489,7 @@ class PaymentSlidePanel(QFrame):
         # Devise
         self._add_field_label(lay, "Devise")
         self.combo_devise = QComboBox()
-        self.combo_devise.addItems(["XOF – Franc CFA", "EUR – Euro", "USD – Dollar"])
+        self.combo_devise.addItems(["XOF – GNF", "EUR – Euro", "USD – Dollar"])
         self.combo_devise.setFixedHeight(34)
         self.combo_devise.setStyleSheet(self._combo_style())
         lay.addWidget(self.combo_devise)

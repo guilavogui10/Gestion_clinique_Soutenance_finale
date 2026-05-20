@@ -28,6 +28,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pymysql
+import logging
 from typing import Optional
 from datetime import datetime
 from core.connexion_db import DBConnection
@@ -44,6 +45,7 @@ class PrescriptionProduitDAO:
 
     def __init__(self):
         self.db = DBConnection()
+        self.logger = logging.getLogger(__name__)
 
     # =========================================================================
     # CRUD
@@ -97,19 +99,18 @@ class PrescriptionProduitDAO:
                 cursor.execute("""
                     INSERT INTO prescription_produit (
                         code_prescription, designation, code_produit,
-                        quantite_prescript, prix_applique, code_visite,
-                        code_consultation, code_session, date_expiration
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        quantite_prescript, prix_applique,
+                        code_session, date_expiration, code_acte
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     prescription.code_prescription,
                     prescription.designation,
                     prescription.code_produit,
                     prescription.quantite_prescript,
                     prescription.prix_applique,
-                    prescription.code_visite,
-                    prescription.code_consultation,
                     prescription.code_session,
-                    prescription.date_expiration
+                    prescription.date_expiration,
+                    prescription.code_acte
                 ))
 
                 allocations_out.append({
@@ -130,7 +131,7 @@ class PrescriptionProduitDAO:
             return True
 
         except Exception as e:
-            print(f"[PanierPrescriptionProduitDAO] Erreur ajouter: {e}")
+            self.logger.error(f"[PrescriptionProduitDAO] Erreur ajouter: {e}", exc_info=True)
             conn.rollback()
             return False
         finally:
@@ -166,20 +167,18 @@ class PrescriptionProduitDAO:
                     code_produit       = %s,
                     quantite_prescript = %s,
                     prix_applique      = %s,
-                    code_visite        = %s,
-                    code_consultation  = %s,
                     code_session       = %s,
-                    date_expiration    = %s
+                    date_expiration    = %s,
+                    code_acte          = %s
                 WHERE code_prescription = %s
             """, (
                 prescription.designation,
                 prescription.code_produit,
                 prescription.quantite_prescript,
                 prescription.prix_applique,
-                prescription.code_visite,
-                prescription.code_consultation,
                 prescription.code_session,
                 prescription.date_expiration,
+                prescription.code_acte,
                 prescription.code_prescription
             ))
             conn.commit()
@@ -212,18 +211,30 @@ class PrescriptionProduitDAO:
         finally:
             self.db.close()
 
-    def valider_prescription_visite(self, code_visite: str,
-                                     code_consultation: str) -> bool:
+    def valider_prescription_visite(self, code_acte: str) -> bool:
         """
-        Valide la prescription d'une visite.
+        Valide la prescription d'un acte médical.
+        Récupère code_visite via acte_medical → consultation.
         Met à jour statut_patient vers 'Attente payement'.
-        Met à jour le stock global lors de la validation.
         """
         conn = self.db.connect()
         if not conn:
             return False
         try:
             cursor = conn.cursor(DictCursor)
+
+            # Récupérer code_visite + code_consultation via acte_medical
+            cursor.execute("""
+                SELECT c.code AS code_consultation, c.code_visite
+                FROM acte_medical am
+                INNER JOIN consultation c ON am.code_consultation = c.code
+                WHERE am.code_acte = %s
+            """, (code_acte,))
+            row = cursor.fetchone()
+            if not row:
+                return False
+            code_consultation = row['code_consultation']
+            code_visite = row['code_visite']
 
             # Éviter double décrément si déjà validé
             cursor.execute(
@@ -234,13 +245,13 @@ class PrescriptionProduitDAO:
             if row_statut and str(row_statut.get('statut_patient', '')).strip() == "Attente payement":
                 return True
 
-            # Décrémenter le stock global pour chaque produit de la consultation
+            # Décrémenter le stock global pour chaque produit de l'acte
             cursor.execute("""
                 SELECT code_produit, code_session, SUM(quantite_prescript) AS total_qte
                 FROM prescription_produit
-                WHERE code_consultation = %s
+                WHERE code_acte = %s
                 GROUP BY code_produit, code_session
-            """, (code_consultation,))
+            """, (code_acte,))
             for row in cursor.fetchall():
                 code_produit = row.get('code_produit')
                 code_session = row.get('code_session')
@@ -249,7 +260,7 @@ class PrescriptionProduitDAO:
                     self._decrementer_stock(cursor, code_produit, total_qte, code_session)
 
             nouveau_statut = self._determiner_prochain_statut_apres_prescription(
-                cursor, code_consultation
+                cursor, code_acte
             )
             cursor.execute(
                 "UPDATE visite SET statut_patient = %s WHERE code_visite = %s",
@@ -280,8 +291,10 @@ class PrescriptionProduitDAO:
                        p.nom    AS patient_nom,
                        p.prenom AS patient_prenom
                 FROM prescription_produit pp
-                LEFT JOIN visite   v ON pp.code_visite = v.code_visite
-                LEFT JOIN patients p ON v.code_patient = p.code_patient
+                LEFT JOIN acte_medical am ON pp.code_acte = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient = p.code_patient
                 WHERE pp.code_prescription = %s
             """, (code_prescription,))
             row = cursor.fetchone()
@@ -292,9 +305,9 @@ class PrescriptionProduitDAO:
         finally:
             self.db.close()
 
-    def obtenir_par_consultation(self, code_consultation: str) -> list:
+    def obtenir_par_acte(self, code_acte: str) -> list:
         """
-        Retourne toutes les lignes de prescription d une consultation.
+        Retourne toutes les lignes de prescription d un acte medical.
         Utilisé pour afficher le panier prescription en cours dans la vue.
         """
         conn = self.db.connect()
@@ -305,12 +318,12 @@ class PrescriptionProduitDAO:
             cursor.execute("""
                 SELECT *
                 FROM prescription_produit
-                WHERE code_consultation = %s
+                WHERE code_acte = %s
                 ORDER BY code_prescription ASC
-            """, (code_consultation,))
+            """, (code_acte,))
             return [self._row_to_object(row) for row in cursor.fetchall()]
         except Exception as e:
-            print(f"[PanierPrescriptionProduitDAO] Erreur obtenir_par_consultation: {e}")
+            print(f"[PanierPrescriptionProduitDAO] Erreur obtenir_par_acte: {e}")
             return []
         finally:
             self.db.close()
@@ -327,8 +340,10 @@ class PrescriptionProduitDAO:
                        p.nom    AS patient_nom,
                        p.prenom AS patient_prenom
                 FROM prescription_produit pp
-                LEFT JOIN visite   v ON pp.code_visite = v.code_visite
-                LEFT JOIN patients p ON v.code_patient = p.code_patient
+                LEFT JOIN acte_medical am ON pp.code_acte = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient = p.code_patient
                 WHERE pp.code_session = %s
                 ORDER BY pp.code_prescription DESC
             """, (code_session,))
@@ -339,10 +354,10 @@ class PrescriptionProduitDAO:
         finally:
             self.db.close()
 
-    def lister_groupes_par_consultation(self, code_session: str) -> list:
+    def lister_groupes_par_acte(self, code_session: str) -> list:
         """
-        Regroupe les prescriptions par code_consultation (1 ligne par consultation).
-        Retourne : code_consultation, code_visite, patient_nom, patient_prenom,
+        Regroupe les prescriptions par code_acte (1 ligne par acte medical).
+        Retourne : code_acte, code_visite, patient_nom, patient_prenom,
                    date_consultation, nb_produits, total_quantite, total_montant.
         """
         conn = self.db.connect()
@@ -352,45 +367,46 @@ class PrescriptionProduitDAO:
             cursor = conn.cursor(DictCursor)
             cursor.execute("""
                 SELECT
-                    pp.code_consultation,
-                    pp.code_visite,
+                    pp.code_acte,
+                    v.code_visite,
                     p.nom    AS patient_nom,
                     p.prenom AS patient_prenom,
                     c.date_consultation,
                     COUNT(*) AS nb_produits,
-                    SUM(pp.quantite_prescript)                 AS total_quantite,
+                    SUM(pp.quantite_prescript)                    AS total_quantite,
                     SUM(pp.prix_applique * pp.quantite_prescript) AS total_montant
                 FROM prescription_produit pp
-                LEFT JOIN visite       v ON pp.code_visite       = v.code_visite
-                LEFT JOIN patients     p ON v.code_patient       = p.code_patient
-                LEFT JOIN consultation c ON pp.code_consultation = c.code
+                LEFT JOIN acte_medical am ON pp.code_acte       = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite       = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient      = p.code_patient
                 WHERE pp.code_session = %s
                 GROUP BY
-                    pp.code_consultation,
-                    pp.code_visite,
-                    p.nom, p.prenom,
-                    c.date_consultation
-                ORDER BY c.date_consultation DESC, pp.code_consultation DESC
+                    pp.code_acte, v.code_visite,
+                    p.nom, p.prenom, c.date_consultation
+                ORDER BY c.date_consultation DESC, pp.code_acte DESC
             """, (code_session,))
             return cursor.fetchall()
         except Exception as e:
-            print(f"[PanierPrescriptionProduitDAO] Erreur lister_groupes_par_consultation: {e}")
+            print(f"[PanierPrescriptionProduitDAO] Erreur lister_groupes_par_acte: {e}")
             return []
         finally:
             self.db.close()
 
     def lister_par_visite(self, code_visite: str) -> list:
-        """Toutes les prescriptions liées à une visite."""
+        """Toutes les prescriptions liées à une visite (via acte_medical → consultation)."""
         conn = self.db.connect()
         if not conn:
             return []
         try:
             cursor = conn.cursor(DictCursor)
             cursor.execute("""
-                SELECT *
-                FROM prescription_produit
-                WHERE code_visite = %s
-                ORDER BY code_prescription ASC
+                SELECT pp.*
+                FROM prescription_produit pp
+                INNER JOIN acte_medical am ON pp.code_acte = am.code_acte
+                INNER JOIN consultation c  ON am.code_consultation = c.code
+                WHERE c.code_visite = %s
+                ORDER BY pp.code_prescription ASC
             """, (code_visite,))
             return [self._row_to_object(row) for row in cursor.fetchall()]
         except Exception as e:
@@ -412,8 +428,10 @@ class PrescriptionProduitDAO:
                        p.nom    AS patient_nom,
                        p.prenom AS patient_prenom
                 FROM prescription_produit pp
-                LEFT JOIN visite   v ON pp.code_visite = v.code_visite
-                LEFT JOIN patients p ON v.code_patient = p.code_patient
+                LEFT JOIN acte_medical am ON pp.code_acte = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient = p.code_patient
                 WHERE pp.code_session = %s
                   AND (
                       pp.code_prescription LIKE %s OR
@@ -453,9 +471,11 @@ class PrescriptionProduitDAO:
                     pr.type                AS produit_type,
                     pr.prix_vente_unitaire AS produit_prix_vente_unitaire
                 FROM prescription_produit pp
-                LEFT JOIN visite    v  ON pp.code_visite  = v.code_visite
-                LEFT JOIN patients  p  ON v.code_patient  = p.code_patient
-                LEFT JOIN produits  pr ON pp.code_produit = pr.code_produit
+                LEFT JOIN acte_medical am ON pp.code_acte = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite = v.code_visite
+                LEFT JOIN patients  p     ON v.code_patient  = p.code_patient
+                LEFT JOIN produits  pr    ON pp.code_produit = pr.code_produit
                 WHERE pp.code_prescription = %s
             """, (code_prescription,))
             return cursor.fetchone()
@@ -481,6 +501,7 @@ class PrescriptionProduitDAO:
             cursor = conn.cursor(DictCursor)
             cursor.execute("""
                 SELECT
+                    am.code_acte        AS code_acte,
                     v.code_visite,
                     v.date_visite,
                     v.statut_patient,
@@ -491,12 +512,12 @@ class PrescriptionProduitDAO:
                     p.prenom,
                     p.telephone
                 FROM visite v
-                INNER JOIN patients     p ON v.code_patient = p.code_patient
-                INNER JOIN consultation c ON v.code_visite  = c.code_visite
-                LEFT  JOIN prescription_produit pp ON v.code_visite = pp.code_visite
+                INNER JOIN patients     p  ON v.code_patient = p.code_patient
+                INNER JOIN consultation c  ON v.code_visite  = c.code_visite
+                INNER JOIN acte_medical am ON am.code_consultation = c.code
+                LEFT  JOIN prescription_produit pp ON pp.code_acte = am.code_acte
                 WHERE v.code_session   = %s
-                  AND v.statut_patient = 'Attente pharmacie'
-                  AND pp.code_prescription IS NULL
+                  AND v.statut_patient IN ('Attente pharmacie', 'En pharmacie')
                 ORDER BY v.urgent DESC, v.date_visite ASC
             """, (code_session,))
             return cursor.fetchall()
@@ -518,8 +539,10 @@ class PrescriptionProduitDAO:
                        pr.libelle AS produit_libelle,
                        pr.type    AS produit_type
                 FROM prescription_produit pp
-                INNER JOIN visite   v  ON pp.code_visite  = v.code_visite
-                LEFT  JOIN produits pr ON pp.code_produit = pr.code_produit
+                INNER JOIN acte_medical am ON pp.code_acte = am.code_acte
+                INNER JOIN consultation c  ON am.code_consultation = c.code
+                INNER JOIN visite v        ON c.code_visite = v.code_visite
+                LEFT  JOIN produits pr     ON pp.code_produit = pr.code_produit
                 WHERE v.code_patient = %s
                 ORDER BY pp.code_prescription DESC
             """, (code_patient,))
@@ -556,9 +579,9 @@ class PrescriptionProduitDAO:
     # CALCULS PAR CONSULTATION (panier en cours)
     # =========================================================================
 
-    def montant_total_consultation(self, code_consultation: str) -> float:
+    def montant_total_acte(self, code_acte: str) -> float:
         """
-        Total du panier prescription en cours pour une consultation.
+        Total du panier prescription en cours pour un acte médical.
         Affiché en temps réel dans le footer de la vue (lbl_total).
         """
         conn = self.db.connect()
@@ -569,17 +592,17 @@ class PrescriptionProduitDAO:
             cursor.execute("""
                 SELECT COALESCE(SUM(prix_applique * quantite_prescript), 0) AS total
                 FROM prescription_produit
-                WHERE code_consultation = %s
-            """, (code_consultation,))
+                WHERE code_acte = %s
+            """, (code_acte,))
             row = cursor.fetchone()
             return float(row['total']) if row else 0.0
         except Exception as e:
-            print(f"[PanierPrescriptionProduitDAO] Erreur montant_total_consultation: {e}")
+            print(f"[PanierPrescriptionProduitDAO] Erreur montant_total_acte: {e}")
             return 0.0
         finally:
             self.db.close()
 
-    def nombre_lignes_consultation(self, code_consultation: str) -> int:
+    def nombre_lignes_acte(self, code_acte: str) -> int:
         """Nombre de lignes dans le panier en cours (badge_panier)."""
         conn = self.db.connect()
         if not conn:
@@ -589,12 +612,12 @@ class PrescriptionProduitDAO:
             cursor.execute("""
                 SELECT COUNT(*) AS total
                 FROM prescription_produit
-                WHERE code_consultation = %s
-            """, (code_consultation,))
+                WHERE code_acte = %s
+            """, (code_acte,))
             row = cursor.fetchone()
             return int(row['total']) if row else 0
         except Exception as e:
-            print(f"[PanierPrescriptionProduitDAO] Erreur nombre_lignes_consultation: {e}")
+            print(f"[PanierPrescriptionProduitDAO] Erreur nombre_lignes_acte: {e}")
             return 0
         finally:
             self.db.close()
@@ -619,10 +642,12 @@ class PrescriptionProduitDAO:
             cursor = conn.cursor(DictCursor)
             cursor.execute("""
                 SELECT COALESCE(
-                    SUM(prix_applique * quantite_prescript), 0
+                    SUM(pp.prix_applique * pp.quantite_prescript), 0
                 ) AS montant_pharmacie
-                FROM prescription_produit
-                WHERE code_visite = %s
+                FROM prescription_produit pp
+                INNER JOIN acte_medical am ON pp.code_acte = am.code_acte
+                INNER JOIN consultation c  ON am.code_consultation = c.code
+                WHERE c.code_visite = %s
             """, (code_visite,))
             row = cursor.fetchone()
             return float(row['montant_pharmacie']) if row else 0.0
@@ -656,8 +681,10 @@ class PrescriptionProduitDAO:
                     (pp.quantite_prescript * pp.prix_applique) AS sous_total,
                     p.type AS type_produit
                 FROM prescription_produit pp
-                LEFT JOIN produits p ON pp.code_produit = p.code_produit
-                WHERE pp.code_visite = %s
+                INNER JOIN acte_medical am ON pp.code_acte = am.code_acte
+                INNER JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN produits p       ON pp.code_produit = p.code_produit
+                WHERE c.code_visite = %s
                 ORDER BY pp.code_prescription ASC
             """, (code_visite,))
             return cursor.fetchall()
@@ -683,9 +710,10 @@ class PrescriptionProduitDAO:
         try:
             cursor = conn.cursor(DictCursor)
             cursor.execute("""
-                SELECT COUNT(DISTINCT pp.code_visite) AS total
+                SELECT COUNT(DISTINCT pp.code_acte) AS total
                 FROM prescription_produit pp
-                INNER JOIN consultation c ON pp.code_consultation = c.code
+                LEFT JOIN acte_medical am ON pp.code_acte = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
                 WHERE pp.code_session = %s
                   AND DATE(c.date_consultation) = CURDATE()
             """, (code_session,))
@@ -709,7 +737,7 @@ class PrescriptionProduitDAO:
         try:
             cursor = conn.cursor(DictCursor)
             cursor.execute("""
-                SELECT COUNT(DISTINCT code_visite) AS total
+                SELECT COUNT(DISTINCT code_acte) AS total
                 FROM prescription_produit
                 WHERE code_session = %s
             """, (code_session,))
@@ -734,7 +762,9 @@ class PrescriptionProduitDAO:
             cursor.execute("""
                 SELECT COUNT(*) AS total
                 FROM visite v
-                LEFT JOIN prescription_produit pp ON v.code_visite = pp.code_visite
+                LEFT JOIN consultation c   ON c.code_visite = v.code_visite
+                LEFT JOIN acte_medical am  ON am.code_consultation = c.code
+                LEFT JOIN prescription_produit pp ON pp.code_acte = am.code_acte
                 WHERE v.code_session   = %s
                   AND v.statut_patient = 'Attente pharmacie'
                   AND pp.code_prescription IS NULL
@@ -786,7 +816,8 @@ class PrescriptionProduitDAO:
                 cursor.execute("""
                     SELECT COALESCE(SUM(pp.prix_applique * pp.quantite_prescript), 0) AS total
                     FROM prescription_produit pp
-                    INNER JOIN consultation c ON pp.code_consultation = c.code
+                    LEFT JOIN acte_medical am ON pp.code_acte = am.code_acte
+                    LEFT JOIN consultation c  ON am.code_consultation = c.code
                     WHERE pp.code_session = %s
                       AND DATE(c.date_consultation) BETWEEN %s AND %s
                 """, (code_session, date_debut, date_fin))
@@ -826,7 +857,8 @@ class PrescriptionProduitDAO:
             cursor.execute("""
                 SELECT MONTH(c.date_consultation) AS num_mois, COUNT(*) AS total
                 FROM prescription_produit pp
-                INNER JOIN consultation c ON pp.code_consultation = c.code
+                LEFT JOIN acte_medical am ON pp.code_acte = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
                 WHERE pp.code_session = %s
                   AND c.date_consultation IS NOT NULL
                 GROUP BY MONTH(c.date_consultation)
@@ -947,7 +979,7 @@ class PrescriptionProduitDAO:
                 ORDER BY pf.date_expiration ASC
             """.format(
                 sorties_validees=self._sous_requete_sorties_lot_validees()
-            ), (code_session, code_produit, code_session))
+            ), (code_produit, code_session, code_session))
             lots = cursor.fetchall()
             if not lots:
                 return []
@@ -1012,7 +1044,7 @@ class PrescriptionProduitDAO:
                 LIMIT 1
             """.format(
                 sorties_validees=self._sous_requete_sorties_lot_validees()
-            ), (code_session, code_produit, code_session, quantite))
+            ), (code_produit, code_session, code_session, quantite))
             row = cursor.fetchone()
             if not row:
                 return None
@@ -1035,7 +1067,9 @@ class PrescriptionProduitDAO:
         return """
             SELECT SUM(pp.quantite_prescript)
             FROM prescription_produit pp
-            INNER JOIN visite v ON pp.code_visite = v.code_visite
+            INNER JOIN acte_medical am ON pp.code_acte = am.code_acte
+            INNER JOIN consultation c  ON am.code_consultation = c.code
+            INNER JOIN visite v        ON c.code_visite = v.code_visite
             WHERE pp.code_produit    = pf.code_produit
               AND pp.date_expiration = pf.date_expiration
               AND pp.code_session    = %s
@@ -1150,23 +1184,12 @@ class PrescriptionProduitDAO:
             print(f"[PanierPrescriptionProduitDAO] Erreur _completer_infos_produit: {e}")
 
     def _determiner_prochain_statut_apres_prescription(
-            self, cursor, code_consultation: str) -> str:
+            self, cursor, code_acte: str) -> str:
         """
         Détermine le prochain statut_patient après validation de prescription.
         Règle métier : → 'Attente payement'
         """
-        try:
-            cursor.execute(
-                "SELECT code FROM consultation WHERE code = %s",
-                (code_consultation,)
-            )
-            row = cursor.fetchone()
-            if not row:
-                return "Attente payement"
-            return "Attente payement"
-        except Exception as e:
-            print(f"[PanierPrescriptionProduitDAO] Erreur _determiner_prochain_statut: {e}")
-            return "Attente payement"
+        return "Attente payement"
 
     def _row_to_object(self, row) -> PanierPrescriptionProduit:
         """
@@ -1179,11 +1202,11 @@ class PrescriptionProduitDAO:
             code_produit       = row['code_produit'],
             quantite_prescript = row['quantite_prescript'],
             prix_applique      = float(row['prix_applique']) if row['prix_applique'] else 0.0,
-            code_visite        = row['code_visite'],
-            code_consultation  = row['code_consultation'],
             code_session       = row['code_session'],
-            date_expiration    = row['date_expiration']
+            date_expiration    = row['date_expiration'],
+            code_acte          = row.get('code_acte')
         )
         obj.patient_nom    = row.get('patient_nom',    "") if isinstance(row, dict) else ""
         obj.patient_prenom = row.get('patient_prenom', "") if isinstance(row, dict) else ""
         return obj
+

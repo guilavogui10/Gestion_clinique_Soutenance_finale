@@ -395,6 +395,24 @@ class RendezVousService:
     def obtenir_par_visite(self, code_visite: str):
         return self.dao.obtenir_par_visite(code_visite)
 
+    def obtenir_par_acte(self, code_acte: str):
+        """Retourne le RDV le plus recent lie a un acte medical."""
+        return self.dao.get_par_acte(code_acte)
+
+    def lister_par_acte(self, code_acte: str) -> list:
+        """Retourne tous les RDV lies a un acte medical (historique)."""
+        return self.dao.lister_par_acte(code_acte)
+
+    def planifier_rdv_pour_acte(self, rdv: RendezVous) -> tuple:
+        """
+        Cree un rendez-vous lie a un acte medical (code_acte renseigne).
+        Validation identique a creer_rendez_vous mais sans bloquer sur doublon visite
+        car un acte peut avoir plusieurs RDV dans le temps.
+        """
+        if not rdv.code_acte:
+            return False, "Le code_acte est obligatoire pour planifier un RDV d'acte"
+        return self.creer_rendez_vous(rdv)
+
     def lister_rendez_vous(self, code_session: str) -> list:
         return self.dao.lister_par_session(code_session)
 
@@ -612,3 +630,12 @@ class RendezVousService:
 
     def lister_personnel(self) -> list:
         return self.dao.lister_personnel()
+
+    def lister_actes_en_attente_rdv(self, code_session: str) -> list:
+        """Retourne les actes médicaux avec choix_patient='plus_tard' pour cette session."""
+        try:
+            from data.dao_acte_medicale import ActeMedicalDAO
+            return ActeMedicalDAO().lister_actes_en_attente_rdv_par_session(code_session)
+        except Exception as e:
+            self.logger.warning("Erreur lister_actes_en_attente_rdv: %s", e)
+            return []

@@ -1,20 +1,20 @@
-﻿"""
+"""
 Widget Prescription Produit.
 Architecture : MVC + Composition + Separation of Concerns.
-ResponsabilitÃ© : Orchestration des composants et gestion du workflow.
+Responsabilité : Orchestration des composants et gestion du workflow.
 
 Flux principal :
-  1. charger_donnees(session) â†’ remplit combo_patient (visites 'Attente pharmacie')
-                              â†’ remplit combo_produit
-  2. SÃ©lection patient  â†’ _on_patient_change() â†’ carte patient + activation formulaire
-  3. SÃ©lection produit  â†’ _on_produit_change() â†’ auto-remplissage dÃ©signation + prix
-  4. Saisie quantitÃ©    â†’ validation temps rÃ©el
-  5. Clic 'Prescrire'   â†’ _prescrire() â†’ ctrl.ajouter_ligne() â†’ FEFO auto dans DAO
-  6. Ligne ajoutÃ©e      â†’ visuel + badge++ + total mis Ã  jour
-  7. Clic 'Valider'     â†’ _valider_prescription() â†’ confirmation â†’ reset + rechargement
-  8. Clic 'Annuler'     â†’ _annuler_prescription() â†’ suppression toutes lignes â†’ reset
+  1. charger_donnees(session) → remplit combo_patient (visites 'Attente pharmacie')
+                              → remplit combo_produit
+  2. Sélection patient  → _on_patient_change() → carte patient + activation formulaire
+  3. Sélection produit  → _on_produit_change() → auto-remplissage désignation + prix
+  4. Saisie quantité    → validation temps réel
+  5. Clic 'Prescrire'   → _prescrire() → ctrl.ajouter_ligne() → FEFO auto dans DAO
+  6. Ligne ajoutée      → visuel + badge++ + total mis à jour
+  7. Clic 'Valider'     → _valider_prescription() → confirmation → reset + rechargement
+  8. Clic 'Annuler'     → _annuler_prescription() → suppression toutes lignes → reset
 
-Injection du contrÃ´leur via __init__ (Architecture MVC â€” pas d'import direct).
+Injection du contrôleur via __init__ (Architecture MVC — pas d'import direct).
 """
 
 from typing import Dict, Any, List, Optional
@@ -32,7 +32,7 @@ from .components.prescription_footer     import PrescriptionFooter
 from .components.prescription_ligne_items import PrescriptionLigneItem
 from views.shared.message_box import CustomMessageBox
 
-# Handlers mÃ©tier
+# Handlers métier
 from .handlers.data_loader             import PrescriptionDataLoader
 from .handlers.validation_handler      import PrescriptionValidationHandler
 from .handlers.prescription_operation import PrescriptionOperations
@@ -44,33 +44,39 @@ from .styles.prescription_style import PrescriptionStyles
 class PrescriptionWidget(AnimatedFrame):
     """
     Widget de gestion des prescriptions produits (service pharmacie).
-    Version modulaire â€” Architecture MVC stricte.
+    Version modulaire — Architecture MVC stricte.
 
-    ResponsabilitÃ©s :
+    Responsabilités :
       - Orchestration des composants UI
-      - Gestion du workflow mÃ©tier prescription
+      - Gestion du workflow métier prescription
       - Communication avec PrescriptionControleur
     """
 
     # Signal emis apres validation reussie (rafraichir la vue parente)
     prescription_validee = Signal()
+    # Signal émis quand une ligne est ajoutée au panier
+    ligne_ajoutee = Signal(dict)  # émet form_data
+    # Signal émis quand une ligne est supprimée du panier
+    ligne_supprimee = Signal()
+    # Signal émis quand le panier est réinitialisé
+    panier_reinitialise = Signal()
 
-    def __init__(self, prescription_ctrl=None, parent=None):
+    def __init__(self, prescription_ctrl=None, parent=None, afficher_panier_interne=True):
         super().__init__(parent)
 
         print("[PrescriptionWidget] Initialisation")
 
         # ----------------------------------------------------------------
-        # Injection du contrÃ´leur (Architecture MVC)
+        # Injection du contrôleur (Architecture MVC)
         # ----------------------------------------------------------------
         self.prescription_ctrl = prescription_ctrl
+        self.afficher_panier_interne = afficher_panier_interne
 
         # ----------------------------------------------------------------
-        # Ã‰tat courant
+        # État courant
         # ----------------------------------------------------------------
         self.code_session      : Optional[str] = None
-        self.code_visite       : Optional[str] = None
-        self.code_consultation : Optional[str] = None
+        self.code_acte         : Optional[str] = None
         self.lignes_panier     : List[Any]     = []
 
         # ----------------------------------------------------------------
@@ -84,7 +90,7 @@ class PrescriptionWidget(AnimatedFrame):
         self.ligne_item_factory  = PrescriptionLigneItem(_bleu, _rouge)
 
         # ----------------------------------------------------------------
-        # Handlers mÃ©tier
+        # Handlers métier
         # ----------------------------------------------------------------
         self.data_loader         = PrescriptionDataLoader(_bleu)
         self.validation_handler  = PrescriptionValidationHandler(prescription_ctrl)
@@ -110,13 +116,14 @@ class PrescriptionWidget(AnimatedFrame):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # Header â€” retourne le badge QLabel
+        # Header — retourne le badge QLabel
         self.badge_panier = self.header_component.create(layout)
 
-        # Formulaire â€” retourne (container, layout_lignes)
+        # Formulaire — retourne (container, layout_lignes)
         self.container_panier, self.layout_lignes_panier = self.form_component.create(
             layout,
-            self._appliquer_style_scrollbar
+            self._appliquer_style_scrollbar,
+            afficher_panier_interne=self.afficher_panier_interne
         )
 
         # Exposition des widgets du formulaire
@@ -128,27 +135,27 @@ class PrescriptionWidget(AnimatedFrame):
         self.input_prix         = self.form_component.input_prix
         self.btn_prescrire      = self.form_component.btn_prescrire
 
-        # Footer â€” retourne (lbl_total, btn_valider, btn_annuler)
+        # Footer — retourne (lbl_total, btn_valider, btn_annuler)
         self.lbl_total, self.btn_valider, self.btn_annuler = \
             self.footer_component.create(layout)
 
     def _connecter_signaux(self) -> None:
         """Connecte tous les signaux pour la validation et les interactions."""
 
-        # SÃ©lection consultation â†’ auto-remplit code_visite + carte patient
+        # Sélection consultation → auto-remplit code_visite + carte patient
         self.combo_consultation.currentIndexChanged.connect(self._on_consultation_change)
 
-        # Auto-remplissage dÃ©signation + prix Ã  la sÃ©lection produit
+        # Auto-remplissage désignation + prix à la sélection produit
         self.combo_produit.currentIndexChanged.connect(self._on_produit_change)
 
-        # Validation quantitÃ© en temps rÃ©el (ModernQuantitySpinner â†’ valueChanged(int))
+        # Validation quantité en temps réel (ModernQuantitySpinner → valueChanged(int))
         self.input_quantite.valueChanged.connect(
             lambda value: self.validation_handler.valider_quantite(
                 self.input_quantite, str(value)
             )
         )
 
-        # Ajout Ã  la prescription
+        # Ajout à la prescription
         self.btn_prescrire.clicked.connect(self._prescrire)
 
         # Validation et annulation
@@ -156,12 +163,12 @@ class PrescriptionWidget(AnimatedFrame):
         self.btn_annuler.clicked.connect(self._annuler_prescription)
 
     # =========================================================================
-    # CHARGEMENT DONNÃ‰ES
+    # CHARGEMENT DONNÉES
     # =========================================================================
 
     def charger_donnees(self, code_session: str) -> None:
         """
-        Point d'entrÃ©e depuis la vue parente.
+        Point d'entrée depuis la vue parente.
         Charge les produits et les patients en attente de prescription.
 
         Args:
@@ -188,62 +195,59 @@ class PrescriptionWidget(AnimatedFrame):
 
     def _on_consultation_change(self, index: int) -> None:
         """
-        SÃ©lection dans combo_consultation â†’
+        Sélection dans combo_consultation →
           - auto-remplit edit_code_visite (pattern CommandeLunetteFormDialog)
           - auto-remplit la carte patient
           - active le formulaire produit
 
-        userData = dict retournÃ© par patients_en_attente_prescription :
+        userData = dict retourné par patients_en_attente_prescription :
           {'code_visite', 'code_consultation', 'nom', 'prenom', ...}
         """
         patient_data = self.combo_consultation.currentData()
 
         if not patient_data:
-            self.code_visite       = None
-            self.code_consultation = None
+            self.code_acte = None
             self.form_component.vider_patient()
             self.form_component.desactiver_formulaire()
             self._reinitialiser_lignes()
             return
 
-        # Extraire les codes depuis le dict DAO
-        self.code_visite       = patient_data.get('code_visite', '')
-        self.code_consultation = patient_data.get('code_consultation', '')
+        # Extraire code_acte depuis le dict DAO
+        self.code_acte = patient_data.get('code_acte', '')
 
-        # Auto-remplir carte patient + code_visite (pattern lunettes)
+        # Auto-remplir carte patient + code_acte
         self.form_component.charger_patient(
-            nom               = patient_data.get('nom', ''),
-            prenom            = patient_data.get('prenom', ''),
-            code_visite       = self.code_visite,
-            code_consultation = self.code_consultation
+            nom        = patient_data.get('nom', ''),
+            prenom     = patient_data.get('prenom', ''),
+            code_acte  = self.code_acte
         )
 
         self.form_component.activer_formulaire()
 
-        # Recharger les lignes dÃ©jÃ  prescrites pour cette consultation
+        # Recharger les lignes déjà prescrites pour cette consultation
         self._reinitialiser_lignes()
-        if self.code_consultation:
+        if self.code_acte:
             self.data_loader.charger_panier_existant(
                 self.prescription_ctrl,
-                self.code_consultation,
+                self.code_acte,
                 self._ajouter_ligne_visuelle
             )
 
         self._recalculer_total()
 
-        print(f"[PrescriptionWidget] Consultation sÃ©lectionnÃ©e: "
+        print(f"[PrescriptionWidget] Consultation sélectionnée: "
               f"{patient_data.get('prenom')} {patient_data.get('nom')} "
-              f"| visite={self.code_visite} | consultation={self.code_consultation}")
+              f"| visite={self.code_acte} | consultation={self.code_acte}")
 
     # =========================================================================
-    # Ã‰VÃ‰NEMENTS FORMULAIRE
+    # ÉVÉNEMENTS FORMULAIRE
     # =========================================================================
 
     def _on_produit_change(self, index: int) -> None:
         """
-        Auto-remplissage dÃ©signation + prix Ã  la sÃ©lection du produit.
-        Lit directement depuis currentData() â€” dict complet stockÃ© par data_loader.
-        MÃªme pattern que PanierForm._on_produit_change.
+        Auto-remplissage désignation + prix à la sélection du produit.
+        Lit directement depuis currentData() — dict complet stocké par data_loader.
+        Même pattern que PanierForm._on_produit_change.
         """
         produit_data = self.combo_produit.currentData()
 
@@ -253,11 +257,11 @@ class PrescriptionWidget(AnimatedFrame):
             self.input_prix.clear()
             return
 
-        # âœ… Lecture directe depuis le dict â€” pas de lazy import ProduitControleur
+        # ✅ Lecture directe depuis le dict — pas de lazy import ProduitControleur
         designation = produit_data.get('libelle', '')
         prix        = float(produit_data.get('prix_vente_unitaire', 0) or 0)
 
-        # Auto-remplir dÃ©signation
+        # Auto-remplir désignation
         self.input_designation.setText(designation)
         self.input_designation.setStyleSheet(PrescriptionStyles.input_readonly())
 
@@ -277,27 +281,26 @@ class PrescriptionWidget(AnimatedFrame):
     def _prescrire(self) -> None:
         """
         Ajoute un produit au panier prescription.
-        AppelÃ© par le clic sur btn_prescrire.
+        Appelé par le clic sur btn_prescrire.
         """
-        if not self.code_consultation:
+        if not self.code_acte:
             self._afficher_message(
-                "Attention", "Veuillez sÃ©lectionner un patient d'abord.", False
+                "Attention", "Veuillez sélectionner un patient d'abord.", False
             )
             return
 
-        # PrÃ©parer les donnÃ©es du formulaire
+        # Préparer les données du formulaire
         produit_data = self.combo_produit.currentData()
         form_data = {
             'code_produit'     : produit_data.get('code_produit') if produit_data else None,
             'code_session'     : self.code_session,
-            'code_visite'      : self.code_visite,
-            'code_consultation': self.code_consultation,
+            'code_acte'        : self.code_acte,
             'designation'      : self.input_designation.text().strip(),
             'quantite'         : self.input_quantite.text(),
             'prix'             : self.input_prix.text(),
         }
 
-        # DÃ©lÃ©guer au handler opÃ©rations
+        # Déléguer au handler opérations
         ok, msg = self.operations.ajouter_ligne_prescription(form_data)
 
         if ok:
@@ -309,7 +312,7 @@ class PrescriptionWidget(AnimatedFrame):
                 self._ajouter_ligne_visuelle(form_data)
             self.form_component.vider_formulaire()
             self._recalculer_total()
-            self._afficher_message("SuccÃ¨s", msg, True)
+            self._afficher_message("Succès", msg, True)
         else:
             self._afficher_message("Erreur", msg, False)
 
@@ -325,22 +328,27 @@ class PrescriptionWidget(AnimatedFrame):
             form_data: Dict avec designation, quantite, prix,
                        date_expiration, code_prescription
         """
-        ligne_widget = self.ligne_item_factory.create(
-            designation       = form_data.get('designation', ''),
-            quantite          = int(form_data.get('quantite', 1)),
-            prix              = float(str(form_data.get('prix', '0')).replace(" ", "") or 0),
-            date_expiration   = form_data.get('date_expiration'),
-            code_prescription = form_data.get('code_prescription', 'PRS_TEMP'),
-            on_delete_callback= self._supprimer_ligne
-        )
+        # Émettre le signal pour que la vue parente puisse afficher la ligne
+        self.ligne_ajoutee.emit(form_data)
+        
+        # Si le panier interne est activé, ajouter la ligne visuellement
+        if self.afficher_panier_interne and self.layout_lignes_panier:
+            ligne_widget = self.ligne_item_factory.create(
+                designation       = form_data.get('designation', ''),
+                quantite          = int(form_data.get('quantite', 1)),
+                prix              = float(str(form_data.get('prix', '0')).replace(" ", "") or 0),
+                date_expiration   = form_data.get('date_expiration'),
+                code_prescription = form_data.get('code_prescription', 'PRS_TEMP'),
+                on_delete_callback= self._supprimer_ligne
+            )
 
-        self.lignes_panier.append(ligne_widget)
+            self.lignes_panier.append(ligne_widget)
 
-        # InsÃ©rer avant le stretch
-        count = self.layout_lignes_panier.count()
-        self.layout_lignes_panier.insertWidget(count - 1, ligne_widget)
+            # Insérer avant le stretch
+            count = self.layout_lignes_panier.count()
+            self.layout_lignes_panier.insertWidget(count - 1, ligne_widget)
 
-        # Mettre Ã  jour le badge
+        # Mettre à jour le badge
         self.badge_panier.setText(str(len(self.lignes_panier)))
 
     def _supprimer_ligne(self, ligne_widget: Any) -> None:
@@ -348,7 +356,7 @@ class PrescriptionWidget(AnimatedFrame):
         Supprime une ligne du panier (BDD + visuel) avec confirmation.
 
         Args:
-            ligne_widget: Widget QFrame de la ligne Ã  supprimer
+            ligne_widget: Widget QFrame de la ligne à supprimer
         """
         if not hasattr(ligne_widget, 'code_prescription'):
             return
@@ -362,9 +370,11 @@ class PrescriptionWidget(AnimatedFrame):
             ligne_widget.deleteLater()
             self.badge_panier.setText(str(len(self.lignes_panier)))
             self._recalculer_total()
-            self._afficher_message("SuccÃ¨s", msg, True)
+            self._afficher_message("É", msg, True)
+            # Émettre le signal pour que la vue parente puisse mettre à jour le panier externe
+            self.ligne_supprimee.emit()
         else:
-            if msg != "Suppression annulÃ©e":
+            if msg != "Suppression annulée":
                 self._afficher_message("Erreur", msg, False)
 
     # =========================================================================
@@ -374,7 +384,7 @@ class PrescriptionWidget(AnimatedFrame):
     def _valider_prescription(self) -> None:
         """
         Valide la prescription en cours.
-        Le statut_patient passe Ã  'Attente payement' au moment de la validation.
+        Le statut_patient passe à 'Attente payement' au moment de la validation.
         """
         if not self.lignes_panier:
             self._afficher_message(
@@ -383,29 +393,29 @@ class PrescriptionWidget(AnimatedFrame):
             return
 
         ok, msg = self.operations.valider_prescription(
-            self.code_consultation, self.code_visite, self
+            self.code_acte, self
         )
 
         if ok:
-            self._afficher_message("SuccÃ¨s", msg, True)
+            self._afficher_message("Succès", msg, True)
             self._reinitialiser_complet()
             self.prescription_validee.emit()
         else:
-            if msg != "Validation annulÃ©e":
+            if msg != "Validation annulée":
                 self._afficher_message("Erreur", msg, False)
 
     def _annuler_prescription(self) -> None:
         """Annule la prescription en cours avec confirmation."""
-        if not self.lignes_panier and not self.code_consultation:
+        if not self.lignes_panier and not self.code_acte:
             return
 
         ok, msg = self.operations.annuler_prescription(self.lignes_panier, self)
 
         if ok:
             self._reinitialiser_complet()
-            self._afficher_message("SuccÃ¨s", msg, True)
+            self._afficher_message("Succès", msg, True)
         else:
-            if msg != "Annulation annulÃ©e":
+            if msg != "Annulation annulée":
                 self._afficher_message("Erreur", msg, False)
 
     # =========================================================================
@@ -414,10 +424,10 @@ class PrescriptionWidget(AnimatedFrame):
 
     def _recalculer_total(self) -> None:
         """Recalcule et affiche le total du panier prescription."""
-        if self.prescription_ctrl and self.code_consultation:
-            # Source de vÃ©ritÃ© : BDD (via contrÃ´leur)
-            total = self.prescription_ctrl.obtenir_montant_total_consultation(
-                self.code_consultation
+        if self.prescription_ctrl and self.code_acte:
+            # Source de vérité : BDD (via contrôleur)
+            total = self.prescription_ctrl.obtenir_montant_total_acte(
+                self.code_acte
             )
         else:
             # Fallback local
@@ -429,35 +439,36 @@ class PrescriptionWidget(AnimatedFrame):
         self.footer_component.update_total(total)
 
     # =========================================================================
-    # RÃ‰INITIALISATION
+    # RÉINITIALISATION
     # =========================================================================
 
     def _reinitialiser_lignes(self) -> None:
         """
         Supprime uniquement les lignes visuelles (sans toucher au combo patient).
-        AppelÃ© lors d'un changement de patient pour repartir d'un panier vide.
+        Appelé lors d'un changement de patient pour repartir d'un panier vide.
         """
         for ligne in self.lignes_panier:
             ligne.deleteLater()
         self.lignes_panier.clear()
         self.badge_panier.setText("0")
         self.footer_component.update_total(0)
+        # Émettre le signal pour que la vue parente puisse réinitialiser le panier externe
+        self.panier_reinitialise.emit()
 
     def _reinitialiser_complet(self) -> None:
         """
-        RÃ©initialise complÃ¨tement le widget aprÃ¨s validation ou annulation.
-        Recharge le combo patient pour reflÃ©ter les nouvelles attentes.
+        Réinitialise complètement le widget après validation ou annulation.
+        Recharge le combo patient pour refléter les nouvelles attentes.
         """
         self._reinitialiser_lignes()
 
-        self.code_visite       = None
-        self.code_consultation = None
+        self.code_acte = None
 
         self.form_component.vider_formulaire()
         self.form_component.vider_patient()
         self.form_component.desactiver_formulaire()
 
-        # Recharger le combo consultation â€” patient servi, disparaÃ®t de la liste
+        # Recharger le combo consultation — patient servi, disparaît de la liste
         if self.prescription_ctrl and self.code_session:
             self.data_loader.charger_patients_en_attente(
                 self.prescription_ctrl,
@@ -471,21 +482,21 @@ class PrescriptionWidget(AnimatedFrame):
 
     def _appliquer_style_scrollbar(self, widget: Any) -> None:
         """
-        Applique le style personnalisÃ© Ã  la scrollbar verticale.
+        Applique le style personnalisé à la scrollbar verticale.
 
         Args:
-            widget: QScrollArea Ã  styler
+            widget: QScrollArea à styler
         """
         widget.verticalScrollBar().setStyleSheet(PrescriptionStyles.scrollbar())
 
     def _afficher_message(self, titre: str, message: str, succes: bool) -> None:
         """
-        Affiche un message Ã  l'utilisateur via CustomMessageBox.
+        Affiche un message à l'utilisateur via CustomMessageBox.
 
         Args:
             titre  : Titre du dialogue
             message: Contenu du message
-            succes : True â†’ vert (succÃ¨s), False â†’ rouge (erreur)
+            succes : True → vert (succès), False → rouge (erreur)
         """
         if succes:
             CustomMessageBox.success(
@@ -495,4 +506,5 @@ class PrescriptionWidget(AnimatedFrame):
             CustomMessageBox.error(
                 self, titre, message, theme_manager.colors()['primary']
             )
+
 

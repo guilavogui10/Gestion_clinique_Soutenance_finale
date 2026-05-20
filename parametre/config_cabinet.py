@@ -1,4 +1,4 @@
-# /parametre/config_cabinet.py
+﻿# /parametre/config_cabinet.py
 
 from parametre.dao_param import CabinetDAO
 
@@ -94,8 +94,8 @@ class ConfigCabinet:
             'GNF': 'GNF',
             'EUR': '€',
             'USD': '$',
-            'XOF': 'FCFA',
-            'XAF': 'FCFA'
+            'XOF': 'GNF',
+            'XAF': 'GNF'
         }
         return symboles.get(devise, devise)
     

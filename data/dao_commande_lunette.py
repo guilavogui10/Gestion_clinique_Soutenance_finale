@@ -1,4 +1,4 @@
-import sys
+﻿import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pymysql
@@ -34,8 +34,8 @@ class CommandeLunetteDAO:
                     code, numero_cadre, numero_verre,
                     date_commande, date_livraison, prix,
                     statut, statut_facture,
-                    code_consultation, code_visite, code_session, code_personnel
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    code_session, code_personnel, code_acte
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             cursor.execute(query, (
                 commande.code,
@@ -46,18 +46,17 @@ class CommandeLunetteDAO:
                 commande.prix,
                 commande.statut,
                 commande.statut_facture,
-                commande.code_consultation,
-                commande.code_visite,
                 commande.code_session,
-                commande.code_personnel
+                commande.code_personnel,
+                commande.code_acte
             ))
 
-            # Mise à jour du statut_patient dans visite vers le service suivant
-            nouveau_statut = self._determiner_prochain_statut_apres_lunette(cursor, commande.code_consultation)
-            if nouveau_statut:
+            # Mise à jour du statut_patient dans visite
+            nouveau_statut, code_visite = self._determiner_statut_et_visite(cursor, commande.code_acte)
+            if code_visite:
                 cursor.execute(
                     "UPDATE visite SET statut_patient=%s WHERE code_visite=%s",
-                    (nouveau_statut, commande.code_visite)
+                    (nouveau_statut, code_visite)
                 )
 
             conn.commit()
@@ -80,8 +79,7 @@ class CommandeLunetteDAO:
                     numero_cadre=%s, numero_verre=%s,
                     date_commande=%s, date_livraison=%s, prix=%s,
                     statut=%s, statut_facture=%s,
-                    code_consultation=%s, code_visite=%s,
-                    code_session=%s, code_personnel=%s
+                    code_session=%s, code_personnel=%s, code_acte=%s
                 WHERE code=%s
             """
             cursor.execute(query, (
@@ -92,10 +90,9 @@ class CommandeLunetteDAO:
                 commande.prix,
                 commande.statut,
                 commande.statut_facture,
-                commande.code_consultation,
-                commande.code_visite,
                 commande.code_session,
                 commande.code_personnel,
+                commande.code_acte,
                 commande.code
             ))
             conn.commit()
@@ -132,12 +129,14 @@ class CommandeLunetteDAO:
         if not conn:
             return None
         try:
-            cursor = conn.cursor()
+            cursor = conn.cursor(DictCursor)
             query = """
                 SELECT cl.*, p.nom AS patient_nom, p.prenom AS patient_prenom
                 FROM commandeslunettes cl
-                LEFT JOIN visite v ON cl.code_visite = v.code_visite
-                LEFT JOIN patients p ON v.code_patient = p.code_patient
+                LEFT JOIN acte_medical am ON cl.code_acte = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient = p.code_patient
                 WHERE cl.code=%s
             """
             cursor.execute(query, (code,))
@@ -149,19 +148,19 @@ class CommandeLunetteDAO:
         finally:
             self.db.close()
 
-    def obtenir_par_consultation(self, code_consultation: str):
-        """Retourne la commande de lunette liée à une consultation."""
+    def obtenir_par_acte(self, code_acte: str):
+        """Retourne la commande de lunette liée à un acte médical."""
         conn = self.db.connect()
         if not conn:
             return None
         try:
-            cursor = conn.cursor()
+            cursor = conn.cursor(DictCursor)
             cursor.execute(
-                "SELECT * FROM commandeslunettes WHERE code_consultation=%s", (code_consultation,))
+                "SELECT * FROM commandeslunettes WHERE code_acte=%s", (code_acte,))
             row = cursor.fetchone()
             return self._row_to_object(row) if row else None
         except Exception as e:
-            print(f"[CommandeLunetteDAO] Erreur obtenir_par_consultation: {e}")
+            print(f"[CommandeLunetteDAO] Erreur obtenir_par_acte: {e}")
             return None
         finally:
             self.db.close()
@@ -170,12 +169,14 @@ class CommandeLunetteDAO:
         conn = self.db.connect()
         if not conn: return []
         try:
-            cursor = conn.cursor()
+            cursor = conn.cursor(DictCursor)
             query = """
                 SELECT cl.*, p.nom AS patient_nom, p.prenom AS patient_prenom
                 FROM commandeslunettes cl
-                LEFT JOIN visite v ON cl.code_visite = v.code_visite
-                LEFT JOIN patients p ON v.code_patient = p.code_patient
+                LEFT JOIN acte_medical am ON cl.code_acte = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient = p.code_patient
                 WHERE cl.code_session=%s
                 ORDER BY cl.date_commande DESC
             """
@@ -205,8 +206,7 @@ class CommandeLunetteDAO:
                     cl.prix,
                     cl.statut,
                     cl.statut_facture,
-                    cl.code_consultation,
-                    cl.code_visite,
+                    cl.code_acte,
                     cl.code_session,
 
                     p.code_patient,
@@ -221,9 +221,11 @@ class CommandeLunetteDAO:
                     per.prenom              AS personnel_prenom,
                     per.fonction            AS personnel_fonction
                 FROM commandeslunettes cl
-                LEFT JOIN visite v      ON cl.code_visite    = v.code_visite
-                LEFT JOIN patients p    ON v.code_patient    = p.code_patient
-                LEFT JOIN personnel per ON cl.code_personnel = per.code
+                LEFT JOIN acte_medical am ON cl.code_acte    = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite   = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient  = p.code_patient
+                LEFT JOIN personnel per   ON cl.code_personnel = per.code
                 WHERE cl.code_session = %s
                 ORDER BY cl.date_commande DESC
             """
@@ -239,13 +241,15 @@ class CommandeLunetteDAO:
         conn = self.db.connect()
         if not conn: return []
         try:
-            cursor = conn.cursor()
+            cursor = conn.cursor(DictCursor)
             critere_like = f"%{critere}%"
             query = """
                 SELECT cl.*, p.nom AS patient_nom, p.prenom AS patient_prenom
                 FROM commandeslunettes cl
-                LEFT JOIN visite v ON cl.code_visite = v.code_visite
-                LEFT JOIN patients p ON v.code_patient = p.code_patient
+                LEFT JOIN acte_medical am ON cl.code_acte = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient = p.code_patient
                 WHERE cl.code_session=%s
                 AND (
                     cl.code LIKE %s OR
@@ -270,7 +274,7 @@ class CommandeLunetteDAO:
         if not conn:
             return None
         try:
-            cursor = conn.cursor()
+            cursor = conn.cursor(DictCursor)
             query = """
                 SELECT
                     cl.*,
@@ -283,9 +287,11 @@ class CommandeLunetteDAO:
                     per.prenom      AS personnel_prenom,
                     per.fonction    AS personnel_fonction
                 FROM commandeslunettes cl
-                LEFT JOIN visite v      ON cl.code_visite    = v.code_visite
-                LEFT JOIN patients p    ON v.code_patient    = p.code_patient
-                LEFT JOIN personnel per ON cl.code_personnel = per.code
+                LEFT JOIN acte_medical am ON cl.code_acte    = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite   = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient  = p.code_patient
+                LEFT JOIN personnel per   ON cl.code_personnel = per.code
                 WHERE cl.code = %s
             """
             cursor.execute(query, (code_commande,))
@@ -352,11 +358,13 @@ class CommandeLunetteDAO:
         if not conn:
             return 0
         try:
-            cursor = conn.cursor()
+            cursor = conn.cursor(DictCursor)
             cursor.execute("""
                 SELECT COUNT(*) AS total
                 FROM visite v
-                LEFT JOIN commandeslunettes cl ON v.code_visite = cl.code_visite
+                INNER JOIN consultation c  ON c.code_visite = v.code_visite
+                INNER JOIN acte_medical am ON am.code_consultation = c.code
+                LEFT JOIN  commandeslunettes cl ON cl.code_acte = am.code_acte
                 WHERE v.code_session = %s
                 AND v.statut_patient = 'Attente lunette'
                 AND cl.code IS NULL
@@ -372,36 +380,6 @@ class CommandeLunetteDAO:
     # =========================================================================
     # METHODES STATISTIQUES & GRAPHES
     # =========================================================================
-
-    def nombre_par_mois(self, code_session: str) -> dict:
-        stats = {
-            'Jan': 0, 'Fev': 0, 'Mar': 0, 'Avr': 0, 'Mai': 0, 'Juin': 0,
-            'Juil': 0, 'Aout': 0, 'Sep': 0, 'Oct': 0, 'Nov': 0, 'Dec': 0
-        }
-        mois_mapping = {
-            1: 'Jan', 2: 'Fev', 3: 'Mar', 4: 'Avr', 5: 'Mai', 6: 'Juin',
-            7: 'Juil', 8: 'Aout', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec'
-        }
-        conn = self.db.connect()
-        if not conn:
-            return stats
-        try:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT MONTH(date_commande) AS num_mois, COUNT(*) AS total
-                FROM commandeslunettes WHERE code_session=%s
-                GROUP BY MONTH(date_commande)
-            """, (code_session,))
-            for row in cursor.fetchall():
-                m = row['num_mois']
-                if m in mois_mapping:
-                    stats[mois_mapping[m]] = row['total']
-            return stats
-        except Exception as e:
-            print(f"[CommandeLunetteDAO] Erreur nombre_par_mois: {e}")
-            return stats
-        finally:
-            self.db.close()
 
     def revenu_total(self, code_session: str, date_debut=None, date_fin=None) -> float:
         """Total des prix des commandes pour une session, avec filtre date optionnel."""
@@ -481,7 +459,7 @@ class CommandeLunetteDAO:
         if not conn:
             return []
         try:
-            cursor = conn.cursor()
+            cursor = conn.cursor(DictCursor)
             query = """
                 SELECT
                     v.code_visite,
@@ -492,11 +470,13 @@ class CommandeLunetteDAO:
                     p.code_patient,
                     p.nom,
                     p.prenom,
-                    p.telephone
+                    p.telephone,
+                    am.code_acte      AS code_acte
                 FROM visite v
                 INNER JOIN patients p      ON v.code_patient  = p.code_patient
-                INNER JOIN consultation c  ON v.code_visite   = c.code_visite
-                LEFT JOIN  commandeslunettes cl ON v.code_visite = cl.code_visite
+                INNER JOIN consultation c  ON c.code_visite   = v.code_visite
+                INNER JOIN acte_medical am ON am.code_consultation = c.code
+                LEFT JOIN  commandeslunettes cl ON cl.code_acte = am.code_acte
                 WHERE v.code_session = %s
                 AND v.statut_patient = 'Attente lunette'
                 AND cl.code IS NULL
@@ -516,12 +496,14 @@ class CommandeLunetteDAO:
         if not conn:
             return []
         try:
-            cursor = conn.cursor()
+            cursor = conn.cursor(DictCursor)
             query = """
                 SELECT cl.*, per.nom AS personnel_nom, per.prenom AS personnel_prenom
                 FROM commandeslunettes cl
-                INNER JOIN visite v      ON cl.code_visite    = v.code_visite
-                LEFT JOIN  personnel per ON cl.code_personnel = per.code
+                LEFT JOIN acte_medical am ON cl.code_acte    = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite   = v.code_visite
+                LEFT JOIN personnel per   ON cl.code_personnel = per.code
                 WHERE v.code_patient = %s
                 ORDER BY cl.date_commande DESC
             """
@@ -581,32 +563,71 @@ class CommandeLunetteDAO:
             prix              = row['prix'],
             statut            = row['statut'],
             statut_facture    = row['statut_facture'],
-            code_consultation = row['code_consultation'],
-            code_visite       = row['code_visite'],
             code_session      = row['code_session'],
-            code_personnel    = row['code_personnel']
+            code_personnel    = row['code_personnel'],
+            code_acte         = row.get('code_acte')
         )
         obj.patient_nom    = row.get('patient_nom', "")
         obj.patient_prenom = row.get('patient_prenom', "")
         return obj
 
-    def _determiner_prochain_statut_apres_lunette(self, cursor, code_consultation: str) -> str:
-        """Détermine le prochain statut après création d'une commande de lunette."""
-        cursor.execute(
-            "SELECT chiurgie, prescription_produit FROM consultation WHERE code=%s",
-            (code_consultation,)
-        )
-        row = cursor.fetchone()
-        if not row:
-            return "Attente payement"
-
-        # Ordre : chirurgie > prescription > payement
-        if row['chiurgie'] == "Oui":
-            return "Attente chirurgie"
-        elif row['prescription_produit'] == "Oui":
-            return "Attente pharmacie"
-        else:
-            return "Attente payement"
+    def _determiner_statut_et_visite(self, cursor, code_acte: str) -> tuple:
+        """Détermine le prochain statut après une commande de lunette et retourne (statut, code_visite).
+        
+        IMPORTANT : On met à jour UNIQUEMENT la visite d'exécution (role='execution'),
+        PAS la visite d'origine (role='origine') pour éviter la duplication dans la file d'attente.
+        """
+        try:
+            # Récupérer le code_visite d'exécution depuis acte_visite avec role='execution'
+            conn = cursor.connection
+            dcursor = conn.cursor(DictCursor)
+            dcursor.execute(
+                "SELECT code_visite FROM acte_visite WHERE code_acte=%s AND role_visite='execution' LIMIT 1",
+                (code_acte,)
+            )
+            row_exec = dcursor.fetchone()
+            
+            if not row_exec:
+                # Si pas de visite d'exécution, récupérer depuis la consultation (cas acte "maintenant")
+                dcursor.execute("""
+                    SELECT c.chiurgie, c.prescription_produit, c.code_visite
+                    FROM acte_medical am
+                    INNER JOIN consultation c ON am.code_consultation = c.code
+                    WHERE am.code_acte = %s
+                """, (code_acte,))
+                row = dcursor.fetchone()
+                if not row:
+                    return "Attente payement", None
+                code_visite = row['code_visite']
+                if row['chiurgie'] == "Oui":
+                    return "Attente chirurgie", code_visite
+                elif row['prescription_produit'] == "Oui":
+                    return "Attente pharmacie", code_visite
+                else:
+                    return "Attente payement", code_visite
+            
+            # Visite d'exécution trouvée
+            code_visite = row_exec['code_visite']
+            # Vérifier si chirurgie ou prescription
+            dcursor.execute("""
+                SELECT c.chiurgie, c.prescription_produit
+                FROM acte_medical am
+                INNER JOIN consultation c ON am.code_consultation = c.code
+                WHERE am.code_acte = %s
+            """, (code_acte,))
+            row = dcursor.fetchone()
+            if not row:
+                return "Attente payement", code_visite
+            
+            if row['chiurgie'] == "Oui":
+                return "Attente chirurgie", code_visite
+            elif row['prescription_produit'] == "Oui":
+                return "Attente pharmacie", code_visite
+            else:
+                return "Attente payement", code_visite
+        except Exception as e:
+            print(f"[CommandeLunetteDAO] Erreur _determiner_statut_et_visite: {e}")
+            return "Attente payement", None
         
     def commande_en_attente_complete(self, code_commande: str):
         """
@@ -617,7 +638,7 @@ class CommandeLunetteDAO:
         if not conn:
             return None
         try:
-            cursor = conn.cursor()
+            cursor = conn.cursor(DictCursor)
             query = """
                 SELECT
                     cl.code                  AS commande_code,
@@ -628,8 +649,7 @@ class CommandeLunetteDAO:
                     cl.prix,
                     cl.statut,
                     cl.statut_facture,
-                    cl.code_consultation,
-                    cl.code_visite,
+                    cl.code_acte,
                     cl.code_session,
 
                     p.code_patient,
@@ -644,9 +664,11 @@ class CommandeLunetteDAO:
                     per.prenom               AS personnel_prenom,
                     per.fonction             AS personnel_fonction
                 FROM commandeslunettes cl
-                LEFT JOIN visite v       ON cl.code_visite    = v.code_visite
-                LEFT JOIN patients p     ON v.code_patient    = p.code_patient
-                LEFT JOIN personnel per  ON cl.code_personnel = per.code
+                LEFT JOIN acte_medical am ON cl.code_acte    = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite   = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient  = p.code_patient
+                LEFT JOIN personnel per   ON cl.code_personnel = per.code
                 WHERE cl.code = %s
                   AND cl.statut = 'attente'
             """
@@ -679,8 +701,7 @@ class CommandeLunetteDAO:
                     cl.prix,
                     cl.statut,
                     cl.statut_facture,
-                    cl.code_consultation,
-                    cl.code_visite,
+                    cl.code_acte,
                     cl.code_session,
 
                     p.code_patient,
@@ -695,9 +716,11 @@ class CommandeLunetteDAO:
                     per.prenom               AS personnel_prenom,
                     per.fonction             AS personnel_fonction
                 FROM commandeslunettes cl
-                LEFT JOIN visite v       ON cl.code_visite    = v.code_visite
-                LEFT JOIN patients p     ON v.code_patient    = p.code_patient
-                LEFT JOIN personnel per  ON cl.code_personnel = per.code
+                LEFT JOIN acte_medical am ON cl.code_acte    = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite   = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient  = p.code_patient
+                LEFT JOIN personnel per   ON cl.code_personnel = per.code
                 WHERE cl.code_session = %s
                   AND cl.statut = 'attente'
                 ORDER BY cl.date_commande ASC
@@ -757,8 +780,7 @@ class CommandeLunetteDAO:
                     cl.prix,
                     cl.statut,
                     cl.statut_facture,
-                    cl.code_consultation,
-                    cl.code_visite,
+                    cl.code_acte,
                     cl.code_session,
                     DATEDIFF(CURDATE(), cl.date_livraison) AS jours_retard,
 
@@ -774,9 +796,11 @@ class CommandeLunetteDAO:
                     per.prenom              AS personnel_prenom,
                     per.fonction            AS personnel_fonction
                 FROM commandeslunettes cl
-                LEFT JOIN visite v      ON cl.code_visite    = v.code_visite
-                LEFT JOIN patients p    ON v.code_patient    = p.code_patient
-                LEFT JOIN personnel per ON cl.code_personnel = per.code
+                LEFT JOIN acte_medical am ON cl.code_acte    = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite   = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient  = p.code_patient
+                LEFT JOIN personnel per   ON cl.code_personnel = per.code
                 WHERE cl.code_session = %s
                   AND cl.statut       = 'attente'
                   AND cl.date_livraison IS NOT NULL
@@ -813,8 +837,7 @@ class CommandeLunetteDAO:
                     cl.prix,
                     cl.statut,
                     cl.statut_facture,
-                    cl.code_consultation,
-                    cl.code_visite,
+                    cl.code_acte,
                     cl.code_session,
                     DATEDIFF(cl.date_livraison, CURDATE()) AS jours_restants,
 
@@ -830,9 +853,11 @@ class CommandeLunetteDAO:
                     per.prenom              AS personnel_prenom,
                     per.fonction            AS personnel_fonction
                 FROM commandeslunettes cl
-                LEFT JOIN visite v      ON cl.code_visite    = v.code_visite
-                LEFT JOIN patients p    ON v.code_patient    = p.code_patient
-                LEFT JOIN personnel per ON cl.code_personnel = per.code
+                LEFT JOIN acte_medical am ON cl.code_acte    = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite   = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient  = p.code_patient
+                LEFT JOIN personnel per   ON cl.code_personnel = per.code
                 WHERE cl.code_session = %s
                   AND cl.statut       = 'attente'
                   AND cl.date_livraison IS NOT NULL
@@ -915,15 +940,13 @@ class CommandeLunetteDAO:
     def derniere_commande_patient(self, code_visite: str):
         """
         Retourne la dernière commande de lunettes passée pour un patient
-        identifié par son code_visite, avec toutes les informations complètes :
-        lunette + patient + personnel.
-        Utile pour consulter l'historique optique d'un patient lors d'une nouvelle visite.
+        identifié par son code_visite, avec toutes les informations complètes.
         """
         conn = self.db.connect()
         if not conn:
             return None
         try:
-            cursor = conn.cursor()
+            cursor = conn.cursor(DictCursor)
             query = """
                 SELECT
                     cl.code                 AS commande_code,
@@ -934,8 +957,7 @@ class CommandeLunetteDAO:
                     cl.prix,
                     cl.statut,
                     cl.statut_facture,
-                    cl.code_consultation,
-                    cl.code_visite,
+                    cl.code_acte,
                     cl.code_session,
 
                     p.code_patient,
@@ -950,10 +972,12 @@ class CommandeLunetteDAO:
                     per.prenom              AS personnel_prenom,
                     per.fonction            AS personnel_fonction
                 FROM commandeslunettes cl
-                LEFT JOIN visite v      ON cl.code_visite    = v.code_visite
-                LEFT JOIN patients p    ON v.code_patient    = p.code_patient
-                LEFT JOIN personnel per ON cl.code_personnel = per.code
-                WHERE cl.code_visite = %s
+                LEFT JOIN acte_medical am ON cl.code_acte    = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite   = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient  = p.code_patient
+                LEFT JOIN personnel per   ON cl.code_personnel = per.code
+                WHERE v.code_visite = %s
                 ORDER BY cl.date_commande DESC
                 LIMIT 1
             """
@@ -986,8 +1010,10 @@ class CommandeLunetteDAO:
                     COUNT(cl.code)          AS nombre_commandes,
                     SUM(cl.prix)            AS total_prix
                 FROM commandeslunettes cl
-                LEFT JOIN visite v   ON cl.code_visite  = v.code_visite
-                LEFT JOIN patients p ON v.code_patient  = p.code_patient
+                LEFT JOIN acte_medical am ON cl.code_acte   = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite  = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient = p.code_patient
                 WHERE cl.code_session = %s
                 GROUP BY p.code_patient, p.nom, p.prenom, p.telephone
                 HAVING COUNT(cl.code) > 1
@@ -1392,8 +1418,10 @@ class CommandeLunetteDAO:
             query = """
                 SELECT c.*, v.code_patient, p.nom AS patient_nom, p.prenom AS patient_prenom
                 FROM commandeslunettes c
-                INNER JOIN visite v ON c.code_visite = v.code_visite
-                INNER JOIN patients p ON v.code_patient = p.code_patient
+                LEFT JOIN acte_medical am ON c.code_acte    = am.code_acte
+                LEFT JOIN consultation con ON am.code_consultation = con.code
+                LEFT JOIN visite v         ON con.code_visite = v.code_visite
+                INNER JOIN patients p      ON v.code_patient = p.code_patient
                 WHERE c.code_session=%s AND DATE(c.date_commande) BETWEEN %s AND %s
                 ORDER BY c.date_commande DESC
             """
@@ -1428,7 +1456,9 @@ class CommandeLunetteDAO:
                 query = """
                     SELECT MONTH(c.date_commande) AS num_mois, COUNT(*) AS total
                     FROM commandeslunettes c
-                    INNER JOIN visite v ON c.code_visite = v.code_visite
+                    LEFT JOIN acte_medical am ON c.code_acte    = am.code_acte
+                    LEFT JOIN consultation con ON am.code_consultation = con.code
+                    LEFT JOIN visite v         ON con.code_visite = v.code_visite
                     WHERE c.code_session=%s AND v.code_patient=%s
                     GROUP BY MONTH(c.date_commande)
                 """
@@ -1440,11 +1470,13 @@ class CommandeLunetteDAO:
             else:
                 # Tous les patients
                 query = """
-                    SELECT MONTH(c.date_commande) AS num_mois, 
+                    SELECT MONTH(c.date_commande) AS num_mois,
                            v.code_patient,
                            COUNT(*) AS total
                     FROM commandeslunettes c
-                    INNER JOIN visite v ON c.code_visite = v.code_visite
+                    LEFT JOIN acte_medical am ON c.code_acte    = am.code_acte
+                    LEFT JOIN consultation con ON am.code_consultation = con.code
+                    LEFT JOIN visite v         ON con.code_visite = v.code_visite
                     WHERE c.code_session=%s
                     GROUP BY MONTH(c.date_commande), v.code_patient
                 """
@@ -1484,8 +1516,10 @@ class CommandeLunetteDAO:
                 SELECT p.code_patient, p.nom, p.prenom,
                        CASE WHEN EXISTS(
                            SELECT 1
-                           FROM commandeslunettes c
-                           INNER JOIN visite v2 ON c.code_visite = v2.code_visite
+                           FROM commandeslunettes cl2
+                           LEFT JOIN acte_medical am2 ON cl2.code_acte    = am2.code_acte
+                           LEFT JOIN consultation c2  ON am2.code_consultation = c2.code
+                           LEFT JOIN visite v2        ON c2.code_visite   = v2.code_visite
                            WHERE v2.code_patient = p.code_patient AND v2.code_session = %s
                        ) THEN 1 ELSE 0 END AS a_consulte
                 FROM patients p
@@ -1506,14 +1540,16 @@ class CommandeLunetteDAO:
         if not conn:
             return []
         try:
-            cursor = conn.cursor()
+            cursor = conn.cursor(DictCursor)
             query = f"""
-                SELECT c.code, c.date_commande, p.nom, p.prenom, p.telephone
-                FROM commandeslunettes c
-                INNER JOIN visite v    ON c.code_visite   = v.code_visite
-                INNER JOIN patients p  ON v.code_patient  = p.code_patient
-                WHERE c.code_session=%s AND {condition}
-                ORDER BY c.date_commande DESC
+                SELECT cl.code, cl.date_commande, p.nom, p.prenom, p.telephone
+                FROM commandeslunettes cl
+                LEFT JOIN acte_medical am ON cl.code_acte    = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                LEFT JOIN visite v        ON c.code_visite   = v.code_visite
+                LEFT JOIN patients p      ON v.code_patient  = p.code_patient
+                WHERE cl.code_session=%s AND {condition}
+                ORDER BY cl.date_commande DESC
             """
             cursor.execute(query, (code_session,))
             return cursor.fetchall()

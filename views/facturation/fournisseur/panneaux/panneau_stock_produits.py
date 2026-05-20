@@ -256,7 +256,7 @@ class PanneauStockProduits(FondArrondi):
     4. Stock Faible : Liste des produits en stock faible
     """
     
-    LARGEUR = 490
+    LARGEUR = 650
     
     def __init__(self, parent: QWidget, ctrl: Any):
         """
@@ -547,34 +547,24 @@ class PanneauStockProduits(FondArrondi):
                 
                 # Récupérer les lots pour calculer valides/expirés
                 lots = self.ctrl.lister_lots_par_produit(code_prod, self._code_session) or []
-                nb_valides = 0
-                nb_expires = 0
+                
                 stock_total = 0
+                qte_valide = 0
+                qte_a_expirer = 0
+                qte_expire = 0
                 
                 for lot in lots:
-                    # ✅ CORRECTION : lot est un dictionnaire
+                    # lot est un dictionnaire
                     qte = lot.get('stock_lot', 0)
-                    jours_restants = lot.get('jours_restants', 0)
                     stock_total += qte
                     statut = lot.get('statut_lot', 'Valide')
                     
-                    # ✅ CORRECTION : Comptage des QUANTITÉS par statut
+                    # Comptage des QUANTITÉS par statut
                     if statut == 'Expiré':
-                        nb_expires += qte  # Quantité expirée
+                        qte_expire += qte
                     elif statut == 'À Expirer':
-                        nb_valides += qte  # Quantité bientôt expirée (encore valide)
-                    else:
-                        nb_valides += qte  # Quantité valide
-                
-                # Calculer séparément les quantités à expirer
-                qte_a_expirer = 0
-                qte_valide = 0
-                for lot in lots:
-                    qte = lot.get('stock_lot', 0)
-                    statut = lot.get('statut_lot', 'Valide')
-                    if statut == 'À Expirer':
                         qte_a_expirer += qte
-                    elif statut == 'Valide':
+                    else:
                         qte_valide += qte
                 
                 # Trouver le lot le plus proche de l'expiration pour afficher les jours
@@ -593,7 +583,7 @@ class PanneauStockProduits(FondArrondi):
                     "quantite_stock": stock_total,
                     "qte_valide": qte_valide,
                     "qte_a_expirer": qte_a_expirer,
-                    "qte_expire": nb_expires,
+                    "qte_expire": qte_expire,
                     "jours_restants": jours_min if jours_min != float('inf') else None,
                     "statut_proche": lot_proche.get('statut_lot', 'Valide') if lot_proche else 'Valide',
                 }
@@ -723,7 +713,7 @@ class PanneauStockProduits(FondArrondi):
         for rupture in ruptures:
             carte = self._creer_carte_alerte(
                 libelle=rupture.get('libelle', 'Produit'),
-                message="⚠️ Rupture de stock - Réapprovisionnement urgent",
+                message="Rupture de stock - Réapprovisionnement urgent",
                 quantite=0,
                 couleur=FactureStyles.ROUGE_SOFT,
                 icone="fa5s.exclamation-triangle"
@@ -753,7 +743,7 @@ class PanneauStockProduits(FondArrondi):
             jours = lot.get('jours_restants', 0)
             carte = self._creer_carte_alerte(
                 libelle=lot.get('libelle', 'Produit'),
-                message=f"⏰ Expire dans {jours} jour{'s' if jours > 1 else ''}",
+                message=f"Expire dans {jours} jour{'s' if jours > 1 else ''}",
                 quantite=lot.get('stock_lot', 0),
                 couleur=FactureStyles.ORANGE_SOFT,
                 icone="fa5s.clock"
@@ -768,8 +758,7 @@ class PanneauStockProduits(FondArrondi):
         
         carte = QFrame()
         carte.setStyleSheet(
-            f"QFrame{{background:{FactureStyles.BLANC}; border-radius:10px; "
-            f"border-left:4px solid {couleur};}}"
+            f"QFrame{{background:{FactureStyles.BLANC}; border-radius:10px;}}"
         )
         carte.setFixedHeight(80)
         
