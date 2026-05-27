@@ -42,11 +42,12 @@ class PatientCard(QFrame):
                               clique sur "Procéder l'Examen".
     """
 
-    proceder_signal = Signal(object)
+    proceder_signal       = Signal(object)
+    changer_statut_clicked = Signal(object)
 
     # Dimensions fixes — cohérentes avec la grille
     CARD_WIDTH  = 160
-    CARD_HEIGHT = 180
+    CARD_HEIGHT = 210
 
     def __init__(self, patient, parent=None):
         super().__init__(parent)
@@ -115,8 +116,15 @@ class PatientCard(QFrame):
         root.addSpacing(3)
 
         # ── Badge statut ─────────────────────────────────────────────────
+        if isinstance(self.patient, dict):
+            statut_patient = (self.patient.get('statut_patient', '') or '').strip()
+        else:
+            statut_patient = (getattr(self.patient, 'statut_patient', '') or '').strip()
+        self._statut_patient = statut_patient
+
         badge_row = QHBoxLayout()
-        self._badge = QLabel("Attente Examen")
+        badge_label = "En Examen" if statut_patient == "En examen" else "Attente Examen"
+        self._badge = QLabel(badge_label)
         self._badge.setAlignment(Qt.AlignCenter)
         self._badge.setFixedHeight(16)
         self._badge.setStyleSheet("border: none;")
@@ -163,12 +171,20 @@ class PatientCard(QFrame):
         root.addLayout(infos_layout)
         root.addStretch()
 
-        # ── Bouton ────────────────────────────────────────────────────────
+        # ── Bouton principal ───────────────────────────────────────────────
         self._btn = QPushButton(" Procéder")
-        self._btn.setFixedHeight(26)
+        self._btn.setFixedHeight(24)
         self._btn.setCursor(Qt.PointingHandCursor)
         self._btn.clicked.connect(lambda: self.proceder_signal.emit(self.patient))
         root.addWidget(self._btn)
+
+        # ── Bouton changer statut ──────────────────────────────────────────
+        btn_changer_label = "Fin examen" if statut_patient == "En examen" else "Démarrer examen"
+        self._btn_changer = QPushButton(btn_changer_label)
+        self._btn_changer.setFixedHeight(24)
+        self._btn_changer.setCursor(Qt.PointingHandCursor)
+        self._btn_changer.clicked.connect(lambda: self.changer_statut_clicked.emit(self.patient))
+        root.addWidget(self._btn_changer)
 
     def _build_info_row(self, icon_name: str, label: str, value: str):
         """Construit une ligne icône + label + valeur dans un QWidget."""
@@ -237,14 +253,15 @@ class PatientCard(QFrame):
         )
 
         # Badge
+        badge_color = c['danger'] if self._statut_patient == "En examen" else c['warning']
         self._badge.setStyleSheet(f"""
             font-size    : 7px;
             font-weight  : 600;
-            color        : {c['warning']};
-            background   : {c['warning']}22;
+            color        : {badge_color};
+            background   : {badge_color}22;
             border-radius: 6px;
             padding      : 1px 5px;
-            border       : 1px solid {c['warning']}55;
+            border       : 1px solid {badge_color}55;
         """)
 
         # Séparateur
@@ -264,11 +281,37 @@ class PatientCard(QFrame):
                 f"font-size: 7px; color: {c['text_secondary']}; border: none;"
             )
 
-        # Bouton
+        # Bouton Procéder
         self._btn.setStyleSheet(ExamenStyles.button_primary())
         self._btn.setIcon(
             qta.icon("fa5s.flask", color=c.get('text_inverse', '#ffffff'))
         )
+
+        # Bouton changer statut
+        if self._statut_patient == "En examen":
+            self._btn_changer.setStyleSheet(f"""
+                QPushButton {{
+                    background: {c['danger']}; color: #ffffff;
+                    border: none; border-radius: 6px;
+                    font-size: 8px; font-weight: 600;
+                }}
+                QPushButton:hover {{ background: {c['danger']}cc; }}
+            """)
+            self._btn_changer.setIcon(
+                qta.icon("fa5s.stop-circle", color="#ffffff")
+            )
+        else:
+            self._btn_changer.setStyleSheet(f"""
+                QPushButton {{
+                    background: {c['primary']}; color: #ffffff;
+                    border: none; border-radius: 6px;
+                    font-size: 8px; font-weight: 600;
+                }}
+                QPushButton:hover {{ background: {c['primary_hover']}; }}
+            """)
+            self._btn_changer.setIcon(
+                qta.icon("fa5s.play-circle", color="#ffffff")
+            )
 
 
 # =============================================================================
@@ -285,6 +328,8 @@ class PatientsAttenteExamenView(QWidget):
     examen_cree = Signal()
     # Signal émis pour ouvrir le formulaire dans l'onglet Nouveau
     ouvrir_formulaire = Signal(str)
+    # Signal émis quand l'utilisateur clique sur Démarrer/Fin examen
+    changer_statut_signal = Signal(object)
 
     # Nombre de colonnes dans la grille
     NB_COLS = 5
@@ -381,7 +426,14 @@ class PatientsAttenteExamenView(QWidget):
             if item and item.widget():
                 item.widget().deleteLater()
 
-        patients = self.ctrl.obtenir_patients_attente_examen(self.code_session)
+        try:
+            patients = self.ctrl.obtenir_patients_attente_examen(self.code_session)
+        except Exception as e:
+            print(f"[PatientsAttenteExamenView] Erreur chargement: {e}")
+            import traceback; traceback.print_exc()
+            patients = []
+
+        print(f"[PatientsAttenteExamenView] charger_patients(session={self.code_session!r}): {len(patients) if patients else 0} patient(s)")
 
         if not patients:
             self._scroll.hide()
@@ -394,11 +446,16 @@ class PatientsAttenteExamenView(QWidget):
         self._h_badge_count.setText(f"{len(patients)} patient(s)")
 
         for idx, patient in enumerate(patients):
-            card = PatientCard(patient)
-            card.proceder_signal.connect(self._on_proceder)
-            row = idx // self.NB_COLS
-            col = idx  % self.NB_COLS
-            self._grid.addWidget(card, row, col)
+            try:
+                card = PatientCard(patient)
+                card.proceder_signal.connect(self._on_proceder)
+                card.changer_statut_clicked.connect(self.changer_statut_signal.emit)
+                row = idx // self.NB_COLS
+                col = idx  % self.NB_COLS
+                self._grid.addWidget(card, row, col)
+            except Exception as e:
+                print(f"[PatientsAttenteExamenView] Erreur création carte patient {idx}: {e}")
+                import traceback; traceback.print_exc()
 
     # ─── Action "Procéder" ────────────────────────────────────────────────
 

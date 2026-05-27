@@ -93,7 +93,7 @@ class UserDAO:
             with conn.cursor(pymysql.cursors.DictCursor) as cursor:
                 sql = """
                 SELECT u.code, u.mdp, u.role, u.personnel AS code_personnel,
-                       p.nom, p.prenom, p.mail, p.contact, p.photo_path, p.fonction
+                       p.nom, p.prenom, p.mail, p.contact, p.photo_path, p.fonction, p.est_responsable
                 FROM utilisateur u
                 JOIN personnel p ON u.personnel = p.code
                 WHERE u.code = %s
@@ -127,9 +127,12 @@ class UserDAO:
     def rechercher_code_par_login(self, identifiant: str) -> str | None:
         """
         Recherche le code d'un utilisateur a partir d'un identifiant de connexion.
-        Priorite :
-        1. correspondance exacte sur le code utilisateur
-        2. fallback sur le role historique
+        Recherche par (par ordre de priorite implicite dans le WHERE) :
+        1. code utilisateur (u.code)
+        2. email (p.mail)
+        3. contact/telephone (p.contact)
+        4. code personnel (u.personnel)
+        5. role (u.role)
         """
         conn = self.db_connection.connect()
         if not conn:
@@ -137,21 +140,56 @@ class UserDAO:
 
         try:
             with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-                sql = "SELECT code FROM utilisateur WHERE code = %s LIMIT 1"
-                cursor.execute(sql, (identifiant,))
+                sql = """
+                SELECT u.code 
+                FROM utilisateur u
+                LEFT JOIN personnel p ON u.personnel = p.code
+                WHERE u.code = %s 
+                   OR p.mail = %s 
+                   OR p.contact = %s 
+                   OR u.personnel = %s 
+                   OR u.role = %s
+                LIMIT 1
+                """
+                cursor.execute(sql, (identifiant, identifiant, identifiant, identifiant, identifiant))
                 resultat = cursor.fetchone()
                 if resultat:
                     return resultat["code"]
-
-                sql = "SELECT code FROM utilisateur WHERE role = %s LIMIT 1"
-                cursor.execute(sql, (identifiant,))
-                resultat = cursor.fetchone()
-                if resultat:
-                    return resultat["code"]
-                return None
-        except pymysql.MySQLError as e:
-            print(f"Erreur PyMySQL: {e}")
+        except Exception as e:
+            print(f"Erreur rechercher_code_par_login: {e}")
             return None
+        finally:
+            conn.close()
+        return None
+
+    def rechercher_utilisateurs_par_login(self, identifiant: str) -> list[dict]:
+        """
+        Recherche TOUS les utilisateurs correspondant a un identifiant.
+        Cela permet de gerer le cas où plusieurs utilisateurs ont le même rôle
+        et tentent de se connecter avec le nom de leur rôle (ex: 'Chirurgien').
+        """
+        conn = self.db_connection.connect()
+        if not conn:
+            return []
+
+        try:
+            with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+                sql = """
+                SELECT u.code, u.mdp, u.role, u.personnel AS code_personnel,
+                       p.nom, p.prenom, p.mail, p.contact, p.photo_path, p.fonction, p.est_responsable
+                FROM utilisateur u
+                LEFT JOIN personnel p ON u.personnel = p.code
+                WHERE u.code = %s 
+                   OR p.mail = %s 
+                   OR p.contact = %s 
+                   OR u.personnel = %s 
+                   OR u.role = %s
+                """
+                cursor.execute(sql, (identifiant, identifiant, identifiant, identifiant, identifiant))
+                return cursor.fetchall()
+        except Exception as e:
+            print(f"Erreur rechercher_utilisateurs_par_login: {e}")
+            return []
         finally:
             conn.close()
 
@@ -171,7 +209,7 @@ class UserDAO:
             with conn.cursor(pymysql.cursors.DictCursor) as cursor:
                 sql = """
                 SELECT u.code, u.mdp, u.role, u.personnel AS code_personnel,
-                       p.nom, p.prenom, p.mail, p.contact, p.photo_path, p.fonction
+                       p.nom, p.prenom, p.mail, p.contact, p.photo_path, p.fonction, p.est_responsable
                 FROM utilisateur u
                 JOIN personnel p ON u.personnel = p.code
                 WHERE u.personnel = %s

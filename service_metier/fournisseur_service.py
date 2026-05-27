@@ -21,7 +21,7 @@ import pandas as pd
 from data.dao_fournisseur import FournisseurDAO
 from models.modele_fournisseur import Fournisseur
 from parametre.dao_param import CabinetDAO
-from services.fournisseur_pdf_service import FournisseurPDFService
+from services.pdf_admin.fournisseur_pdf import FournisseurPDFService
 
 
 class FournisseurService:

@@ -835,7 +835,7 @@ class TableauConsultationView(QWidget):
         """Imprime les consultations filtrées au format PDF."""
         try:
             from PySide6.QtWidgets import QFileDialog, QMessageBox
-            from services.consultation_pdf_service import ConsultationPDFService
+            from services.pdf_rapports.consultation_analyses_pdf import ConsultationPDFService
             import os
             from datetime import datetime
 

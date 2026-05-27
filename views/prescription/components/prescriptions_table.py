@@ -27,6 +27,10 @@ class PrescriptionsTable(QWidget):
     view_clicked = Signal(object)
     edit_clicked = Signal(object)
     new_clicked = Signal()
+    imprimer_info_clicked = Signal(object)
+    imprimer_avec_resultat_clicked = Signal(object)
+    new_resultat_clicked = Signal(object)
+    imprimer_rapport_clicked = Signal()
 
     def __init__(self, controleur, parent=None):
         super().__init__(parent)
@@ -67,6 +71,13 @@ class PrescriptionsTable(QWidget):
         )
         self.search_input.textChanged.connect(self.apply_filters)
 
+        self.btn_rapport = QPushButton("  Imprimer rapport")
+        self.btn_rapport.setObjectName("RapportButton")
+        self.btn_rapport.setFixedHeight(40)
+        self.btn_rapport.setCursor(Qt.PointingHandCursor)
+        self.btn_rapport.setIcon(qta.icon("fa5s.print", color="white"))
+        self.btn_rapport.clicked.connect(self.imprimer_rapport_clicked.emit)
+
         self.btn_new = QPushButton("Nouvelle prescription")
         self.btn_new.setObjectName("PrimaryButton")
         self.btn_new.setFixedHeight(40)
@@ -76,10 +87,11 @@ class PrescriptionsTable(QWidget):
         self.btn_new.clicked.connect(self.new_clicked.emit)
 
         toolbar_layout.addWidget(self.search_input, 1)
+        toolbar_layout.addWidget(self.btn_rapport)
         toolbar_layout.addWidget(self.btn_new)
         container_layout.addLayout(toolbar_layout)
 
-        self.table = QTableWidget(0, 6)
+        self.table = QTableWidget(0, 7)
         self.table.setObjectName("PrescriptionTable")
         self.table.setHorizontalHeaderLabels(
             [
@@ -89,6 +101,7 @@ class PrescriptionsTable(QWidget):
                 "Nb Produits",
                 "Quantité Totale",
                 "Montant (GNF)",
+                "Actions",
             ]
         )
         self.table.verticalHeader().setVisible(False)
@@ -110,6 +123,8 @@ class PrescriptionsTable(QWidget):
         header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(6, QHeaderView.ResizeToContents)
+        self.table.setColumnWidth(6, 132)
 
         container_layout.addWidget(self.table)
 
@@ -165,6 +180,18 @@ class PrescriptionsTable(QWidget):
             QLineEdit#SearchInput:focus {{
                 border: 1px solid {c['primary']};
                 background: {c['bg_card']};
+            }}
+            QPushButton#RapportButton {{
+                background: {c['success']};
+                color: {c['text_inverse']};
+                border: none;
+                border-radius: 10px;
+                padding: 0 16px;
+                font-size: 13px;
+                font-weight: 600;
+            }}
+            QPushButton#RapportButton:hover {{
+                background: {c.get('success_hover', '#16a34a')};
             }}
             QPushButton#PrimaryButton {{
                 background: {c['primary']};
@@ -317,6 +344,100 @@ class PrescriptionsTable(QWidget):
             ),
         )
         self.table.setCellWidget(row, 5, self._build_amount_widget(prescription.get("total_montant")))
+        self.table.setCellWidget(row, 6, self._create_actions_buttons(prescription))
+
+    def _create_actions_buttons(self, prescription):
+        c = theme_manager.colors()
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+
+        actions = [
+            ("fa5s.eye",        c["primary"],        c["primary_light"], "view"),
+            ("fa5s.pen",        c["secondary"],       c["info_bg"],       "edit"),
+            ("fa5s.ellipsis-v", c["text_secondary"],  c["hover"],         "menu"),
+        ]
+
+        for icon_name, icon_color, bg_color, action_name in actions:
+            btn = QPushButton()
+            btn.setFixedSize(30, 30)
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.setIcon(qta.icon(icon_name, color=icon_color))
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: {bg_color};
+                    border: 1px solid {c['border_light']};
+                    border-radius: 8px;
+                }}
+                QPushButton:hover {{
+                    border-color: {icon_color};
+                    background: {c['bg_card']};
+                }}
+            """)
+            if action_name == "view":
+                btn.clicked.connect(lambda checked=False, p=prescription: self.view_clicked.emit(p))
+            elif action_name == "edit":
+                btn.clicked.connect(lambda checked=False, p=prescription: self.edit_clicked.emit(p))
+            elif action_name == "menu":
+                btn.clicked.connect(lambda checked=False, p=prescription, b=btn: self._show_prescription_menu(p, b))
+            layout.addWidget(btn)
+
+        return widget
+
+    def _show_prescription_menu(self, prescription, button):
+        from PySide6.QtWidgets import QMenu
+        c = theme_manager.colors()
+
+        menu = QMenu(self)
+        menu.setStyleSheet(f"""
+            QMenu {{
+                background: white;
+                border: 1px solid {c['border']};
+                border-radius: 8px;
+                padding: 6px 0;
+            }}
+            QMenu::item {{
+                padding: 10px 20px;
+                color: {c['text_primary']};
+                font-size: 13px;
+                font-weight: 500;
+            }}
+            QMenu::item:selected {{
+                background: {c['primary_light']};
+                color: {c['primary']};
+                border-radius: 4px;
+            }}
+            QMenu::separator {{
+                height: 1px;
+                background: {c['border_light']};
+                margin: 4px 8px;
+            }}
+        """)
+
+        action_info = menu.addAction(
+            qta.icon("fa5s.print", color=c['primary']),
+            "  Imprimer ordonnance"
+        )
+        action_info.triggered.connect(lambda: self.imprimer_info_clicked.emit(prescription))
+
+        menu.addSeparator()
+
+        action_avec_res = menu.addAction(
+            qta.icon("fa5s.file-medical-alt", color=c['success']),
+            "  Imprimer avec résultat"
+        )
+        action_avec_res.triggered.connect(lambda: self.imprimer_avec_resultat_clicked.emit(prescription))
+
+        menu.addSeparator()
+
+        action_new_resultat = menu.addAction(
+            qta.icon("fa5s.plus-circle", color=c['secondary']),
+            "  Nouveau résultat"
+        )
+        action_new_resultat.triggered.connect(lambda: self.new_resultat_clicked.emit(prescription))
+
+        menu.exec(button.mapToGlobal(button.rect().bottomLeft()))
 
     def _build_double_line_widget(
         self,

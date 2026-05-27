@@ -28,6 +28,9 @@ class ConsultationsTable(QWidget):
     edit_clicked = Signal(object)
     delete_clicked = Signal(object)
     new_clicked = Signal()
+    imprimer_info_clicked = Signal(object)
+    imprimer_avec_resultat_clicked = Signal(object)
+    new_resultat_clicked = Signal(object)
 
     def __init__(self, controleur, parent=None):
         super().__init__(parent)
@@ -601,9 +604,66 @@ class ConsultationsTable(QWidget):
                 btn.clicked.connect(lambda checked=False, cons=consultation: self.view_clicked.emit(cons))
             elif action_name == "edit":
                 btn.clicked.connect(lambda checked=False, cons=consultation: self.edit_clicked.emit(cons))
+            elif action_name == "menu":
+                btn.clicked.connect(lambda checked=False, cons=consultation, b=btn: self._show_consultation_menu(cons, b))
             layout.addWidget(btn)
 
         return widget
+
+    def _show_consultation_menu(self, consultation, button):
+        """Affiche le menu popover pour une consultation."""
+        from PySide6.QtWidgets import QMenu
+        c = theme_manager.colors()
+
+        menu = QMenu(self)
+        menu.setStyleSheet(f"""
+            QMenu {{
+                background: white;
+                border: 1px solid {c['border']};
+                border-radius: 8px;
+                padding: 6px 0;
+            }}
+            QMenu::item {{
+                padding: 10px 20px;
+                color: {c['text_primary']};
+                font-size: 13px;
+                font-weight: 500;
+            }}
+            QMenu::item:selected {{
+                background: {c['primary_light']};
+                color: {c['primary']};
+                border-radius: 4px;
+            }}
+            QMenu::separator {{
+                height: 1px;
+                background: {c['border_light']};
+                margin: 4px 8px;
+            }}
+        """)
+
+        action_info = menu.addAction(
+            qta.icon("fa5s.print", color=c['primary']),
+            "  Imprimer informations"
+        )
+        action_info.triggered.connect(lambda: self.imprimer_info_clicked.emit(consultation))
+
+        menu.addSeparator()
+
+        action_avec_resultat = menu.addAction(
+            qta.icon("fa5s.file-medical-alt", color=c['success']),
+            "  Imprimer avec résultat"
+        )
+        action_avec_resultat.triggered.connect(lambda: self.imprimer_avec_resultat_clicked.emit(consultation))
+
+        menu.addSeparator()
+
+        action_new_resultat = menu.addAction(
+            qta.icon("fa5s.plus-circle", color=c['secondary']),
+            "  Nouveau résultat"
+        )
+        action_new_resultat.triggered.connect(lambda: self.new_resultat_clicked.emit(consultation))
+
+        menu.exec(button.mapToGlobal(button.rect().bottomLeft()))
 
     def _update_pagination(self):
         total_pages = self.total_pages()

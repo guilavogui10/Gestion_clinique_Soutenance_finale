@@ -4,7 +4,7 @@ Architecture à onglets pour une interface moins chargée
 """
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
                                 QTabWidget, QFrame, QDialog, QDialogButtonBox,
-                                QLabel, QDateEdit, QFormLayout)
+                                QLabel, QDateEdit, QFormLayout, QPushButton)
 from PySide6.QtCore import Qt, QSize, QDate
 from views.shared.theme_manager import theme_manager
 from .components import (
@@ -88,6 +88,8 @@ class VueConsultation(QWidget):
         self.quick_actions.advanced_search_clicked.connect(self.on_advanced_search)
         self.quick_actions.reports_clicked.connect(self.on_reports)
         self.quick_actions.patient_history_clicked.connect(self.on_patient_history)
+        self.quick_actions.imprimer_tous_rapports_clicked.connect(self._on_imprimer_tous_rapports)
+        self.quick_actions.imprimer_rapport_date_clicked.connect(self._on_imprimer_rapport_par_date)
         main_frame_layout.addWidget(self.quick_actions)
         
         # Ajouter le frame principal au layout
@@ -169,6 +171,85 @@ class VueConsultation(QWidget):
         self.tabs.setCurrentIndex(1)
         if hasattr(self, 'form_widget'):
             self.form_widget.recharger_pour_patient(code_visite, self.code_session)
+
+    def _on_changer_statut_patient(self, patient):
+        """Confirmation + changement de statut depuis l'onglet Statut patients."""
+        from views.shared.message_box import CustomMessageBox
+        code_visite    = patient.get("code_visite", "") if isinstance(patient, dict) else getattr(patient, "code_visite", "")
+        statut_patient = (patient.get("statut_patient", "") if isinstance(patient, dict) else getattr(patient, "statut_patient", "")).strip()
+        nom    = patient.get("nom", "")    if isinstance(patient, dict) else getattr(patient, "nom", "")
+        prenom = patient.get("prenom", "") if isinstance(patient, dict) else getattr(patient, "prenom", "")
+        nom_complet = f"{nom} {prenom}".strip() or "ce patient"
+
+        if statut_patient == "En consultation":
+            question = (
+                f"Voulez-vous mettre fin à la consultation de {nom_complet} ?\n\n"
+                "Vous serez redirigé vers le formulaire pour saisir les informations."
+            )
+            action = "terminer"
+        else:
+            question = f"Voulez-vous mettre {nom_complet} en consultation ?"
+            action = "demarrer"
+
+        if not CustomMessageBox.confirm(self, "Changement de statut", question):
+            return
+
+        if action == "demarrer":
+            # Démarrer consultation : simple changement de statut
+            ok, msg = self.ctrl.demarrer_consultation(code_visite)
+            if ok:
+                self.charger_donnees()
+                if hasattr(self, 'patients_attente_view'):
+                    self.patients_attente_view.charger_patients()
+                self._rafraichir_acte_medical()
+            else:
+                from views.shared.message_box import CustomMessageBox
+                CustomMessageBox("Erreur", msg, False, self).exec()
+        else:
+            # Fin consultation : rediriger vers le formulaire de saisie.
+            # C'est l'enregistrement du formulaire qui déclenchera terminer_consultation
+            # et le refresh de la file d'attente acte médical.
+            self._code_visite_fin_consultation = code_visite
+            self._ouvrir_nouveau_avec_visite(code_visite)
+            # Connecter un handler one-shot sur consultation_saved
+            try:
+                self.form_widget.consultation_saved.disconnect(self._on_fin_consultation_apres_saisie)
+            except Exception:
+                pass
+            self.form_widget.consultation_saved.connect(self._on_fin_consultation_apres_saisie)
+
+    def _on_fin_consultation_apres_saisie(self):
+        """
+        Déclenché après que le médecin a enregistré la consultation depuis
+        le formulaire (suite à un clic 'Fin consultation').
+        — Change statut_patient → 'Consultation terminée'
+        — Rafraîchit la file d'attente acte médical
+        """
+        # Déconnecter immédiatement (one-shot)
+        try:
+            self.form_widget.consultation_saved.disconnect(self._on_fin_consultation_apres_saisie)
+        except Exception:
+            pass
+
+        code_visite = getattr(self, '_code_visite_fin_consultation', None)
+        self._code_visite_fin_consultation = None
+
+        if code_visite:
+            self.ctrl.terminer_consultation(code_visite)
+
+        if hasattr(self, 'patients_attente_view'):
+            self.patients_attente_view.charger_patients()
+        self._rafraichir_acte_medical()
+
+    def _rafraichir_acte_medical(self):
+        """Demande à la page actes médicaux de rafraîchir sa file d'attente."""
+        parent = self.parent()
+        while parent:
+            if parent.__class__.__name__ == "DashboardView":
+                if hasattr(parent, "page_actes"):
+                    parent.page_actes._update_file_attente()
+                return
+            parent = parent.parent()
 
     def on_advanced_search(self):
         if not self.code_session:
@@ -279,31 +360,217 @@ class VueConsultation(QWidget):
         self.table.view_clicked.connect(self.on_view_consultation)
         self.table.edit_clicked.connect(self.on_edit_consultation)
         self.table.new_clicked.connect(self.on_new_consultation)
+        self.table.imprimer_info_clicked.connect(self._on_imprimer_info_consultation)
+        self.table.imprimer_avec_resultat_clicked.connect(self._on_imprimer_avec_resultat)
+        self.table.new_resultat_clicked.connect(self._on_new_resultat_consultation)
         layout.addWidget(self.table)
         
         return tab
     
     def _create_statut_tab(self):
         """Crée l'onglet Statut patients"""
+        import qtawesome as qta
         tab = QWidget()
         tab.setStyleSheet("background: white;")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(12, 8, 12, 12)
-        layout.setSpacing(0)
-        
+        layout.setSpacing(8)
+
+        # Barre d'actions rapides
+        toolbar = QHBoxLayout()
+        toolbar.setSpacing(8)
+        toolbar.addStretch()
+
+        btn_acte = QPushButton(qta.icon("fa5s.arrow-right", color="#ffffff"), "  Aller sur acte médical")
+        btn_acte.setFixedHeight(32)
+        btn_acte.setCursor(Qt.PointingHandCursor)
+        btn_acte.setStyleSheet("""
+            QPushButton {
+                background: #2563EB;
+                color: #ffffff;
+                border: none;
+                border-radius: 6px;
+                padding: 0 14px;
+                font-size: 13px;
+                font-weight: 600;
+            }
+            QPushButton:hover  { background: #1D4ED8; }
+            QPushButton:pressed{ background: #1E40AF; }
+        """)
+        btn_acte.clicked.connect(self._aller_sur_acte_medical)
+        toolbar.addWidget(btn_acte)
+
+        layout.addLayout(toolbar)
+
         # Importer et afficher la vue des patients en attente
         from .patients_consultation_attente import PatientsAttenteConsultationView
-        
+
         self.patients_attente_view = PatientsAttenteConsultationView(
-            self.ctrl, 
+            self.ctrl,
             self.code_session if hasattr(self, 'code_session') and self.code_session else "",
             parent=tab
         )
         self.patients_attente_view.ouvrir_formulaire.connect(self._ouvrir_nouveau_avec_visite)
+        self.patients_attente_view.changer_statut_signal.connect(self._on_changer_statut_patient)
         layout.addWidget(self.patients_attente_view)
-        
+
         return tab
-    
+
+    def _aller_sur_acte_medical(self):
+        """Navigue vers la page acte médical dans le dashboard."""
+        parent = self.parent()
+        while parent:
+            if parent.__class__.__name__ == "DashboardView":
+                if hasattr(parent, "workspace_stack") and hasattr(parent, "page_actes"):
+                    parent.workspace_stack.setCurrentWidget(parent.page_actes)
+                return
+            parent = parent.parent()
+
+    def _get_dashboard(self):
+        parent = self.parent()
+        while parent:
+            if parent.__class__.__name__ == "DashboardView":
+                return parent
+            parent = parent.parent()
+        return None
+
+    def _on_imprimer_info_consultation(self, consultation):
+        """Génère et affiche une fiche PDF de la consultation."""
+        from services.pdf_actes.consultation_pdf import ConsultationPDF
+        from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+        from views.shared.message_box import CustomMessageBox
+        code = consultation.code
+        try:
+            detail = self.ctrl.obtenir_consultation_complete(code)
+            if not detail:
+                CustomMessageBox("Erreur", f"Impossible de récupérer les détails de la consultation {code}.",
+                                 "error", parent=self).exec()
+                return
+            try:
+                info_cabinet = self.ctrl.get_cabinet_info()
+            except Exception:
+                info_cabinet = {}
+            pdf_path = ConsultationPDF.generer_pdf_consultation(detail, info_cabinet, None)
+            ApercuPDFDialog(pdf_path, f"Aperçu - Consultation {code}", self).exec()
+        except Exception as e:
+            CustomMessageBox("Erreur", f"Erreur lors de la génération du PDF :\n{e}", "error", parent=self).exec()
+
+    def _on_imprimer_avec_resultat(self, consultation):
+        """Génère et affiche un PDF combiné consultation + résultat médical (même format que imprimer info)."""
+        from views.shared.message_box import CustomMessageBox
+        from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+        from services.pdf_actes.consultation_pdf import ConsultationPDF
+        code = consultation.code
+        try:
+            detail = self.ctrl.obtenir_consultation_complete(code)
+            if not detail:
+                CustomMessageBox("Erreur", f"Impossible de récupérer les détails de la consultation {code}.",
+                                 "error", parent=self).exec()
+                return
+            try:
+                info_cabinet = self.ctrl.get_cabinet_info()
+            except Exception:
+                info_cabinet = {}
+
+            resultat_data = {}
+            dashboard = self._get_dashboard()
+            if dashboard and hasattr(dashboard, "page_resultats"):
+                try:
+                    resultat_ctrl = dashboard.page_resultats.ctrl
+                    resultats = resultat_ctrl.lister_par_consultation(code) or []
+                    if resultats:
+                        premier = resultats[0]
+                        id_resultat = getattr(premier, "id_resultat", None) or (
+                            premier.get("id_resultat") if isinstance(premier, dict) else None
+                        )
+                        if id_resultat:
+                            resultat_data = resultat_ctrl.get_detail_resultat(id_resultat) or {}
+                except Exception:
+                    pass
+
+            if not resultat_data:
+                CustomMessageBox(
+                    "Information",
+                    "Aucun résultat médical trouvé pour cette consultation.",
+                    "info", parent=self
+                ).exec()
+                return
+
+            # Tenter de récupérer les bytes du fichier (image) depuis MinIO
+            fichier_bytes = None
+            type_fichier_res = resultat_data.get('type_fichier', '') if isinstance(resultat_data, dict) else ''
+            if type_fichier_res == 'image' and dashboard and hasattr(dashboard, "page_resultats"):
+                try:
+                    id_res = resultat_data.get('id_resultat') if isinstance(resultat_data, dict) else None
+                    if id_res:
+                        fichier_bytes = dashboard.page_resultats.ctrl.lire_fichier_bytes(id_res)
+                except Exception:
+                    pass
+
+            pdf_path = ConsultationPDF.generer_pdf_consultation_avec_resultat(
+                detail, resultat_data, info_cabinet, None,
+                fichier_bytes=fichier_bytes, type_fichier_res=type_fichier_res
+            )
+            ApercuPDFDialog(pdf_path, f"Consultation avec résultat — {code}", self).exec()
+        except Exception as e:
+            CustomMessageBox("Erreur", f"Erreur lors de la génération du PDF :\n{e}", "error", parent=self).exec()
+
+    def _on_new_resultat_consultation(self, consultation):
+        """Navigue vers le formulaire nouveau résultat pré-rempli pour cette consultation."""
+        from PySide6.QtCore import QTimer
+        dashboard = self._get_dashboard()
+        if not dashboard or not hasattr(dashboard, "page_resultats"):
+            return
+        page_res = dashboard.page_resultats
+        dashboard.workspace_stack.setCurrentWidget(page_res)
+        # Aller sur l'onglet "Enregistrer" (index 5)
+        page_res.tabs.setCurrentIndex(5)
+        # Pré-sélectionner "consultation" et le code
+        if hasattr(page_res, "n_type_source"):
+            idx_type = page_res.n_type_source.findText("consultation")
+            if idx_type >= 0:
+                page_res.n_type_source.setCurrentIndex(idx_type)
+
+        def _select_code():
+            if hasattr(page_res, "n_code_source"):
+                combo = page_res.n_code_source
+                for i in range(combo.count()):
+                    if combo.itemData(i) == consultation.code or combo.itemText(i) == consultation.code:
+                        combo.setCurrentIndex(i)
+                        break
+
+        QTimer.singleShot(300, _select_code)
+
+    def _on_imprimer_tous_rapports(self):
+        """Génère et affiche le PDF rapport de toutes les consultations groupées par date."""
+        from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+        from views.shared.message_box import CustomMessageBox
+        if not self.code_session:
+            CustomMessageBox("Information", "Aucune session active.", "info", parent=self).exec()
+            return
+        try:
+            pdf_path = self.ctrl.generer_pdf_rapport_consultations_par_date(self.code_session)
+            ApercuPDFDialog(pdf_path, "Rapport des consultations par date", self).exec()
+        except Exception as e:
+            CustomMessageBox("Erreur", f"Erreur lors de la génération du PDF :\n{e}", "error", parent=self).exec()
+
+    def _on_imprimer_rapport_par_date(self):
+        """Affiche le dialog de sélection de date puis génère le PDF pour ce jour."""
+        from views.shared.message_box import CustomMessageBox
+        if not self.code_session:
+            CustomMessageBox("Information", "Aucune session active.", "info", parent=self).exec()
+            return
+        dialog = _DateSelectDialog(parent=self)
+        if dialog.exec():
+            date_cible = dialog.date_selectionnee
+            try:
+                from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+                pdf_path = self.ctrl.generer_pdf_rapport_date_precise(self.code_session, date_cible)
+                date_str = date_cible.strftime('%d/%m/%Y') if hasattr(date_cible, 'strftime') else str(date_cible)
+                ApercuPDFDialog(pdf_path, f"Rapport du {date_str}", self).exec()
+            except Exception as e:
+                CustomMessageBox("Erreur", f"Erreur lors de la génération du PDF :\n{e}", "error", parent=self).exec()
+
     def _create_historique_tab(self):
         """Crée l'onglet Historique patient"""
         tab = QWidget()
@@ -452,3 +719,57 @@ class _ResumeSessionDialog(QDialog):
         close_btn = QDialogButtonBox(QDialogButtonBox.Close)
         close_btn.rejected.connect(self.reject)
         layout.addWidget(close_btn)
+
+
+class _DateSelectDialog(QDialog):
+    """Dialog de sélection d'une date pour le rapport PDF par date."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.date_selectionnee = None
+        self.setWindowTitle("Sélectionner une date")
+        self.setFixedSize(360, 170)
+        self.setWindowFlags(Qt.Dialog | Qt.WindowCloseButtonHint)
+        self._init_ui()
+
+    def _init_ui(self):
+        c = theme_manager.colors()
+        self.setStyleSheet(f"background: {c['bg_card']}; color: {c['text_primary']};")
+        layout = QVBoxLayout(self)
+        layout.setSpacing(16)
+        layout.setContentsMargins(24, 20, 24, 20)
+
+        layout.addWidget(QLabel("<b>Sélectionner une date pour le rapport</b>"))
+
+        form = QFormLayout()
+        form.setSpacing(10)
+        self.date_edit = QDateEdit()
+        self.date_edit.setCalendarPopup(True)
+        self.date_edit.setDate(QDate.currentDate())
+        self.date_edit.setDisplayFormat("dd/MM/yyyy")
+        self.date_edit.setFixedHeight(36)
+        self.date_edit.setStyleSheet(f"""
+            QDateEdit {{
+                background: {c['bg_input']};
+                border: 1px solid {c['border']};
+                border-radius: 8px;
+                padding: 0 10px;
+                font-size: 13px;
+                color: {c['text_primary']};
+            }}
+            QDateEdit::drop-down {{
+                border: none;
+                width: 28px;
+            }}
+        """)
+        form.addRow("Date :", self.date_edit)
+        layout.addLayout(form)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self._valider)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def _valider(self):
+        self.date_selectionnee = self.date_edit.date().toPython()
+        self.accept()

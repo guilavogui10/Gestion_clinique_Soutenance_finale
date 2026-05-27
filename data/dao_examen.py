@@ -381,11 +381,12 @@ class ExamenDAO:
         try:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT COUNT(*) AS total
+                SELECT COUNT(DISTINCT v.code_visite) AS total
                 FROM visite v
-                LEFT JOIN consultation c  ON c.code_visite = v.code_visite
-                LEFT JOIN acte_medical am ON am.code_consultation = c.code
-                LEFT JOIN examen e        ON e.code_acte = am.code_acte
+                INNER JOIN acte_visite av  ON av.code_visite = v.code_visite
+                INNER JOIN acte_medical am ON am.code_acte   = av.code_acte
+                                          AND am.type_acte   = 'examen'
+                LEFT JOIN  examen e        ON e.code_acte    = am.code_acte
                 WHERE v.code_session = %s
                 AND v.statut_patient = 'Attente examen'
                 AND e.code IS NULL
@@ -1015,7 +1016,7 @@ class ExamenDAO:
         try:
             cursor = conn.cursor(DictCursor)
             query = """
-                SELECT
+                SELECT DISTINCT
                     v.code_visite,
                     v.date_visite,
                     v.type_visite,
@@ -1024,26 +1025,31 @@ class ExamenDAO:
                     c.code          AS code_consultation,
                     c.date_consultation,
                     c.diagnostique,
-                    am.code_acte      AS code_acte,
+                    am.code_acte    AS code_acte,
                     p.code_patient,
                     p.nom,
                     p.prenom,
                     p.telephone
                 FROM visite v
-                INNER JOIN patients p    ON v.code_patient = p.code_patient
-                INNER JOIN consultation c ON v.code_visite  = c.code_visite
-                INNER JOIN acte_medical am ON am.code_consultation = c.code
-                LEFT JOIN  examen e         ON e.code_acte = am.code_acte
+                INNER JOIN patients p       ON v.code_patient = p.code_patient
+                INNER JOIN acte_visite av   ON av.code_visite = v.code_visite
+                INNER JOIN acte_medical am  ON am.code_acte   = av.code_acte
+                                           AND am.type_acte   = 'examen'
+                LEFT JOIN  consultation c   ON c.code          = am.code_consultation
                 WHERE v.code_session = %s
-                AND v.statut_patient = 'Attente examen'
-                AND am.type_acte = 'examen'
-                AND e.code IS NULL
+                AND v.statut_patient IN ('Attente examen', 'En examen')
+                AND NOT EXISTS (
+                    SELECT 1 FROM examen ex WHERE ex.code_acte = am.code_acte
+                )
                 ORDER BY v.urgent DESC, v.date_visite ASC
             """
             cursor.execute(query, (code_session,))
-            return cursor.fetchall()
+            rows = cursor.fetchall()
+            print(f"[ExamenDAO] patients_en_attente_examen({code_session}): {len(rows)} résultat(s)")
+            return rows
         except Exception as e:
-            print(f"[ExamenDAO] Erreur patients_en_attente_examen: {e}")
+            print(f"[ExamenDAO] ERREUR patients_en_attente_examen: {e}")
+            import traceback; traceback.print_exc()
             return []
         finally:
             self.db.close()

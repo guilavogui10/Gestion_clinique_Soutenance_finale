@@ -839,7 +839,9 @@ class ConsultationDAO:
                 FROM visite v
                 INNER JOIN patients p       ON v.code_patient  = p.code_patient
                 LEFT JOIN  consultation c   ON v.code_visite   = c.code_visite
-                WHERE v.code_session=%s AND c.code IS NULL
+                WHERE v.code_session=%s
+                  AND c.code IS NULL
+                  AND v.statut_patient IN ('Attente consultation', 'En consultation')
                 ORDER BY v.date_visite ASC
             """
             cursor.execute(query, (code_session,))

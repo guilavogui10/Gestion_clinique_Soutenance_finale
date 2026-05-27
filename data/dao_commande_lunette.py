@@ -349,10 +349,9 @@ class CommandeLunetteDAO:
 
     def nombre_commandes_en_attente(self, code_session: str) -> int:
         """
-        Card 'Commandes en Attente' :
-        Compte les visites avec statut_patient = 'Attente lunette'
-        et sans encore d'enregistrement dans la table commandeslunettes.
-        COUNT SQL sur la table visite.
+        Card 'Patients en Attente' :
+        Compte les visites distinctes avec un acte de type 'lunette'
+        et statut_patient IN ('Attente lunette', 'En lunette').
         """
         conn = self.db.connect()
         if not conn:
@@ -360,14 +359,13 @@ class CommandeLunetteDAO:
         try:
             cursor = conn.cursor(DictCursor)
             cursor.execute("""
-                SELECT COUNT(*) AS total
+                SELECT COUNT(DISTINCT v.code_visite) AS total
                 FROM visite v
-                INNER JOIN consultation c  ON c.code_visite = v.code_visite
-                INNER JOIN acte_medical am ON am.code_consultation = c.code
-                LEFT JOIN  commandeslunettes cl ON cl.code_acte = am.code_acte
-                WHERE v.code_session = %s
-                AND v.statut_patient = 'Attente lunette'
-                AND cl.code IS NULL
+                INNER JOIN acte_visite  av  ON av.code_visite = v.code_visite
+                INNER JOIN acte_medical am  ON am.code_acte   = av.code_acte
+                                           AND am.type_acte   = 'lunette'
+                WHERE v.code_session   = %s
+                  AND v.statut_patient IN ('Attente lunette', 'En lunette')
             """, (code_session,))
             result = cursor.fetchone()
             return result['total'] if result else 0
@@ -460,29 +458,30 @@ class CommandeLunetteDAO:
             return []
         try:
             cursor = conn.cursor(DictCursor)
-            query = """
+            cursor.execute("""
                 SELECT
                     v.code_visite,
                     v.date_visite,
                     v.statut_patient,
-                    c.code          AS code_consultation,
-                    c.date_consultation,
+                    MIN(am.code_acte)        AS code_acte,
+                    MIN(c.code)              AS code_consultation,
+                    MIN(c.date_consultation) AS date_consultation,
                     p.code_patient,
                     p.nom,
                     p.prenom,
-                    p.telephone,
-                    am.code_acte      AS code_acte
+                    p.telephone
                 FROM visite v
-                INNER JOIN patients p      ON v.code_patient  = p.code_patient
-                INNER JOIN consultation c  ON c.code_visite   = v.code_visite
-                INNER JOIN acte_medical am ON am.code_consultation = c.code
-                LEFT JOIN  commandeslunettes cl ON cl.code_acte = am.code_acte
-                WHERE v.code_session = %s
-                AND v.statut_patient = 'Attente lunette'
-                AND cl.code IS NULL
+                INNER JOIN patients     p   ON v.code_patient  = p.code_patient
+                INNER JOIN acte_visite  av  ON av.code_visite  = v.code_visite
+                INNER JOIN acte_medical am  ON am.code_acte    = av.code_acte
+                                           AND am.type_acte    = 'lunette'
+                LEFT  JOIN consultation c   ON c.code          = am.code_consultation
+                WHERE v.code_session   = %s
+                  AND v.statut_patient IN ('Attente lunette', 'En lunette')
+                GROUP BY v.code_visite, v.date_visite, v.statut_patient, v.urgent,
+                         p.code_patient, p.nom, p.prenom, p.telephone
                 ORDER BY v.urgent DESC, v.date_visite ASC
-            """
-            cursor.execute(query, (code_session,))
+            """, (code_session,))
             return cursor.fetchall()
         except Exception as e:
             print(f"[CommandeLunetteDAO] Erreur patients_en_attente_lunette: {e}")

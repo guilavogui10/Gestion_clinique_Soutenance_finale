@@ -30,7 +30,7 @@ from pathlib import Path
 import hvac
 from dotenv import load_dotenv
 
-_ROOT = Path(__file__).resolve().parent.parent.parent
+_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(_ROOT / ".env")
 
 
@@ -219,52 +219,31 @@ class VaultService:
 
     def verifier_hmac(self, donnees: bytes, hmac_attendu: str) -> bool:
         """
-        Vérifie l'intégrité de données en comparant les hash.
+        Vérifie l'intégrité des données en déchiffrant la signature stockée.
+        On déchiffre hmac_attendu pour retrouver les données originales et on
+        compare directement — sans ré-chiffrer, ce qui évite les faux négatifs
+        liés au nonce aléatoire de Vault Transit.
         Retourne True si les données n'ont pas été altérées.
         """
         try:
-            # Calculer le hash actuel des données
-            hash_actuel = self.calculer_hmac(donnees)
-            if not hash_actuel:
-                self.logger.error("[Vault] Impossible de calculer le hash actuel")
+            path = f"{self.TRANSIT_MOUNT}/decrypt/{self.TRANSIT_KEY}"
+            payload = {"ciphertext": hmac_attendu}
+            resp = self.client.write(path, **payload)
+
+            if not resp or "data" not in resp or "plaintext" not in resp["data"]:
+                self.logger.error("[Vault] Réponse de déchiffrement invalide")
                 return False
-            
-            # Déchiffrer le hash attendu pour obtenir les données originales
-            try:
-                path = f"{self.TRANSIT_MOUNT}/decrypt/{self.TRANSIT_KEY}"
-                payload = {"ciphertext": hmac_attendu}
-                resp = self.client.write(path, **payload)
-                
-                if not resp or "data" not in resp or "plaintext" not in resp["data"]:
-                    self.logger.error("[Vault] Réponse de déchiffrement invalide")
-                    return False
-                
-                # Déchiffrer le hash actuel pour comparer
-                path_actuel = f"{self.TRANSIT_MOUNT}/decrypt/{self.TRANSIT_KEY}"
-                payload_actuel = {"ciphertext": hash_actuel}
-                resp_actuel = self.client.write(path_actuel, **payload_actuel)
-                
-                if not resp_actuel or "data" not in resp_actuel or "plaintext" not in resp_actuel["data"]:
-                    self.logger.error("[Vault] Impossible de déchiffrer le hash actuel")
-                    return False
-                
-                # Comparer les données déchiffrées
-                donnees_attendues = resp["data"]["plaintext"]
-                donnees_actuelles = resp_actuel["data"]["plaintext"]
-                
-                resultat = donnees_attendues == donnees_actuelles
-                
-                if resultat:
-                    self.logger.info("[Vault] Vérification HMAC réussie")
-                else:
-                    self.logger.warning("[Vault] Vérification HMAC échouée - données altérées")
-                
-                return resultat
-                
-            except Exception as e:
-                self.logger.error("[Vault] Erreur lors du déchiffrement: %s", e)
-                return False
-                
+
+            # La signature stockée est base64(données_originales)
+            donnees_originales = base64.b64decode(resp["data"]["plaintext"])
+
+            resultat = donnees_originales == donnees
+            if resultat:
+                self.logger.info("[Vault] Vérification HMAC réussie")
+            else:
+                self.logger.warning("[Vault] Vérification HMAC échouée - données altérées")
+            return resultat
+
         except Exception as e:
             self.logger.error("[Vault] verifier_hmac: %s", e)
             return False

@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QPushButton, QComboBox, QFrame, QDateEdit, QTimeEdit
 )
 from models.model_visite import Visite 
+from controllers.controleur_patient import ControleurPatient
 from views.shared.message_box import CustomMessageBox
 from views.shared.theme_manager import theme_manager
 
@@ -242,9 +243,14 @@ class VisiteFormWidget(QWidget):
         row1 = QHBoxLayout()
         row1.setSpacing(16)
         
-        self.edit_code_p = QLineEdit()
-        self.edit_code_p.setPlaceholderText("Ex: PAT001")
-        vb_code, self._wrap_code = self._make_field("Code Patient", self.edit_code_p, "fa5s.id-card", "#9b59b6")
+        self.combo_code_p = QComboBox()
+        self.combo_code_p.addItem("-- Sélectionner un patient --", "")
+        patient_ctrl = ControleurPatient()
+        patients = patient_ctrl.reed_Allpatient()
+        for p in patients:
+            self.combo_code_p.addItem(f"{p.get_code_patient()} - {p.get_nom()} {p.get_prenom()}", p.get_code_patient())
+        
+        vb_code, self._wrap_code = self._make_field("Code Patient", self.combo_code_p, "fa5s.id-card", "#9b59b6")
         self._err_code = self._err_label()
         vb_code.addWidget(self._err_code)
         row1.addWidget(self._field_widget(vb_code), 1, Qt.AlignTop)
@@ -344,7 +350,7 @@ class VisiteFormWidget(QWidget):
         return w
     
     def _connecter_validations(self):
-        self.edit_code_p.textChanged.connect(self.rechercher_patient_auto)
+        self.combo_code_p.currentIndexChanged.connect(self.rechercher_patient_auto)
     
     def gerer_etat_temps(self, texte):
         est_manuel = texte in ["VIP", "Rendez vous"]
@@ -356,7 +362,7 @@ class VisiteFormWidget(QWidget):
             self.edit_time.setTime(QTime.currentTime())
     
     def rechercher_patient_auto(self):
-        code = self.edit_code_p.text().strip()
+        code = self.combo_code_p.currentData()
         if not code:
             self.edit_nom_p.clear()
             self._set_field_state(self._wrap_code, self._err_code, True, "", False)
@@ -387,7 +393,7 @@ class VisiteFormWidget(QWidget):
         self._apply_save_btn_style()
     
     def reset_form(self):
-        self.edit_code_p.clear()
+        self.combo_code_p.setCurrentIndex(0)
         self.edit_nom_p.clear()
         self.combo_type.setCurrentIndex(0)
         self.combo_urgent.setCurrentIndex(0)
@@ -404,7 +410,7 @@ class VisiteFormWidget(QWidget):
             self._soumission_en_cours = True
             self.btn_save.setEnabled(False)
             
-            c_patient = self.edit_code_p.text().strip()
+            c_patient = self.combo_code_p.currentData()
             v_type = self.combo_type.currentText()
             v_urgent = self.combo_urgent.currentText()
             

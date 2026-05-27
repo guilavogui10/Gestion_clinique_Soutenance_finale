@@ -162,15 +162,17 @@ class PrescriptionService:
         self._nettoyer_prescription(prescription)
 
         # 4. Ajout via DAO
-        if self.dao.ajouter(prescription):
-            self.logger.info(
-                f"Prescription ajoutée — produit: {prescription.code_produit} "
-                f"| acte: {prescription.code_acte} "
-                f"| qté: {prescription.quantite_prescript}"
-            )
-            return True, "Produit prescrit avec succès."
-
-        return False, "Erreur lors de l'enregistrement de la prescription."
+        try:
+            if self.dao.ajouter(prescription):
+                self.logger.info(
+                    f"Prescription ajoutée — produit: {prescription.code_produit} "
+                    f"| acte: {prescription.code_acte} "
+                    f"| qté: {prescription.quantite_prescript}"
+                )
+                return True, "Produit prescrit avec succès."
+            return False, "Erreur lors de l'enregistrement de la prescription."
+        except ValueError as ve:
+            return False, str(ve)
 
     def modifier_ligne(self, prescription: PanierPrescriptionProduit) -> Tuple[bool, str]:
         """Valide et modifie une ligne de prescription existante."""
@@ -183,11 +185,13 @@ class PrescriptionService:
 
         self._nettoyer_prescription(prescription)
 
-        if self.dao.modifier(prescription):
-            self.logger.info(f"Prescription {prescription.code_prescription} modifiée.")
-            return True, "Prescription modifiée avec succès."
-
-        return False, "Erreur lors de la modification de la prescription."
+        try:
+            if self.dao.modifier(prescription):
+                self.logger.info(f"Prescription {prescription.code_prescription} modifiée.")
+                return True, "Prescription modifiée avec succès."
+            return False, "Erreur lors de la modification de la prescription."
+        except ValueError as ve:
+            return False, str(ve)
 
     def supprimer_ligne(self, code_prescription: str) -> Tuple[bool, str]:
         """Supprime une ligne de prescription."""

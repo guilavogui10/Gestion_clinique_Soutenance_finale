@@ -22,8 +22,8 @@ from minio import Minio
 from minio.error import S3Error
 from dotenv import load_dotenv
 
-# Charger .env depuis la racine du projet (deux niveaux au-dessus de ce fichier)
-_ROOT = Path(__file__).resolve().parent.parent.parent
+# Charger .env depuis la racine du projet (un niveau au-dessus de 'core')
+_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(_ROOT / ".env")
 
 

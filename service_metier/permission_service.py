@@ -158,12 +158,15 @@ class PermissionService:
         Returns:
             True si accès autorisé, False sinon
         """
+        if not role:
+            return False
+            
         # DG et Admin ont accès à tout
-        if role in [self.ROLE_DG, self.ROLE_ADMIN]:
+        if role.lower() in [self.ROLE_DG.lower(), self.ROLE_ADMIN.lower()]:
             return True
         
-        # Vérifier dans le mapping
-        interfaces_autorisees = self.ROLE_INTERFACES.get(role, [])
+        # Vérifier dans le mapping avec le rôle en minuscules
+        interfaces_autorisees = self.ROLE_INTERFACES.get(role.lower(), [])
         return interface in interfaces_autorisees
     
     # =========================================================================

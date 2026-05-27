@@ -25,9 +25,10 @@ from views.shared.theme_manager import theme_manager
 
 class PatientCard(QFrame):
     proceder_signal = Signal(object)
+    changer_statut_clicked = Signal(object)
 
     CARD_WIDTH = 170
-    CARD_HEIGHT = 196
+    CARD_HEIGHT = 228
 
     def __init__(self, patient, parent=None):
         super().__init__(parent)
@@ -82,8 +83,9 @@ class PatientCard(QFrame):
         root.addWidget(self._lbl_nom)
         root.addSpacing(3)
 
+        statut_raw = self._get_value("statut_patient") or "Attente Consultation"
         badge_row = QHBoxLayout()
-        self._badge = QLabel("Attente Consultation")
+        self._badge = QLabel(statut_raw)
         self._badge.setAlignment(Qt.AlignCenter)
         self._badge.setFixedHeight(16)
         self._badge.setStyleSheet("border: none;")
@@ -122,6 +124,17 @@ class PatientCard(QFrame):
         self._btn.setCursor(Qt.PointingHandCursor)
         self._btn.clicked.connect(lambda: self.proceder_signal.emit(self.patient))
         root.addWidget(self._btn)
+
+        statut_patient = (self._get_value("statut_patient") or "").strip()
+        if statut_patient == "En consultation":
+            btn_changer_label = "Fin consultation"
+        else:
+            btn_changer_label = "Démarrer consultation"
+        self._btn_changer = QPushButton(btn_changer_label)
+        self._btn_changer.setFixedHeight(24)
+        self._btn_changer.setCursor(Qt.PointingHandCursor)
+        self._btn_changer.clicked.connect(lambda: self.changer_statut_clicked.emit(self.patient))
+        root.addWidget(self._btn_changer)
 
     def _get_value(self, key):
         if isinstance(self.patient, dict):
@@ -221,10 +234,34 @@ class PatientCard(QFrame):
         self._btn.setStyleSheet(ConsultationStyles.button_primary())
         self._btn.setIcon(qta.icon("fa5s.stethoscope", color=c.get("text_inverse", "#ffffff")))
 
+        statut_patient = (self._get_value("statut_patient") or "").strip()
+        if statut_patient == "En consultation":
+            btn_icon = qta.icon("fa5s.stop-circle", color="#ffffff")
+            btn_bg   = "#EF4444"
+            btn_hover= "#DC2626"
+        else:
+            btn_icon = qta.icon("fa5s.play-circle", color="#ffffff")
+            btn_bg   = "#2563EB"
+            btn_hover= "#1D4ED8"
+        self._btn_changer.setIcon(btn_icon)
+        self._btn_changer.setStyleSheet(f"""
+            QPushButton {{
+                background: {btn_bg};
+                color: #ffffff;
+                border: none;
+                border-radius: 8px;
+                font-size: 9px;
+                font-weight: 600;
+                padding: 0 6px;
+            }}
+            QPushButton:hover {{ background: {btn_hover}; }}
+        """)
+
 
 class PatientsAttenteConsultationView(QWidget):
     consultation_creee = Signal()
     ouvrir_formulaire = Signal(str)
+    changer_statut_signal = Signal(object)
     NB_COLS = 5
 
     def __init__(self, ctrl, code_session: str, parent=None):
@@ -324,6 +361,7 @@ class PatientsAttenteConsultationView(QWidget):
         for idx, patient in enumerate(patients):
             card = PatientCard(patient)
             card.proceder_signal.connect(self._on_proceder)
+            card.changer_statut_clicked.connect(self.changer_statut_signal.emit)
             row = idx // self.NB_COLS
             col = idx % self.NB_COLS
             self._grid.addWidget(card, row, col)

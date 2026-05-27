@@ -92,6 +92,16 @@ class ConsultationControleur:
     def info_cabinet(self):
         return self.service.info_cabinet()
 
+    def demarrer_consultation(self, code_visite: str) -> tuple:
+        """Démarre la consultation (statut_patient → 'En consultation')."""
+        from service_metier.visite_service import VisiteService
+        return VisiteService().demarrer_consultation(code_visite)
+
+    def terminer_consultation(self, code_visite: str) -> tuple:
+        """Termine la consultation (statut_patient → 'Consultation terminée')."""
+        from service_metier.visite_service import VisiteService
+        return VisiteService().terminer_consultation(code_visite)
+
     # === STATISTIQUES CARDS ===
 
     def obtenir_nombre_total(self, code_session):
@@ -183,3 +193,42 @@ class ConsultationControleur:
 
     def obtenir_codes_patients_session(self, code_session):
         return self.service.obtenir_codes_patients_session(code_session)
+
+    # === RAPPORTS PDF LISTE CONSULTATIONS ===
+
+    def generer_pdf_rapport_consultations_par_date(self, code_session):
+        """
+        Récupère toutes les consultations de la session, les enrichit
+        et génère un PDF groupé par date avec totaux.
+        Retourne le chemin du PDF généré.
+        """
+        from services.pdf_rapports.rapport_consultation import RapportConsultationPDF
+        consultations = self.lister_consultations(code_session) or []
+        info_cabinet = self.get_cabinet_info()
+        details_list = []
+        for c in consultations:
+            detail = self.obtenir_consultation_complete(c.code)
+            if detail:
+                details_list.append(detail)
+        return RapportConsultationPDF.generer_pdf_consultations_par_date(
+            details_list, info_cabinet
+        )
+
+    def generer_pdf_rapport_date_precise(self, code_session, date_cible):
+        """
+        Récupère les consultations de la session pour une date précise,
+        les enrichit et génère un PDF pour cette date avec total.
+        date_cible : datetime.date ou str YYYY-MM-DD.
+        Retourne le chemin du PDF généré.
+        """
+        from services.pdf_rapports.rapport_consultation import RapportConsultationPDF
+        consultations = self.rechercher_entre_dates(code_session, date_cible, date_cible) or []
+        info_cabinet = self.get_cabinet_info()
+        details_list = []
+        for c in consultations:
+            detail = self.obtenir_consultation_complete(c.code)
+            if detail:
+                details_list.append(detail)
+        return RapportConsultationPDF.generer_pdf_consultations_date_precise(
+            details_list, date_cible, info_cabinet
+        )

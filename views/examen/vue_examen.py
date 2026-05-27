@@ -89,6 +89,8 @@ class ExamenView(QWidget):
         self.quick_actions.advanced_search_clicked.connect(self.on_advanced_search)
         self.quick_actions.reports_clicked.connect(self.on_reports)
         self.quick_actions.patient_history_clicked.connect(self.on_patient_history)
+        self.quick_actions.imprimer_tous_rapports_clicked.connect(self._on_imprimer_tous_rapports)
+        self.quick_actions.imprimer_rapport_date_clicked.connect(self._on_imprimer_rapport_par_date)
         main_frame_layout.addWidget(self.quick_actions)
         
         # Ajouter le frame principal au layout
@@ -198,6 +200,37 @@ class ExamenView(QWidget):
         """Bascule vers l'onglet Historique patient."""
         self.tabs.setCurrentIndex(4)
     
+    def _on_imprimer_tous_rapports(self):
+        """Génère un PDF de tous les examens de la session groupés par date."""
+        from views.shared.message_box import CustomMessageBox
+        from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+        if not self.code_session:
+            CustomMessageBox("Avertissement", "Aucune session active.", "warning", self).exec()
+            return
+        try:
+            pdf_path = self.ctrl.generer_pdf_rapport_examens_par_date(self.code_session)
+            ApercuPDFDialog(pdf_path, "Rapport — Tous les examens", self).exec()
+        except Exception as e:
+            CustomMessageBox("Erreur", f"Erreur lors de la génération du PDF :\n{e}", "error", self).exec()
+
+    def _on_imprimer_rapport_par_date(self):
+        """Ouvre le sélecteur de date puis génère un PDF pour ce jour."""
+        from views.shared.message_box import CustomMessageBox
+        from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+        if not self.code_session:
+            CustomMessageBox("Avertissement", "Aucune session active.", "warning", self).exec()
+            return
+        dialog = _DateSelectDialog(self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        date_cible = dialog.date_selectionnee
+        try:
+            pdf_path = self.ctrl.generer_pdf_rapport_date_precise_examens(self.code_session, date_cible)
+            date_fmt = date_cible.strftime('%d/%m/%Y') if hasattr(date_cible, 'strftime') else str(date_cible)
+            ApercuPDFDialog(pdf_path, f"Rapport examens du {date_fmt}", self).exec()
+        except Exception as e:
+            CustomMessageBox("Erreur", f"Erreur lors de la génération du PDF :\n{e}", "error", self).exec()
+
     def apply_theme(self):
         c = theme_manager.colors()
         self.setStyleSheet(f"""
@@ -288,36 +321,263 @@ class ExamenView(QWidget):
         tab.setStyleSheet("background: white;")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(12, 8, 12, 12)
-        
+
         self.table = ExamensTable(self.ctrl)
         self.table.view_clicked.connect(self.on_view_examen)
         self.table.edit_clicked.connect(self.on_edit_examen)
         self.table.delete_clicked.connect(self.on_delete_examen)
         self.table.new_clicked.connect(self.on_new_examen)
+        self.table.imprimer_info_clicked.connect(self._on_imprimer_info_examen)
+        self.table.imprimer_avec_resultat_clicked.connect(self._on_imprimer_avec_resultat_examen)
+        self.table.new_resultat_clicked.connect(self._on_new_resultat_examen)
         layout.addWidget(self.table)
-        
+
         return tab
-    
+
     def _create_attente_tab(self):
         """Crée l'onglet Patients en attente"""
+        import qtawesome as qta
         tab = QWidget()
         tab.setStyleSheet("background: white;")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(12, 8, 12, 12)
-        layout.setSpacing(0)
-        
+        layout.setSpacing(8)
+
+        # Barre d'actions rapides
+        toolbar = QHBoxLayout()
+        toolbar.setSpacing(8)
+        toolbar.addStretch()
+
+        btn_acte = QPushButton(qta.icon("fa5s.arrow-right", color="#ffffff"), "  Aller sur acte médical")
+        btn_acte.setFixedHeight(32)
+        btn_acte.setCursor(Qt.PointingHandCursor)
+        btn_acte.setStyleSheet("""
+            QPushButton {
+                background: #2563EB;
+                color: #ffffff;
+                border: none;
+                border-radius: 6px;
+                padding: 0 14px;
+                font-size: 13px;
+                font-weight: 600;
+            }
+            QPushButton:hover  { background: #1D4ED8; }
+            QPushButton:pressed{ background: #1E40AF; }
+        """)
+        btn_acte.clicked.connect(self._aller_sur_acte_medical)
+        toolbar.addWidget(btn_acte)
+
+        layout.addLayout(toolbar)
+
         # Importer et afficher la vue des patients en attente
         from .patients_examen_attente import PatientsAttenteExamenView
-        
+
         self.vue_attente = PatientsAttenteExamenView(
             self.ctrl,
             self.code_session if hasattr(self, 'code_session') and self.code_session else "",
             parent=tab
         )
         self.vue_attente.ouvrir_formulaire.connect(self._ouvrir_nouveau_avec_consultation)
+        self.vue_attente.changer_statut_signal.connect(self._on_changer_statut_patient_examen)
         layout.addWidget(self.vue_attente)
-        
+
         return tab
+
+    def _aller_sur_acte_medical(self):
+        """Navigue vers la page acte médical dans le dashboard."""
+        parent = self.parent()
+        while parent:
+            if parent.__class__.__name__ == "DashboardView":
+                if hasattr(parent, "workspace_stack") and hasattr(parent, "page_actes"):
+                    parent.workspace_stack.setCurrentWidget(parent.page_actes)
+                return
+            parent = parent.parent()
+
+    def _get_dashboard(self):
+        parent = self.parent()
+        while parent:
+            if parent.__class__.__name__ == "DashboardView":
+                return parent
+            parent = parent.parent()
+        return None
+
+    def _rafraichir_acte_medical(self):
+        """Demande à la page acte médical de rafraîchir sa file d'attente."""
+        parent = self.parent()
+        while parent:
+            if parent.__class__.__name__ == "DashboardView":
+                if hasattr(parent, "page_actes"):
+                    try:
+                        parent.page_actes._update_file_attente()
+                    except Exception:
+                        pass
+                return
+            parent = parent.parent()
+
+    def _on_changer_statut_patient_examen(self, patient):
+        """Gère le clic sur Démarrer/Fin examen depuis la carte patient."""
+        from views.shared.message_box import CustomMessageBox
+        if isinstance(patient, dict):
+            code_visite     = patient.get("code_visite", "")
+            statut_patient  = (patient.get("statut_patient", "") or "").strip()
+            nom             = patient.get("nom", "")
+            prenom          = patient.get("prenom", "")
+            code_consultation = patient.get("code_consultation", "")
+        else:
+            code_visite     = getattr(patient, "code_visite", "")
+            statut_patient  = (getattr(patient, "statut_patient", "") or "").strip()
+            nom             = getattr(patient, "nom", "")
+            prenom          = getattr(patient, "prenom", "")
+            code_consultation = getattr(patient, "code_consultation", "")
+
+        nom_complet = f"{nom} {prenom}".strip() or "ce patient"
+
+        if statut_patient == "En examen":
+            question = (
+                f"Voulez-vous mettre fin à l'examen de {nom_complet} ?\n\n"
+                "Vous serez redirigé vers le formulaire."
+            )
+            action = "terminer"
+        else:
+            question = f"Voulez-vous démarrer l'examen de {nom_complet} ?"
+            action = "demarrer"
+
+        if not CustomMessageBox.confirm(self, "Changement de statut", question):
+            return
+
+        if action == "demarrer":
+            ok, msg = self.ctrl.demarrer_examen(code_visite)
+            if ok:
+                self.charger_donnees()
+                self._rafraichir_acte_medical()
+            else:
+                CustomMessageBox("Erreur", msg, False, self).exec()
+        else:
+            self._code_visite_fin_examen = code_visite
+            self._ouvrir_nouveau_avec_consultation(code_consultation)
+            try:
+                self.form_widget.examen_saved.disconnect(self._on_fin_examen_apres_saisie)
+            except Exception:
+                pass
+            self.form_widget.examen_saved.connect(self._on_fin_examen_apres_saisie)
+
+    def _on_fin_examen_apres_saisie(self):
+        """Appelé après soumission du formulaire quand on termine un examen."""
+        try:
+            self.form_widget.examen_saved.disconnect(self._on_fin_examen_apres_saisie)
+        except Exception:
+            pass
+        code_visite = getattr(self, "_code_visite_fin_examen", None)
+        if code_visite:
+            self.ctrl.terminer_examen(code_visite)
+        self.charger_donnees()
+        self._rafraichir_acte_medical()
+
+    def _on_imprimer_info_examen(self, examen):
+        """Génère et affiche une fiche PDF de l'examen."""
+        from services.pdf_actes.examen_pdf import ExamenPDF
+        from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+        from views.shared.message_box import CustomMessageBox
+        code = examen.code
+        try:
+            detail = self.ctrl.obtenir_examen_complet(code)
+            if not detail:
+                CustomMessageBox("Erreur", f"Impossible de récupérer les détails de l'examen {code}.",
+                                 "error", parent=self).exec()
+                return
+            try:
+                info_cabinet = self.ctrl.get_cabinet_info()
+            except Exception:
+                info_cabinet = {}
+            pdf_path = ExamenPDF.generer_pdf_examen(detail, info_cabinet, None)
+            ApercuPDFDialog(pdf_path, f"Aperçu - Examen {code}", self).exec()
+        except Exception as e:
+            CustomMessageBox("Erreur", f"Erreur lors de la génération du PDF :\n{e}", "error", parent=self).exec()
+
+    def _on_imprimer_avec_resultat_examen(self, examen):
+        """Génère et affiche un PDF combiné examen + résultat médical."""
+        from views.shared.message_box import CustomMessageBox
+        from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+        from services.pdf_actes.examen_pdf import ExamenPDF
+        code = examen.code
+        try:
+            detail = self.ctrl.obtenir_examen_complet(code)
+            if not detail:
+                CustomMessageBox("Erreur", f"Impossible de récupérer les détails de l'examen {code}.",
+                                 "error", parent=self).exec()
+                return
+            try:
+                info_cabinet = self.ctrl.get_cabinet_info()
+            except Exception:
+                info_cabinet = {}
+
+            resultat_data = {}
+            dashboard = self._get_dashboard()
+            if dashboard and hasattr(dashboard, "page_resultats"):
+                try:
+                    resultat_ctrl = dashboard.page_resultats.ctrl
+                    code_acte = getattr(examen, 'code_acte', None)
+                    if code_acte:
+                        resultats = resultat_ctrl.lister_par_acte(code_acte) or []
+                        if resultats:
+                            premier = resultats[0]
+                            id_resultat = getattr(premier, "id_resultat", None) or (
+                                premier.get("id_resultat") if isinstance(premier, dict) else None
+                            )
+                            if id_resultat:
+                                resultat_data = resultat_ctrl.get_detail_resultat(id_resultat) or {}
+                except Exception:
+                    pass
+
+            if not resultat_data:
+                CustomMessageBox(
+                    "Information",
+                    "Aucun résultat médical trouvé pour cet examen.",
+                    "info", parent=self
+                ).exec()
+                return
+
+            fichier_bytes = None
+            type_fichier_res = resultat_data.get('type_fichier', '') if isinstance(resultat_data, dict) else ''
+            if type_fichier_res == 'image' and dashboard and hasattr(dashboard, "page_resultats"):
+                try:
+                    id_res = resultat_data.get('id_resultat') if isinstance(resultat_data, dict) else None
+                    if id_res:
+                        fichier_bytes = dashboard.page_resultats.ctrl.lire_fichier_bytes(id_res)
+                except Exception:
+                    pass
+
+            pdf_path = ExamenPDF.generer_pdf_examen_avec_resultat(
+                detail, resultat_data, info_cabinet, None,
+                fichier_bytes=fichier_bytes, type_fichier_res=type_fichier_res
+            )
+            ApercuPDFDialog(pdf_path, f"Examen avec résultat — {code}", self).exec()
+        except Exception as e:
+            CustomMessageBox("Erreur", f"Erreur lors de la génération du PDF :\n{e}", "error", parent=self).exec()
+
+    def _on_new_resultat_examen(self, examen):
+        """Navigue vers le formulaire nouveau résultat pré-rempli pour cet examen."""
+        from PySide6.QtCore import QTimer
+        dashboard = self._get_dashboard()
+        if not dashboard or not hasattr(dashboard, "page_resultats"):
+            return
+        page_res = dashboard.page_resultats
+        dashboard.workspace_stack.setCurrentWidget(page_res)
+        page_res.tabs.setCurrentIndex(5)
+        if hasattr(page_res, "n_type_source"):
+            idx_type = page_res.n_type_source.findText("examen")
+            if idx_type >= 0:
+                page_res.n_type_source.setCurrentIndex(idx_type)
+
+        def _select_code():
+            if hasattr(page_res, "n_code_source"):
+                combo = page_res.n_code_source
+                for i in range(combo.count()):
+                    if combo.itemData(i) == examen.code or combo.itemText(i) == examen.code:
+                        combo.setCurrentIndex(i)
+                        break
+
+        QTimer.singleShot(300, _select_code)
 
     def _create_historique_tab(self):
         """Crée l'onglet Historique patient (5ème onglet)."""
@@ -554,4 +814,60 @@ class _ResumeSessionDialog(QDialog):
         except Exception:
             return str(val or 0)
 
+
+class _DateSelectDialog(QDialog):
+    """Sélection d'une date pour le rapport examen par date."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.date_selectionnee = None
+        self.setWindowTitle("Sélectionner une date")
+        self.setFixedSize(360, 170)
+        self.setWindowFlags(Qt.Dialog | Qt.WindowCloseButtonHint)
+        self._init_ui()
+
+    def _init_ui(self):
+        from PySide6.QtWidgets import QFormLayout, QDialogButtonBox
+        c = theme_manager.colors()
+        self.setStyleSheet(f"""
+            QDialog {{ background: {c['bg_main']}; }}
+            QLabel {{ color: {c['text_primary']}; font-size: 13px; }}
+            QDateEdit {{
+                background: {c['bg_input']}; border: 1px solid {c['border']};
+                border-radius: 8px; padding: 6px 12px;
+                color: {c['text_primary']}; font-size: 13px; min-height: 32px;
+            }}
+            QDateEdit:focus {{ border-color: {c['primary']}; }}
+            QDialogButtonBox QPushButton {{
+                background: {c['primary']}; color: white; border: none;
+                border-radius: 8px; padding: 8px 20px; font-weight: 700; font-size: 13px;
+                min-width: 80px;
+            }}
+            QDialogButtonBox QPushButton:hover {{ background: {c['primary_hover']}; }}
+            QDialogButtonBox QPushButton[text="Annuler"] {{
+                background: {c['bg_card']}; color: {c['text_primary']};
+                border: 1px solid {c['border']};
+            }}
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 20)
+        layout.setSpacing(16)
+
+        form = QFormLayout()
+        self.date_edit = QDateEdit()
+        self.date_edit.setCalendarPopup(True)
+        self.date_edit.setDate(QDate.currentDate())
+        self.date_edit.setDisplayFormat("dd/MM/yyyy")
+        form.addRow("Date :", self.date_edit)
+        layout.addLayout(form)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self._valider)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def _valider(self):
+        self.date_selectionnee = self.date_edit.date().toPython()
+        self.accept()
 

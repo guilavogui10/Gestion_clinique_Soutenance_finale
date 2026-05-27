@@ -367,23 +367,34 @@ class PanierProduitWidget(AnimatedFrame):
         
         if ok and msg == "SHOW_PAYMENT_PANEL":
             print("[PanierWidget] Recherche du parent GestionProduitsView...")
-            # Trouver le parent GestionProduitsView
+            # Trouver le parent approprié (GestionProduitsView pour fournisseur, etc.)
             parent = self.parent()
+            parent_found = False
             while parent:
                 parent_name = type(parent).__name__
                 print(f"[PanierWidget] Vérification parent: {parent_name}")
                 
-                if parent_name == 'GestionProduitsView' or hasattr(parent, 'show_payment_panel'):
-                    print(f"[PanierWidget] Parent trouvé: {parent_name}")
-                    if hasattr(parent, 'show_payment_panel'):
-                        print(f"[PanierWidget] Appel de show_payment_panel({self.code_facture_four})")
-                        parent.show_payment_panel(self.code_facture_four)
-                        return
+                if hasattr(parent, 'show_payment_panel'):
+                    print(f"[PanierWidget] Appel de show_payment_panel({self.code_facture_four})")
+                    parent.show_payment_panel(self.code_facture_four)
+                    parent_found = True
+                    break
+                elif hasattr(parent, '_ouvrir_panneau_factures'):
+                    print(f"[PanierWidget] Appel de _ouvrir_panneau_factures()")
+                    parent._ouvrir_panneau_factures()
+                    if hasattr(parent, 'panneau_factures'):
+                        parent.panneau_factures.actualiser(self.code_session)
+                    # Réinitialiser le panier puisque la facture est finalisée
+                    self._reinitialiser_complet()
+                    self._afficher_message("Succès", "Facture finalisée avec succès", True)
+                    parent_found = True
+                    break
                 
                 parent = parent.parent()
             
-            print("[PanierWidget] ERREUR: Aucun parent avec show_payment_panel trouvé")
-            self._afficher_message("Erreur", "Impossible d'afficher le panneau de paiement", False)
+            if not parent_found:
+                print("[PanierWidget] ERREUR: Aucun parent avec show_payment_panel ou _ouvrir_panneau_factures trouvé")
+                self._afficher_message("Erreur", "Impossible d'afficher le panneau de paiement/facture", False)
         elif not ok:
             if msg != "Finalisation annulée":
                 self._afficher_message("Erreur", msg, False)

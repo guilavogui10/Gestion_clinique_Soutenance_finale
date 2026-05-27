@@ -544,7 +544,7 @@ class DialogResultatDetail(QDialog):
     def _print_pdf(self):
         from PySide6.QtGui import QDesktopServices
         from PySide6.QtCore import QUrl
-        from services.resultat_pdf_service import ResultatPDFService
+        from services.pdf_admin.resultat_pdf import ResultatPDFService
         
         try:
             info_cabinet = {}

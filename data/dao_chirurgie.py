@@ -272,7 +272,7 @@ class ChirurgieDAO:
     def nombre_chururgies_en_attente(self, code_session: str) -> int:
         """
         Card 'Chirurgies en Attente' :
-        Compte les visites avec statut_patient = 'Attente chirurgie'
+        Compte les visites avec statut_patient IN ('Attente chirurgie','En chirurgie')
         et sans encore d'enregistrement dans la table chururgie.
         """
         conn = self.db.connect()
@@ -281,14 +281,16 @@ class ChirurgieDAO:
         try:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT COUNT(*) AS total
+                SELECT COUNT(DISTINCT v.code_visite) AS total
                 FROM visite v
-                LEFT JOIN consultation c   ON v.code_visite = c.code_visite
-                LEFT JOIN acte_medical am  ON am.code_consultation = c.code
-                LEFT JOIN chururgie ch     ON ch.code_acte = am.code_acte
+                INNER JOIN acte_visite av   ON av.code_visite = v.code_visite
+                INNER JOIN acte_medical am  ON am.code_acte = av.code_acte
+                                           AND am.type_acte = 'chirurgie'
                 WHERE v.code_session = %s
-                AND v.statut_patient = 'Attente chirurgie'
-                AND ch.code IS NULL
+                AND v.statut_patient IN ('Attente chirurgie', 'En chirurgie')
+                AND NOT EXISTS (
+                    SELECT 1 FROM chururgie ch WHERE ch.code_acte = am.code_acte
+                )
             """, (code_session,))
             result = cursor.fetchone()
             return result['total'] if result else 0
@@ -348,34 +350,38 @@ class ChirurgieDAO:
     # =========================================================================
 
     def patients_en_attente_chururgie(self, code_session: str) -> list:
-        """Retourne la liste des patients en attente de chirurgie."""
+        """Retourne la liste des patients en attente ou en cours de chirurgie."""
         conn = self.db.connect()
-        if not conn: return []
+        if not conn:
+            return []
         try:
             cursor = conn.cursor(DictCursor)
             query = """
-                SELECT 
-                    v.code_visite,
-                    v.date_visite,
-                    p.code_patient,
-                    p.nom,
-                    p.prenom,
-                    c.code AS code_consultation,
-                    am.code_acte AS code_acte
+                SELECT DISTINCT
+                    v.code_visite, v.date_visite, v.type_visite, v.urgent, v.statut_patient,
+                    c.code AS code_consultation, c.date_consultation, c.diagnostique,
+                    am.code_acte AS code_acte,
+                    p.code_patient, p.nom, p.prenom, p.telephone
                 FROM visite v
                 INNER JOIN patients p       ON v.code_patient = p.code_patient
-                INNER JOIN consultation c   ON v.code_visite  = c.code_visite
-                LEFT JOIN  acte_medical am  ON am.code_consultation = c.code
-                LEFT JOIN  chururgie ch     ON ch.code_acte = am.code_acte
+                INNER JOIN acte_visite av   ON av.code_visite = v.code_visite
+                INNER JOIN acte_medical am  ON am.code_acte   = av.code_acte
+                                           AND am.type_acte   = 'chirurgie'
+                LEFT JOIN  consultation c   ON c.code          = am.code_consultation
                 WHERE v.code_session = %s
-                AND v.statut_patient = 'Attente chirurgie'
-                AND ch.code IS NULL
-                ORDER BY v.date_visite ASC
+                AND v.statut_patient IN ('Attente chirurgie', 'En chirurgie')
+                AND NOT EXISTS (
+                    SELECT 1 FROM chururgie ch WHERE ch.code_acte = am.code_acte
+                )
+                ORDER BY v.urgent DESC, v.date_visite ASC
             """
             cursor.execute(query, (code_session,))
-            return cursor.fetchall()
+            rows = cursor.fetchall()
+            print(f"[ChirurgieDAO] patients_en_attente_chururgie({code_session}): {len(rows)} résultat(s)")
+            return rows
         except Exception as e:
-            print(f"[ChirurgieDAO] Erreur patients_en_attente_chururgie: {e}")
+            print(f"[ChirurgieDAO] ERREUR patients_en_attente_chururgie: {e}")
+            import traceback; traceback.print_exc()
             return []
         finally:
             self.db.close()

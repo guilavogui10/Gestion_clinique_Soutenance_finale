@@ -6,7 +6,6 @@ from controllers.controleur_user import UserController
 from controllers.controleur_visite import VisiteControleur
 from controllers.controleur_permission import PermissionControleur
 from views.dashboard_view import DashboardView
-from views.graphiques import GrapheView
 from views.login_view import LoginView
 from views.otp_dialog import OTPDialog
 from views.shared.message_box import CustomMessageBox
@@ -127,11 +126,7 @@ class MainWindow(QMainWindow):
         # Connecter le signal de déconnexion
         self.dashboard.logout_requested.connect(self.deconnecter_utilisateur)
         
-        # Remplacement du contenu par les graphes
-        self.graphes = GrapheView()
-        self.dashboard.workspace_stack.addWidget(self.graphes)
-        self.dashboard.workspace_stack.setCurrentWidget(self.graphes)
-
+        # L'affichage par défaut du Dashboard est la page Accueil (index 0).
         self.stack.addWidget(self.dashboard)
         self.stack.setCurrentWidget(self.dashboard)
         self.showMaximized()

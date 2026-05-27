@@ -11,7 +11,7 @@ from PySide6.QtCore    import Qt, QSize, Signal, QTimer
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFrame, QLabel,
     QLineEdit, QPushButton, QTableWidget, QTableWidgetItem,
-    QHeaderView, QComboBox
+    QHeaderView, QComboBox, QMenu
 )
 
 from views.shared.theme_manager import theme_manager
@@ -21,9 +21,12 @@ from views.lunette.styles       import LunetteStyles
 class CommandesTable(QWidget):
     """Tableau des commandes de lunettes avec filtre et actions."""
 
-    view_clicked = Signal(object)
-    edit_clicked = Signal(object)
-    new_clicked  = Signal()
+    view_clicked                = Signal(object)
+    edit_clicked                = Signal(object)
+    new_clicked                 = Signal()
+    imprimer_info_clicked       = Signal(object)
+    imprimer_avec_resultat_clicked = Signal(object)
+    new_resultat_clicked        = Signal(object)
 
     COLUMNS = [
         ("Code",          80,  QHeaderView.ResizeToContents),
@@ -31,7 +34,7 @@ class CommandesTable(QWidget):
         ("Numéro Verre",  160, QHeaderView.Stretch),
         ("Date Commande", 120, QHeaderView.ResizeToContents),
         ("Statut",        130, QHeaderView.ResizeToContents),
-        ("Actions",       100, QHeaderView.Fixed),
+        ("Actions",       132, QHeaderView.Fixed),
     ]
 
     def __init__(self, ctrl, parent=None):
@@ -260,8 +263,10 @@ class CommandesTable(QWidget):
 
         btn_view = QPushButton(qta.icon("fa5s.eye",  color=c.get('info', '#3498db')), "")
         btn_edit = QPushButton(qta.icon("fa5s.edit", color=c.get('primary', '#2ecc71')), "")
+        btn_menu = QPushButton(qta.icon("fa5s.ellipsis-v", color=c.get('text_secondary', '#666')), "")
+
         style = LunetteStyles.button_table_action()
-        for btn in [btn_view, btn_edit]:
+        for btn in [btn_view, btn_edit, btn_menu]:
             btn.setFixedSize(28, 28)
             btn.setCursor(Qt.PointingHandCursor)
             btn.setStyleSheet(style)
@@ -269,7 +274,51 @@ class CommandesTable(QWidget):
 
         btn_view.clicked.connect(lambda _, cm=commande: self.view_clicked.emit(cm))
         btn_edit.clicked.connect(lambda _, cm=commande: self.edit_clicked.emit(cm))
+        btn_menu.clicked.connect(lambda _, cm=commande, b=btn_menu: self._show_commande_menu(cm, b))
         return w
+
+    def _show_commande_menu(self, commande, button):
+        c = theme_manager.colors()
+        menu = QMenu(self)
+        menu.setStyleSheet(f"""
+            QMenu {{
+                background: {c.get('bg_card', '#ffffff')};
+                border: 1px solid {c.get('border', '#e0e0e0')};
+                border-radius: 8px;
+                padding: 4px;
+            }}
+            QMenu::item {{
+                padding: 8px 16px;
+                border-radius: 6px;
+                font-size: 13px;
+                color: {c.get('text_primary', '#222')};
+            }}
+            QMenu::item:selected {{
+                background: {c.get('primary', '#2ecc71')}22;
+                color: {c.get('primary', '#2ecc71')};
+            }}
+        """)
+
+        act_imprimer = menu.addAction(
+            qta.icon("fa5s.print", color=c.get('primary', '#2ecc71')),
+            "Imprimer commande"
+        )
+        act_avec_resultat = menu.addAction(
+            qta.icon("fa5s.file-medical-alt", color=c.get('info', '#3498db')),
+            "Imprimer avec résultat"
+        )
+        menu.addSeparator()
+        act_new_resultat = menu.addAction(
+            qta.icon("fa5s.plus-circle", color=c.get('success', '#27ae60')),
+            "Nouveau résultat"
+        )
+
+        act_imprimer.triggered.connect(lambda: self.imprimer_info_clicked.emit(commande))
+        act_avec_resultat.triggered.connect(lambda: self.imprimer_avec_resultat_clicked.emit(commande))
+        act_new_resultat.triggered.connect(lambda: self.new_resultat_clicked.emit(commande))
+
+        pos = button.mapToGlobal(button.rect().bottomLeft())
+        menu.exec(pos)
 
     # =========================================================================
     # THÈME

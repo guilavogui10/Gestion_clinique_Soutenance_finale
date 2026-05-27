@@ -104,7 +104,8 @@ class PermissionHelper:
             self.code_utilisateur,
             self.role,
             action,
-            contexte
+            contexte,
+            est_responsable=self.est_responsable
         )
         
         if result["status"] != "success":
@@ -181,7 +182,8 @@ class PermissionHelper:
             self.code_utilisateur,
             self.role,
             action,
-            contexte
+            contexte,
+            est_responsable=self.est_responsable
         )
         
         if result["status"] != "success":
@@ -248,7 +250,8 @@ class PermissionHelper:
             self.code_utilisateur,
             self.role,
             action,
-            contexte
+            contexte,
+            est_responsable=self.est_responsable
         )
         
         if result["status"] == "success":

@@ -323,7 +323,7 @@ class ActesTableWidget(QWidget):
     def _imprimer_tous_actes(self):
         """Imprime tous les actes affichés dans le tableau"""
         from views.shared.message_box import CustomMessageBox
-        from services.historique_patient_pdf_service import HistoriquePatientPDFService
+        from services.pdf_patient.historique_pdf import HistoriquePatientPDFService
         from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
         
         if not self.actes or len(self.actes) == 0:
@@ -379,7 +379,7 @@ class ActesTableWidget(QWidget):
     def _imprimer_info_acte(self, acte):
         """Imprime les informations d'un acte"""
         from views.shared.message_box import CustomMessageBox
-        from services.historique_patient_pdf_service import HistoriquePatientPDFService
+        from services.pdf_patient.historique_pdf import HistoriquePatientPDFService
         from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
         
         code = acte.get('code_acte', 'N/A')
@@ -417,7 +417,7 @@ class ActesTableWidget(QWidget):
     def _imprimer_acte(self, acte):
         """Imprime un acte complet"""
         from views.shared.message_box import CustomMessageBox
-        from services.historique_patient_pdf_service import HistoriquePatientPDFService
+        from services.pdf_patient.historique_pdf import HistoriquePatientPDFService
         from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
         
         code = acte.get('code_acte', 'N/A')

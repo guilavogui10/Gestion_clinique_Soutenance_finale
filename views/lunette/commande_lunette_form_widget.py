@@ -1,4 +1,4 @@
-﻿"""
+"""
 Widget formulaire commande lunette — même pattern que consultation/chirurgie/examen.
 - Header avec boutons Annuler / Enregistrer (en haut à droite)
 - Une seule carte, 2 rangées, pas de scroll
@@ -294,22 +294,23 @@ class CommandeLunetteFormWidget(QWidget):
         row1.setSpacing(14)
         row1.setAlignment(Qt.AlignTop)
 
-        self.combo_consultation = QComboBox()
-        vb_c, self._wrap_consultation = self._make_field(
-            "Patient / Consultation *", self.combo_consultation,
+        self.edit_session = QLineEdit()
+        self.edit_session.setPlaceholderText("Code Session")
+        self.edit_session.setEnabled(False)
+        vb_s, _ = self._make_field(
+            "Code Session", self.edit_session, "fa5s.id-badge", "#95a5a6"
+        )
+        row1.addWidget(self._field_widget(vb_s), 1, Qt.AlignTop)
+
+        self.edit_code_acte = QLineEdit()
+        self.edit_code_acte.setPlaceholderText("Entrez le code de l'acte")
+        vb_acte, self._wrap_acte = self._make_field(
+            "Code Acte *", self.edit_code_acte,
             "fa5s.file-medical", "#e74c3c"
         )
-        self._err_consultation = self._err_label()
-        vb_c.addWidget(self._err_consultation)
-        row1.addWidget(self._field_widget(vb_c), 2, Qt.AlignTop)
-
-        self.edit_code_visite = QLineEdit()
-        self.edit_code_visite.setPlaceholderText("Auto")
-        self.edit_code_visite.setReadOnly(True)
-        vb_v, _ = self._make_field(
-            "Code Visite", self.edit_code_visite, "fa5s.link", "#95a5a6"
-        )
-        row1.addWidget(self._field_widget(vb_v), 1, Qt.AlignTop)
+        self._err_acte = self._err_label()
+        vb_acte.addWidget(self._err_acte)
+        row1.addWidget(self._field_widget(vb_acte), 2, Qt.AlignTop)
 
         self.edit_numero_cadre = QLineEdit()
         self.edit_numero_cadre.setPlaceholderText("Ex : CAD-2024-001")
@@ -444,45 +445,18 @@ class CommandeLunetteFormWidget(QWidget):
     # =========================================================================
 
     def _charger_combos(self):
-        self.combo_consultation.blockSignals(True)
-        self.combo_consultation.clear()
-        self.combo_consultation.addItem("— Sélectionner un patient —", None)
-
-        try:
-            self._consultations = (
-                self.ctrl.obtenir_patients_attente_lunette(self.code_session) or []
-            )
-        except Exception:
-            self._consultations = []
-
-        for row in self._consultations:
-            label = (
-                f"{row.get('code_consultation', '')}  |  "
-                f"{row.get('nom', '')} {row.get('prenom', '')}  |  "
-                f"{row.get('date_visite', '')}"
-            )
-            self.combo_consultation.addItem(label, {
-                "code_consultation": row.get("code_consultation", ""),
-                "code_visite":       row.get("code_visite", ""),
-                "code_acte":         row.get("code_acte", ""),
-            })
-
-        self.combo_consultation.blockSignals(False)
+        # La liste du personnel est deja chargée dans _init_ui
+        pass
 
     def _on_consultation_changed(self, idx: int):
-        data = self.combo_consultation.itemData(idx)
-        if data and isinstance(data, dict):
-            self.edit_code_visite.setText(data.get("code_visite", ""))
-        else:
-            self.edit_code_visite.clear()
-        self._valider_formulaire()
+        pass
 
     # =========================================================================
     # VALIDATION
     # =========================================================================
 
     def _connecter_validations(self):
-        self.combo_consultation.currentIndexChanged.connect(self._on_consultation_changed)
+        self.edit_code_acte.textChanged.connect(self._valider_formulaire)
         self.edit_prix.textChanged.connect(self._valider_formulaire)
         self.combo_personnel.currentIndexChanged.connect(self._valider_formulaire)
 
@@ -490,16 +464,16 @@ class CommandeLunetteFormWidget(QWidget):
         tout_valide = True
         c = theme_manager.colors()
 
-        # Validation consultation
-        data = self.combo_consultation.currentData()
-        if not data or not isinstance(data, dict):
-            self._apply_wrapper_style(self._wrap_consultation, c['danger'])
-            self._err_consultation.setText("Veuillez sélectionner un patient")
-            self._err_consultation.setVisible(True)
+        # Validation acte
+        acte = self.edit_code_acte.text().strip()
+        if not acte:
+            self._apply_wrapper_style(self._wrap_acte, c['danger'])
+            self._err_acte.setText("Veuillez renseigner le code acte")
+            self._err_acte.setVisible(True)
             tout_valide = False
         else:
-            self._apply_wrapper_style(self._wrap_consultation, c['border_focus'])
-            self._err_consultation.setVisible(False)
+            self._apply_wrapper_style(self._wrap_acte, c['border_focus'])
+            self._err_acte.setVisible(False)
 
         # Validation prix
         prix = self.edit_prix.text().strip()
@@ -535,15 +509,11 @@ class CommandeLunetteFormWidget(QWidget):
     # RECHARGER POUR PATIENT
     # =========================================================================
 
-    def recharger_pour_patient(self, code_consultation: str, code_session: str):
-        self.code_session  = code_session
-        self._commande_obj = None
-        self._charger_combos()
-        for i in range(self.combo_consultation.count()):
-            d = self.combo_consultation.itemData(i)
-            if isinstance(d, dict) and d.get("code_consultation") == code_consultation:
-                self.combo_consultation.setCurrentIndex(i)
-                break
+    def recharger_pour_patient(self, code_acte: str, code_session: str):
+        self.code_session = code_session
+        self._reinitialiser()
+        self.edit_session.setText(code_session or "")
+        self.edit_code_acte.setText(code_acte or "")
 
     # =========================================================================
     # ACTIONS BOUTONS
@@ -554,8 +524,8 @@ class CommandeLunetteFormWidget(QWidget):
 
     def _reinitialiser(self):
         self._commande_obj = None
-        self.combo_consultation.setCurrentIndex(0)
-        self.edit_code_visite.clear()
+        self.edit_session.clear()
+        self.edit_code_acte.clear()
         self.edit_numero_cadre.clear()
         self.edit_numero_verre.clear()
         self.edit_prix.clear()
@@ -567,13 +537,10 @@ class CommandeLunetteFormWidget(QWidget):
         self._charger_combos()
 
     def _soumettre(self):
-        data = self.combo_consultation.currentData()
-        if not data or not isinstance(data, dict):
-            CustomMessageBox("Validation", "Veuillez sélectionner un patient.", False, self).exec()
+        code_acte = self.edit_code_acte.text().strip()
+        if not code_acte:
+            CustomMessageBox("Validation", "Veuillez renseigner un code acte.", False, self).exec()
             return
-
-        code_acte   = data.get("code_acte", "")
-        code_visite = data.get("code_visite", "")
 
         qdate = self.edit_date_livraison.date()
         date_livraison = ddate(qdate.year(), qdate.month(), qdate.day())

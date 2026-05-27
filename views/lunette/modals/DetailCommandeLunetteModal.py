@@ -323,7 +323,7 @@ class DetailsCommandeLunetteModal(QDialog):
             lignes = [
                 ("Code Commande",     d.get("code",              "—")),
                 ("Code Consultation", d.get("code_consultation", "—")),
-                ("Code Visite",       d.get("code_visite",       "—")),
+                ("Code Acte",         d.get("code_acte",         "—")),
                 ("Code Session",      d.get("code_session",      "—")),
             ]
         ))

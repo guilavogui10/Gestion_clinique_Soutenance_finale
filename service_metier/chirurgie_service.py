@@ -368,3 +368,11 @@ class ChirurgieService:
     def codes_patients_session(self, code_session: str) -> list:
         """Liste les patients avec indicateur de chirurgie dans la session."""
         return self.dao.codes_patients_session(code_session)
+
+    def rechercher_entre_dates(self, code_session: str, date_debut, date_fin) -> list:
+        """Retourne les chirurgies entre deux dates (incluses) pour une session."""
+        try:
+            return self.dao.rechercher_entre_dates(code_session, date_debut, date_fin) or []
+        except Exception as e:
+            self.logger.error(f"Erreur rechercher_entre_dates chirurgie: {e}")
+            return []

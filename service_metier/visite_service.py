@@ -553,6 +553,125 @@ class VisiteService:
             self.logger.error(f"Erreur demarrer_consultation {code_visite}: {e}")
             return False, str(e)
 
+    def terminer_consultation(self, code_visite: str) -> tuple:
+        """
+        Termine la consultation : statut_patient → 'Consultation terminée'.
+        """
+        if not code_visite:
+            return False, "Code visite invalide"
+        try:
+            ok = self.dao.update_progression_visite(code_visite, "Consultation terminée")
+            if ok:
+                return True, "Consultation terminée avec succès"
+            return False, "Échec de la mise à jour du statut"
+        except Exception as e:
+            self.logger.error(f"Erreur terminer_consultation {code_visite}: {e}")
+            return False, str(e)
+
+    def demarrer_examen(self, code_visite: str) -> tuple:
+        """Démarre l'examen : statut_patient → 'En examen'."""
+        if not code_visite:
+            return False, "Code visite invalide"
+        try:
+            ok = self.dao.update_progression_visite(code_visite, "En examen")
+            if ok:
+                return True, "Examen démarré avec succès"
+            return False, "Échec de la mise à jour du statut"
+        except Exception as e:
+            self.logger.error(f"Erreur demarrer_examen {code_visite}: {e}")
+            return False, str(e)
+
+    def terminer_examen(self, code_visite: str) -> tuple:
+        """Termine l'examen : statut_patient → 'Examen terminé'."""
+        if not code_visite:
+            return False, "Code visite invalide"
+        try:
+            ok = self.dao.update_progression_visite(code_visite, "Examen terminé")
+            if ok:
+                return True, "Examen terminé avec succès"
+            return False, "Échec de la mise à jour du statut"
+        except Exception as e:
+            self.logger.error(f"Erreur terminer_examen {code_visite}: {e}")
+            return False, str(e)
+
+    def demarrer_chirurgie(self, code_visite: str) -> tuple:
+        """Démarre la chirurgie : statut_patient → 'En chirurgie'."""
+        if not code_visite:
+            return False, "Code visite invalide"
+        try:
+            ok = self.dao.update_progression_visite(code_visite, "En chirurgie")
+            if ok:
+                return True, "Chirurgie démarrée avec succès"
+            return False, "Échec de la mise à jour du statut"
+        except Exception as e:
+            self.logger.error(f"Erreur demarrer_chirurgie {code_visite}: {e}")
+            return False, str(e)
+
+    def terminer_chirurgie(self, code_visite: str) -> tuple:
+        """Termine la chirurgie : statut_patient → 'Chirurgie terminée'."""
+        if not code_visite:
+            return False, "Code visite invalide"
+        try:
+            ok = self.dao.update_progression_visite(code_visite, "Chirurgie terminée")
+            if ok:
+                return True, "Chirurgie terminée avec succès"
+            return False, "Échec de la mise à jour du statut"
+        except Exception as e:
+            self.logger.error(f"Erreur terminer_chirurgie {code_visite}: {e}")
+            return False, str(e)
+
+    def demarrer_prescription(self, code_visite: str) -> tuple:
+        """Démarre la pharmacie : statut_patient → 'En pharmacie'."""
+        if not code_visite:
+            return False, "Code visite invalide"
+        try:
+            ok = self.dao.update_progression_visite(code_visite, "En pharmacie")
+            if ok:
+                return True, "Prise en charge pharmacie démarrée"
+            return False, "Échec de la mise à jour du statut"
+        except Exception as e:
+            self.logger.error(f"Erreur demarrer_prescription {code_visite}: {e}")
+            return False, str(e)
+
+    def terminer_prescription(self, code_visite: str) -> tuple:
+        """Termine la pharmacie : statut_patient → 'Pharmacie terminée'."""
+        if not code_visite:
+            return False, "Code visite invalide"
+        try:
+            ok = self.dao.update_progression_visite(code_visite, "Pharmacie terminée")
+            if ok:
+                return True, "Pharmacie terminée avec succès"
+            return False, "Échec de la mise à jour du statut"
+        except Exception as e:
+            self.logger.error(f"Erreur terminer_prescription {code_visite}: {e}")
+            return False, str(e)
+
+    def demarrer_lunette(self, code_visite: str) -> tuple:
+        """Démarre le service optique : statut_patient → 'En lunette'."""
+        if not code_visite:
+            return False, "Code visite invalide"
+        try:
+            ok = self.dao.update_progression_visite(code_visite, "En lunette")
+            if ok:
+                return True, "Prise en charge optique démarrée"
+            return False, "Échec de la mise à jour du statut"
+        except Exception as e:
+            self.logger.error(f"Erreur demarrer_lunette {code_visite}: {e}")
+            return False, str(e)
+
+    def terminer_lunette(self, code_visite: str) -> tuple:
+        """Termine le service optique : statut_patient → 'Lunette terminée'."""
+        if not code_visite:
+            return False, "Code visite invalide"
+        try:
+            ok = self.dao.update_progression_visite(code_visite, "Lunette terminée")
+            if ok:
+                return True, "Service optique terminé avec succès"
+            return False, "Échec de la mise à jour du statut"
+        except Exception as e:
+            self.logger.error(f"Erreur terminer_lunette {code_visite}: {e}")
+            return False, str(e)
+
     def lister_visites_par_patient(self, code_patient: str) -> List[Visite]:
         """
         Récupère toutes les visites d'un patient.

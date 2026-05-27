@@ -29,6 +29,7 @@ class HistoriquePatientService:
         from service_metier.lunette_service import CommandeLunetteService
         from service_metier.prescription_service import PrescriptionService
         from service_metier.resultat_medical_service import ResultatMedicalService
+        from service_metier.facture_patient_service import FacturePatientService
         
         # Initialiser les services
         self.visite_service = VisiteService()
@@ -39,6 +40,7 @@ class HistoriquePatientService:
         self.lunette_service = CommandeLunetteService()
         self.prescription_service = PrescriptionService()
         self.resultat_service = ResultatMedicalService()
+        self.facture_service = FacturePatientService()
     
     # =========================================================================
     # NIVEAU 1 : VISITES
@@ -418,6 +420,19 @@ class HistoriquePatientService:
             return self.prescription_service.obtenir_prescription_complete(code_acte)
         except Exception as e:
             self.logger.error(f"Erreur get_prescription_complete: {e}")
+            return None
+    
+    def get_facture_par_visite(self, code_visite: str) -> Optional[Dict]:
+        """Récupère la facture associée à une visite et son statut"""
+        try:
+            facture = self.facture_service.obtenir_par_visite(code_visite)
+            if facture:
+                if hasattr(facture, 'to_dict'):
+                    return facture.to_dict()
+                return facture
+            return None
+        except Exception as e:
+            self.logger.error(f"Erreur get_facture_par_visite: {e}")
             return None
     
     def get_cabinet_info(self) -> Dict:

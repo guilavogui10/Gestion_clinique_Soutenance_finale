@@ -434,6 +434,7 @@ class GestionProduitsView(QWidget):
         
         try:
             from .statistiques_panier.components.product_stock_card import ProductStockCard
+            from PySide6.QtWidgets import QLabel
             
             # Vider la grille
             while self.grid_produits.count():
@@ -444,6 +445,11 @@ class GestionProduitsView(QWidget):
             produits = self.panier_ctrl.obtenir_stock_detaille(code_session, limite=30)
             
             if not produits:
+                lbl_vide = QLabel("Aucun produit en stock pour cette session.")
+                lbl_vide.setStyleSheet(
+                    "color: #888; font-size: 13px; padding: 20px;"
+                )
+                self.grid_produits.addWidget(lbl_vide, 0, 0)
                 return
             
             row = 0
@@ -461,13 +467,7 @@ class GestionProduitsView(QWidget):
                     col = 0
                     row += 1
         except Exception as e:
-            from PySide6.QtWidgets import QMessageBox
             self.logger.error(f"[GestionProduitsView] Erreur chargement stock: {e}", exc_info=True)
-            QMessageBox.warning(
-                self, 
-                "Erreur de chargement",
-                f"Impossible de charger le stock détaillé:\n{str(e)}"
-            )
 
     def _charger_mouvements_stock(self, code_session: str):
         """Charge les mouvements de stock"""

@@ -21,7 +21,7 @@ from typing import Dict, Optional, List, Tuple
 from data.dao_facture_patient import FacturePatientDAO
 from models.modele_facture_patient import FacturePatient
 from parametre.dao_param import CabinetDAO
-from services.facture_patient_pdf_service import FacturePatientPDFService
+from services.pdf_patient.facture_pdf import FacturePatientPDFService
 
 
 class FacturePatientService:

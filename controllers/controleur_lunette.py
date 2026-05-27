@@ -183,3 +183,43 @@ class CommandeLunetteControleur:
 
     def lister_personnel(self) -> list:
         return self.service.lister_personnel()
+
+    # =========================================================================
+    # RAPPORTS PDF LISTE COMMANDES
+    # =========================================================================
+
+    def generer_pdf_rapport_commandes_par_date(self, code_session):
+        """Récupère toutes les commandes de la session et génère un PDF groupé par date."""
+        from services.pdf_rapports.rapport_lunette import RapportLunettePDF
+        commandes = self.lister_commandes(code_session) or []
+        info_cabinet = self.get_cabinet_info()
+        details_list = []
+        for c in commandes:
+            detail = self.obtenir_commande_complete(c.code)
+            if detail:
+                details_list.append(detail)
+        return RapportLunettePDF.generer_pdf_commandes_par_date(details_list, info_cabinet)
+
+    def generer_pdf_rapport_date_precise_commandes(self, code_session, date_cible):
+        """Génère un PDF des commandes de lunettes pour une date précise."""
+        from services.pdf_rapports.rapport_lunette import RapportLunettePDF
+        commandes = self.rechercher_entre_dates(code_session, date_cible, date_cible) or []
+        info_cabinet = self.get_cabinet_info()
+        details_list = []
+        for c in commandes:
+            detail = self.obtenir_commande_complete(c.code)
+            if detail:
+                details_list.append(detail)
+        return RapportLunettePDF.generer_pdf_commandes_date_precise(details_list, date_cible, info_cabinet)
+
+    # =========================================================================
+    # WORKFLOW PATIENT
+    # =========================================================================
+
+    def demarrer_lunette(self, code_visite: str) -> tuple:
+        from service_metier.visite_service import VisiteService
+        return VisiteService().demarrer_lunette(code_visite)
+
+    def terminer_lunette(self, code_visite: str) -> tuple:
+        from service_metier.visite_service import VisiteService
+        return VisiteService().terminer_lunette(code_visite)

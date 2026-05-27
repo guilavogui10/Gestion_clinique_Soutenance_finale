@@ -29,13 +29,15 @@ class PatientLunetteCard(QFrame):
     """Carte d'un patient en attente de lunettes."""
 
     CARD_WIDTH  = 170
-    CARD_HEIGHT = 190
+    CARD_HEIGHT = 250
 
-    proceder_signal = Signal(object)   # émet le dict patient
+    proceder_signal      = Signal(object)   # émet le dict patient (Procéder / Fin lunette)
+    changer_statut_clicked = Signal(object) # émet le dict patient (Démarrer / Fin)
 
     def __init__(self, patient: dict, parent=None):
         super().__init__(parent)
         self.patient = patient
+        self._statut_patient = str(patient.get('statut_patient', '') or '')
         self.setFixedSize(self.CARD_WIDTH, self.CARD_HEIGHT)
         self.setCursor(Qt.PointingHandCursor)
 
@@ -48,8 +50,8 @@ class PatientLunetteCard(QFrame):
 
     def _setup_ui(self):
         root = QVBoxLayout(self)
-        root.setContentsMargins(10, 10, 10, 10)
-        root.setSpacing(6)
+        root.setContentsMargins(10, 8, 10, 8)
+        root.setSpacing(2)
 
         # Avatar
         self._avatar_lbl = QLabel()
@@ -64,6 +66,13 @@ class PatientLunetteCard(QFrame):
         self._lbl_nom.setWordWrap(True)
         root.addWidget(self._lbl_nom)
 
+        # Badge statut
+        statut = self._statut_patient.strip()
+        badge_text = "En optique" if statut == "En lunette" else "Attente Lunette"
+        self._badge_statut = QLabel(badge_text)
+        self._badge_statut.setAlignment(Qt.AlignCenter)
+        root.addWidget(self._badge_statut)
+
         # Badge code patient
         self._badge = QLabel(str(self.patient.get('code_patient', '')))
         self._badge.setAlignment(Qt.AlignCenter)
@@ -77,7 +86,7 @@ class PatientLunetteCard(QFrame):
 
         # Infos
         infos_layout = QVBoxLayout()
-        infos_layout.setSpacing(3)
+        infos_layout.setSpacing(1)
 
         champs = [
             ("fa5s.calendar-check", "Date",  self._fmt_date(self.patient.get('date_visite'))),
@@ -92,14 +101,25 @@ class PatientLunetteCard(QFrame):
             self._icon_rows.append((ic_lbl, icon_name, val_lbl))
 
         root.addLayout(infos_layout)
-        root.addStretch()
+        root.addSpacing(4)
 
-        # Bouton
+        # Bouton Procéder (ouvrir formulaire commande) — action principale
         self._btn = QPushButton(" Procéder")
-        self._btn.setFixedHeight(26)
+        self._btn.setFixedHeight(24)
         self._btn.setCursor(Qt.PointingHandCursor)
         self._btn.clicked.connect(lambda: self.proceder_signal.emit(self.patient))
         root.addWidget(self._btn)
+
+        root.addSpacing(3)
+
+        # Bouton Démarrer / Fin lunette — changement de statut
+        statut = self._statut_patient.strip()
+        btn_statut_label = " Fin lunette" if statut == "En lunette" else " Démarrer lunette"
+        self._btn_statut = QPushButton(btn_statut_label)
+        self._btn_statut.setFixedHeight(24)
+        self._btn_statut.setCursor(Qt.PointingHandCursor)
+        self._btn_statut.clicked.connect(lambda: self.changer_statut_clicked.emit(self.patient))
+        root.addWidget(self._btn_statut)
 
     def _build_info_row(self, icon_name: str, label: str, value: str):
         container = QWidget()
@@ -180,10 +200,47 @@ class PatientLunetteCard(QFrame):
                 f"font-size:9px; color:{c['text_secondary']}; border:none;"
             )
 
+        # Style bouton statut : vert = Démarrer, orange = Fin
+        statut = self._statut_patient.strip()
+        if statut == "En lunette":
+            self._btn_statut.setStyleSheet("""
+                QPushButton {
+                    background: #e67e22; color: white; border: none;
+                    border-radius: 6px; font-size: 10px; font-weight: 600;
+                }
+                QPushButton:hover { background: #ca6f1e; }
+            """)
+            self._btn_statut.setIcon(qta.icon("fa5s.stop-circle", color="white"))
+        else:
+            self._btn_statut.setStyleSheet("""
+                QPushButton {
+                    background: #27ae60; color: white; border: none;
+                    border-radius: 6px; font-size: 10px; font-weight: 600;
+                }
+                QPushButton:hover { background: #1e8449; }
+            """)
+            self._btn_statut.setIcon(qta.icon("fa5s.play-circle", color="white"))
+
         self._btn.setStyleSheet(LunetteStyles.button_primary())
         self._btn.setIcon(
             qta.icon("fa5s.glasses", color=c.get('text_inverse', '#ffffff'))
         )
+
+        # Style badge statut
+        if statut == "En lunette":
+            self._badge_statut.setStyleSheet("""
+                font-size: 9px; font-weight: 600;
+                color: #e67e22; background: #e67e2222;
+                border-radius: 6px; padding: 1px 5px;
+                border: 1px solid #e67e2255;
+            """)
+        else:
+            self._badge_statut.setStyleSheet(f"""
+                font-size: 9px; font-weight: 600;
+                color: {primary}; background: {primary}22;
+                border-radius: 6px; padding: 1px 5px;
+                border: 1px solid {primary}55;
+            """)
 
 
 # =============================================================================
@@ -193,8 +250,9 @@ class PatientLunetteCard(QFrame):
 class PatientsAttenteView(QWidget):
     """Grille scrollable de PatientLunetteCard."""
 
-    ouvrir_formulaire = Signal(str)   # émet code_consultation
-    commande_creee    = Signal()
+    ouvrir_formulaire    = Signal(str)    # émet code_acte
+    commande_creee       = Signal()
+    changer_statut_signal = Signal(object) # émet le dict patient
 
     NB_COLS = 5
 
@@ -291,13 +349,14 @@ class PatientsAttenteView(QWidget):
         for idx, patient in enumerate(patients):
             card = PatientLunetteCard(patient)
             card.proceder_signal.connect(self._on_proceder)
+            card.changer_statut_clicked.connect(self.changer_statut_signal.emit)
             self._grid.addWidget(card, idx // self.NB_COLS, idx % self.NB_COLS)
 
     # ─── Action ──────────────────────────────────────────────────────────
 
     def _on_proceder(self, patient):
-        code = patient.get('code_consultation', '') if isinstance(patient, dict) \
-               else getattr(patient, 'code_consultation', '')
+        code = patient.get('code_acte', '') if isinstance(patient, dict) \
+               else getattr(patient, 'code_acte', '')
         self.ouvrir_formulaire.emit(code)
 
     # ─── Thème ───────────────────────────────────────────────────────────
@@ -342,7 +401,7 @@ class PatientsAttenteView(QWidget):
 class PatientsAttenteDialog(QDialog):
     """QDialog encapsulant PatientsAttenteView pour l'ouverture rapide."""
 
-    ouvrir_nouveau_tab = Signal(str)
+    ouvrir_nouveau_tab = Signal(str)   # émet code_acte pour basculer sur l'onglet Nouveau
 
     def __init__(self, ctrl, code_session: str, parent=None):
         super().__init__(parent)
@@ -394,8 +453,8 @@ class PatientsAttenteDialog(QDialog):
         self._view.ouvrir_formulaire.connect(self._on_ouvrir_formulaire)
         root.addWidget(self._view, 1)
 
-    def _on_ouvrir_formulaire(self, code_consultation: str):
-        self.ouvrir_nouveau_tab.emit(code_consultation)
+    def _on_ouvrir_formulaire(self, code_acte: str):
+        self.ouvrir_nouveau_tab.emit(code_acte)
         self.accept()
 
     def _apply_theme(self):

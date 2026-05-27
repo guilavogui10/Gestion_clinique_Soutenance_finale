@@ -365,6 +365,46 @@ class HistoriquePatientControleur:
         except Exception as e:
             self.logger.error(f"Erreur get_prescription_complete: {e}")
             return None
+            
+    def get_facture_par_visite(self, code_visite: str) -> Optional[Dict]:
+        """
+        Récupère la facture associée à une visite et son statut
+        
+        Args:
+            code_visite: Code de la visite
+            
+        Returns:
+            Dictionnaire avec les détails de la facture ou None
+        """
+        if not code_visite or not code_visite.strip():
+            self.logger.warning("Code visite vide")
+            return None
+        
+        try:
+            return self.service.get_facture_par_visite(code_visite.strip())
+        except Exception as e:
+            self.logger.error(f"Erreur get_facture_par_visite: {e}")
+            return None
+    
+    def generer_facture_pdf(self, code_facture: str, chemin_fichier: str) -> tuple[bool, str]:
+        """
+        Génère le PDF de facture patient avec le détail des services.
+        
+        Args:
+            code_facture: Code de la facture
+            chemin_fichier: Chemin de destination
+            
+        Returns:
+            (succès, message)
+        """
+        if not code_facture or not code_facture.strip():
+            return False, "Le code facture est obligatoire"
+            
+        try:
+            return self.service.facture_service.generer_facture_pdf(code_facture.strip(), chemin_fichier)
+        except Exception as e:
+            self.logger.error(f"Erreur generer_facture_pdf: {e}")
+            return False, f"Erreur lors de la génération de la facture: {str(e)}"
     
     def get_cabinet_info(self) -> Dict:
         """

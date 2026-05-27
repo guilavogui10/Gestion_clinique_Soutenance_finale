@@ -130,6 +130,10 @@ class PrescriptionProduitDAO:
             conn.commit()
             return True
 
+        except ValueError as ve:
+            self.logger.warning(f"[PrescriptionProduitDAO] Erreur FEFO: {ve}")
+            conn.rollback()
+            raise ve
         except Exception as e:
             self.logger.error(f"[PrescriptionProduitDAO] Erreur ajouter: {e}", exc_info=True)
             conn.rollback()
@@ -184,6 +188,10 @@ class PrescriptionProduitDAO:
             conn.commit()
             return True
 
+        except ValueError as ve:
+            self.logger.warning(f"[PanierPrescriptionProduitDAO] Erreur FEFO (modifier): {ve}")
+            conn.rollback()
+            raise ve
         except Exception as e:
             print(f"[PanierPrescriptionProduitDAO] Erreur modifier: {e}")
             conn.rollback()
@@ -500,22 +508,23 @@ class PrescriptionProduitDAO:
         try:
             cursor = conn.cursor(DictCursor)
             cursor.execute("""
-                SELECT
-                    am.code_acte        AS code_acte,
+                SELECT DISTINCT
                     v.code_visite,
                     v.date_visite,
                     v.statut_patient,
-                    c.code            AS code_consultation,
+                    am.code_acte        AS code_acte,
+                    c.code              AS code_consultation,
                     c.date_consultation,
                     p.code_patient,
                     p.nom,
                     p.prenom,
                     p.telephone
                 FROM visite v
-                INNER JOIN patients     p  ON v.code_patient = p.code_patient
-                INNER JOIN consultation c  ON v.code_visite  = c.code_visite
-                INNER JOIN acte_medical am ON am.code_consultation = c.code
-                LEFT  JOIN prescription_produit pp ON pp.code_acte = am.code_acte
+                INNER JOIN patients     p   ON v.code_patient  = p.code_patient
+                INNER JOIN acte_visite  av  ON av.code_visite  = v.code_visite
+                INNER JOIN acte_medical am  ON am.code_acte    = av.code_acte
+                                           AND am.type_acte    = 'prescription'
+                LEFT  JOIN consultation c   ON c.code          = am.code_consultation
                 WHERE v.code_session   = %s
                   AND v.statut_patient IN ('Attente pharmacie', 'En pharmacie')
                 ORDER BY v.urgent DESC, v.date_visite ASC
@@ -760,14 +769,13 @@ class PrescriptionProduitDAO:
         try:
             cursor = conn.cursor(DictCursor)
             cursor.execute("""
-                SELECT COUNT(*) AS total
+                SELECT COUNT(DISTINCT v.code_visite) AS total
                 FROM visite v
-                LEFT JOIN consultation c   ON c.code_visite = v.code_visite
-                LEFT JOIN acte_medical am  ON am.code_consultation = c.code
-                LEFT JOIN prescription_produit pp ON pp.code_acte = am.code_acte
+                INNER JOIN acte_visite  av  ON av.code_visite = v.code_visite
+                INNER JOIN acte_medical am  ON am.code_acte   = av.code_acte
+                                           AND am.type_acte   = 'prescription'
                 WHERE v.code_session   = %s
-                  AND v.statut_patient = 'Attente pharmacie'
-                  AND pp.code_prescription IS NULL
+                  AND v.statut_patient IN ('Attente pharmacie', 'En pharmacie')
             """, (code_session,))
             row = cursor.fetchone()
             return int(row['total']) if row else 0
@@ -979,7 +987,7 @@ class PrescriptionProduitDAO:
                 ORDER BY pf.date_expiration ASC
             """.format(
                 sorties_validees=self._sous_requete_sorties_lot_validees()
-            ), (code_produit, code_session, code_session))
+            ), (code_session, code_produit, code_session))
             lots = cursor.fetchall()
             if not lots:
                 return []
@@ -1044,7 +1052,7 @@ class PrescriptionProduitDAO:
                 LIMIT 1
             """.format(
                 sorties_validees=self._sous_requete_sorties_lot_validees()
-            ), (code_produit, code_session, code_session, quantite))
+            ), (code_session, code_produit, code_session, quantite))
             row = cursor.fetchone()
             if not row:
                 return None

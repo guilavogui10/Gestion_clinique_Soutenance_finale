@@ -24,7 +24,7 @@ from datetime import datetime
 from data.dao_patient import PatientDao
 from models.model_patient import Patient
 from parametre.dao_param import CabinetDAO
-from services.patient_pdf_service import PatientPDFService
+from services.pdf_patient.patient_pdf import PatientPDFService
 
 
 class PatientService:

@@ -18,7 +18,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
     QHeaderView,
-    QMessageBox
 )
 
 from views.shared.theme_manager import theme_manager
@@ -30,6 +29,9 @@ class ExamensTable(QWidget):
     edit_clicked = Signal(object)
     delete_clicked = Signal(object)
     new_clicked = Signal()
+    imprimer_info_clicked = Signal(object)
+    imprimer_avec_resultat_clicked = Signal(object)
+    new_resultat_clicked = Signal(object)
 
     def __init__(self, controleur, parent=None):
         super().__init__(parent)
@@ -555,7 +557,7 @@ class ExamensTable(QWidget):
         actions = [
             ("fa5s.eye", c["primary"], c["primary_light"], "view"),
             ("fa5s.pen", c["secondary"], c["info_bg"], "edit"),
-            ("fa5s.trash", c["danger"], c["danger_bg"], "delete"),
+            ("fa5s.ellipsis-v", c["text_secondary"], c["hover"], "menu"),
         ]
 
         for icon_name, icon_color, bg_color, action_name in actions:
@@ -580,23 +582,82 @@ class ExamensTable(QWidget):
                 btn.clicked.connect(lambda checked=False, ex=examen: self.view_clicked.emit(ex))
             elif action_name == "edit":
                 btn.clicked.connect(lambda checked=False, ex=examen: self.edit_clicked.emit(ex))
-            elif action_name == "delete":
-                btn.clicked.connect(lambda checked=False, ex=examen: self._confirm_delete(ex))
+            elif action_name == "menu":
+                btn.clicked.connect(lambda checked=False, ex=examen, b=btn: self._show_examen_menu(ex, b))
             layout.addWidget(btn)
 
         return widget
 
-    def _confirm_delete(self, examen):
-        """Confirme et supprime un examen"""
-        reply = QMessageBox.question(
-            self,
-            "Confirmation",
-            f"Voulez-vous vraiment supprimer l'examen {examen.code} ?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
+    def _show_examen_menu(self, examen, button):
+        """Affiche le menu contextuel pour un examen."""
+        from PySide6.QtWidgets import QMenu
+        c = theme_manager.colors()
+
+        menu = QMenu(self)
+        menu.setStyleSheet(f"""
+            QMenu {{
+                background: white;
+                border: 1px solid {c['border']};
+                border-radius: 8px;
+                padding: 6px 0;
+            }}
+            QMenu::item {{
+                padding: 10px 20px;
+                color: {c['text_primary']};
+                font-size: 13px;
+                font-weight: 500;
+            }}
+            QMenu::item:selected {{
+                background: {c['primary_light']};
+                color: {c['primary']};
+                border-radius: 4px;
+            }}
+            QMenu::separator {{
+                height: 1px;
+                background: {c['border_light']};
+                margin: 4px 8px;
+            }}
+        """)
+
+        action_info = menu.addAction(
+            qta.icon("fa5s.print", color=c['primary']),
+            "  Imprimer informations"
         )
-        
-        if reply == QMessageBox.Yes:
+        action_info.triggered.connect(lambda: self.imprimer_info_clicked.emit(examen))
+
+        menu.addSeparator()
+
+        action_avec_resultat = menu.addAction(
+            qta.icon("fa5s.file-medical-alt", color=c['success']),
+            "  Imprimer avec résultat"
+        )
+        action_avec_resultat.triggered.connect(lambda: self.imprimer_avec_resultat_clicked.emit(examen))
+
+        menu.addSeparator()
+
+        action_new_resultat = menu.addAction(
+            qta.icon("fa5s.plus-circle", color=c['secondary']),
+            "  Nouveau résultat"
+        )
+        action_new_resultat.triggered.connect(lambda: self.new_resultat_clicked.emit(examen))
+
+        menu.addSeparator()
+
+        action_delete = menu.addAction(
+            qta.icon("fa5s.trash", color=c['danger']),
+            "  Supprimer"
+        )
+        action_delete.triggered.connect(lambda: self._confirm_and_delete(examen))
+
+        menu.exec(button.mapToGlobal(button.rect().bottomLeft()))
+
+    def _confirm_and_delete(self, examen):
+        """Confirmation via CustomMessageBox avant émission du signal delete."""
+        if CustomMessageBox.confirm(
+            self,
+            "Confirmation de suppression",
+            f"Voulez-vous vraiment supprimer l'examen {examen.code} ?"
+        ):
             self.delete_clicked.emit(examen)
 
     def _clear_layout(self, layout):

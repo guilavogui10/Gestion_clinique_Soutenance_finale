@@ -92,6 +92,8 @@ class CommandeLunetteView(QWidget):
         self.quick_actions.recherche_clicked.connect(self._on_recherche)
         self.quick_actions.rapports_clicked.connect(self._on_rapports)
         self.quick_actions.historique_clicked.connect(self._on_historique)
+        self.quick_actions.imprimer_tous_rapports_clicked.connect(self._on_imprimer_tous_rapports)
+        self.quick_actions.imprimer_rapport_date_clicked.connect(self._on_imprimer_rapport_par_date)
         mf_lay.addWidget(self.quick_actions)
 
         main_layout.addWidget(main_frame)
@@ -227,24 +229,54 @@ class CommandeLunetteView(QWidget):
         self.table.view_clicked.connect(self._on_view_commande)
         self.table.edit_clicked.connect(self._on_edit_commande)
         self.table.new_clicked.connect(self._on_new_commande)
+        self.table.imprimer_info_clicked.connect(self._on_imprimer_info_lunette)
+        self.table.imprimer_avec_resultat_clicked.connect(self._on_imprimer_avec_resultat_lunette)
+        self.table.new_resultat_clicked.connect(self._on_new_resultat_lunette)
         lay.addWidget(self.table)
         return tab
 
     def _create_attente_tab(self) -> QWidget:
+        from PySide6.QtWidgets import QHBoxLayout
         tab = QWidget()
         tab.setStyleSheet("background:white;")
         lay = QVBoxLayout(tab)
         lay.setContentsMargins(12, 8, 12, 12)
-        lay.setSpacing(0)
+        lay.setSpacing(8)
+
+        # Barre d'actions rapides
+        toolbar = QHBoxLayout()
+        toolbar.setSpacing(8)
+        toolbar.addStretch()
+
+        btn_acte = qta.icon("fa5s.arrow-right", color="#ffffff")
+        from PySide6.QtWidgets import QPushButton as _QPB
+        self._btn_aller_acte = _QPB(btn_acte, "  Aller sur acte médical")
+        self._btn_aller_acte.setFixedHeight(32)
+        self._btn_aller_acte.setCursor(Qt.PointingHandCursor)
+        self._btn_aller_acte.setStyleSheet("""
+            QPushButton {
+                background: #2563EB;
+                color: #ffffff;
+                border: none;
+                border-radius: 6px;
+                padding: 0 14px;
+                font-size: 13px;
+                font-weight: 600;
+            }
+            QPushButton:hover  { background: #1D4ED8; }
+            QPushButton:pressed{ background: #1E40AF; }
+        """)
+        self._btn_aller_acte.clicked.connect(self._aller_sur_acte_medical)
+        toolbar.addWidget(self._btn_aller_acte)
+        lay.addLayout(toolbar)
 
         self.vue_attente = PatientsAttenteView(
             ctrl         = self.ctrl,
             code_session = self.code_session or "",
             parent       = tab,
         )
-        self.vue_attente.ouvrir_formulaire.connect(
-            self._ouvrir_nouveau_avec_consultation
-        )
+        self.vue_attente.ouvrir_formulaire.connect(self._ouvrir_nouveau_avec_acte)
+        self.vue_attente.changer_statut_signal.connect(self._on_changer_statut_patient_lunette)
         lay.addWidget(self.vue_attente)
         return tab
 
@@ -343,16 +375,217 @@ class CommandeLunetteView(QWidget):
     def _on_historique(self):
         self.tabs.setCurrentIndex(4)
 
-    def _ouvrir_nouveau_avec_consultation(self, code_consultation: str):
+    def _on_imprimer_tous_rapports(self):
+        from views.shared.message_box import CustomMessageBox
+        from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+        if not self.code_session:
+            CustomMessageBox("Avertissement", "Aucune session active.", "warning", parent=self).exec()
+            return
+        try:
+            pdf_path = self.ctrl.generer_pdf_rapport_commandes_par_date(self.code_session)
+            ApercuPDFDialog(pdf_path, "Rapport toutes commandes lunettes", self).exec()
+        except Exception as e:
+            CustomMessageBox("Erreur", f"Erreur lors de la génération du PDF :\n{e}", "error", parent=self).exec()
+
+    def _on_imprimer_rapport_par_date(self):
+        from views.shared.message_box import CustomMessageBox
+        from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+        if not self.code_session:
+            CustomMessageBox("Avertissement", "Aucune session active.", "warning", parent=self).exec()
+            return
+        dlg = _DateSelectDialog(self)
+        if dlg.exec() != QDialog.Accepted or dlg.date_selectionnee is None:
+            return
+        try:
+            pdf_path = self.ctrl.generer_pdf_rapport_date_precise_commandes(
+                self.code_session, dlg.date_selectionnee
+            )
+            ApercuPDFDialog(pdf_path, f"Rapport lunettes du {dlg.date_selectionnee}", self).exec()
+        except Exception as e:
+            CustomMessageBox("Erreur", f"Erreur lors de la génération du PDF :\n{e}", "error", parent=self).exec()
+
+    def _ouvrir_nouveau_avec_acte(self, code_acte: str):
         self.tabs.setCurrentIndex(1)
         if hasattr(self, 'form_widget'):
             self.form_widget.recharger_pour_patient(
-                code_consultation, self.code_session or ""
+                code_acte, self.code_session or ""
             )
 
     def _on_commande_saved(self):
         self.charger_donnees()
         self.tabs.setCurrentIndex(2)
+
+    # =========================================================================
+    # HELPERS
+    # =========================================================================
+
+    def _get_dashboard(self):
+        widget = self.parent()
+        while widget is not None:
+            if type(widget).__name__ == "DashboardView":
+                return widget
+            widget = widget.parent() if hasattr(widget, "parent") else None
+        return None
+
+    def _aller_sur_acte_medical(self):
+        """Navigue vers la page acte médical dans le dashboard."""
+        dashboard = self._get_dashboard()
+        if dashboard and hasattr(dashboard, "workspace_stack") and hasattr(dashboard, "page_actes"):
+            dashboard.workspace_stack.setCurrentWidget(dashboard.page_actes)
+
+    # =========================================================================
+    # WORKFLOW STATUT PATIENT
+    # =========================================================================
+
+    def _on_changer_statut_patient_lunette(self, patient):
+        from views.shared.message_box import CustomMessageBox
+        from PySide6.QtWidgets import QDialog
+        if isinstance(patient, dict):
+            code_visite    = patient.get("code_visite", "")
+            statut_patient = (patient.get("statut_patient", "") or "").strip()
+            nom            = patient.get("nom", "")
+            prenom         = patient.get("prenom", "")
+            code_acte      = patient.get("code_acte", "")
+        else:
+            code_visite    = getattr(patient, "code_visite", "")
+            statut_patient = (getattr(patient, "statut_patient", "") or "").strip()
+            nom            = getattr(patient, "nom", "")
+            prenom         = getattr(patient, "prenom", "")
+            code_acte      = getattr(patient, "code_acte", "")
+
+        nom_complet = f"{nom} {prenom}".strip() or "ce patient"
+
+        if statut_patient != "En lunette":
+            reponse = CustomMessageBox(
+                "Démarrer optique",
+                f"Confirmer la prise en charge de {nom_complet} au service optique ?",
+                "info", show_cancel=True, parent=self
+            ).exec()
+            if reponse != QDialog.Accepted:
+                return
+            ok, msg = self.ctrl.demarrer_lunette(code_visite)
+            if ok:
+                CustomMessageBox("Succès", msg, "success", parent=self).exec()
+                self.vue_attente.charger_patients()
+                self.charger_donnees()
+            else:
+                CustomMessageBox("Erreur", msg, "error", parent=self).exec()
+        else:
+            reponse = CustomMessageBox(
+                "Fin optique",
+                f"Enregistrer la commande de lunettes pour {nom_complet} ?",
+                "info", show_cancel=True, parent=self
+            ).exec()
+            if reponse != QDialog.Accepted:
+                return
+            self._ouvrir_nouveau_avec_acte(code_acte)
+
+    # =========================================================================
+    # PDF HANDLERS
+    # =========================================================================
+
+    def _on_imprimer_info_lunette(self, commande):
+        from views.shared.message_box import CustomMessageBox
+        from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+        from services.pdf_actes.lunette_pdf import LunettePDF
+        code = getattr(commande, 'code', None) or (commande.get('code') if isinstance(commande, dict) else '')
+        try:
+            commande_complete = self.ctrl.obtenir_commande_complete(code) if code else {}
+            if not commande_complete:
+                commande_complete = commande if isinstance(commande, dict) else {}
+            try:
+                info_cabinet = self.ctrl.get_cabinet_info()
+            except Exception:
+                info_cabinet = {}
+            pdf_path = LunettePDF.generer_pdf_lunette(
+                commande_complete, info_cabinet, None
+            )
+            ApercuPDFDialog(pdf_path, f"Commande lunette — {code}", self).exec()
+        except Exception as e:
+            CustomMessageBox("Erreur", f"Erreur lors de la génération du PDF :\n{e}", "error", parent=self).exec()
+
+    def _on_imprimer_avec_resultat_lunette(self, commande):
+        from views.shared.message_box import CustomMessageBox
+        from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+        from services.pdf_actes.lunette_pdf import LunettePDF
+        code     = getattr(commande, 'code', None) or (commande.get('code') if isinstance(commande, dict) else '')
+        code_acte = getattr(commande, 'code_acte', None) or (commande.get('code_acte') if isinstance(commande, dict) else '')
+        try:
+            commande_complete = self.ctrl.obtenir_commande_complete(code) if code else {}
+            if not commande_complete:
+                commande_complete = commande if isinstance(commande, dict) else {}
+            try:
+                info_cabinet = self.ctrl.get_cabinet_info()
+            except Exception:
+                info_cabinet = {}
+
+            resultat_data = {}
+            dashboard = self._get_dashboard()
+            if dashboard and hasattr(dashboard, "page_resultats"):
+                try:
+                    resultat_ctrl = dashboard.page_resultats.ctrl
+                    if code_acte:
+                        resultats = resultat_ctrl.lister_par_acte(code_acte) or []
+                        if resultats:
+                            premier = resultats[0]
+                            id_resultat = getattr(premier, "id_resultat", None) or (
+                                premier.get("id_resultat") if isinstance(premier, dict) else None
+                            )
+                            if id_resultat:
+                                resultat_data = resultat_ctrl.get_detail_resultat(id_resultat) or {}
+                except Exception:
+                    pass
+
+            if not resultat_data:
+                CustomMessageBox(
+                    "Information",
+                    "Aucun résultat médical trouvé pour cette commande de lunettes.",
+                    "info", parent=self
+                ).exec()
+                return
+
+            fichier_bytes = None
+            type_fichier_res = resultat_data.get('type_fichier', '') if isinstance(resultat_data, dict) else ''
+            if type_fichier_res == 'image' and dashboard and hasattr(dashboard, "page_resultats"):
+                try:
+                    id_res = resultat_data.get('id_resultat') if isinstance(resultat_data, dict) else None
+                    if id_res:
+                        fichier_bytes = dashboard.page_resultats.ctrl.lire_fichier_bytes(id_res)
+                except Exception:
+                    pass
+
+            pdf_path = LunettePDF.generer_pdf_lunette_avec_resultat(
+                commande_complete, resultat_data, info_cabinet, None,
+                fichier_bytes=fichier_bytes, type_fichier_res=type_fichier_res
+            )
+            ApercuPDFDialog(pdf_path, f"Lunette avec résultat — {code}", self).exec()
+        except Exception as e:
+            CustomMessageBox("Erreur", f"Erreur lors de la génération du PDF :\n{e}", "error", parent=self).exec()
+
+    def _on_new_resultat_lunette(self, commande):
+        from PySide6.QtCore import QTimer
+        dashboard = self._get_dashboard()
+        if not dashboard or not hasattr(dashboard, "page_resultats"):
+            return
+        page_res = dashboard.page_resultats
+        dashboard.workspace_stack.setCurrentWidget(page_res)
+        page_res.tabs.setCurrentIndex(5)
+        code_acte = getattr(commande, 'code_acte', None) or (
+            commande.get('code_acte') if isinstance(commande, dict) else ''
+        ) or ''
+        if hasattr(page_res, "n_type_source") and hasattr(page_res, "n_code_source"):
+            def _select_code():
+                try:
+                    idx_type = page_res.n_type_source.findText("lunette")
+                    if idx_type >= 0:
+                        page_res.n_type_source.setCurrentIndex(idx_type)
+                    if code_acte:
+                        idx_code = page_res.n_code_source.findText(code_acte)
+                        if idx_code >= 0:
+                            page_res.n_code_source.setCurrentIndex(idx_code)
+                except Exception:
+                    pass
+            QTimer.singleShot(300, _select_code)
 
     # =========================================================================
     # STYLE
@@ -466,5 +699,36 @@ class _ResumeSessionDialog(QDialog):
         btns = QDialogButtonBox(QDialogButtonBox.Close)
         btns.rejected.connect(self.reject)
         lay.addWidget(btns)
+
+
+class _DateSelectDialog(QDialog):
+    """Sélection d'une date pour le rapport lunettes."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.date_selectionnee = None
+        self.setWindowTitle("Choisir une date")
+        self.setMinimumWidth(300)
+        self._init_ui()
+
+    def _init_ui(self):
+        lay = QVBoxLayout(self)
+        lay.setSpacing(12)
+
+        form = QFormLayout()
+        self.date_edit = QDateEdit(QDate.currentDate())
+        self.date_edit.setCalendarPopup(True)
+        self.date_edit.setDisplayFormat("dd/MM/yyyy")
+        form.addRow("Date :", self.date_edit)
+        lay.addLayout(form)
+
+        btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        btns.accepted.connect(self._valider)
+        btns.rejected.connect(self.reject)
+        lay.addWidget(btns)
+
+    def _valider(self):
+        self.date_selectionnee = self.date_edit.date().toPython()
+        self.accept()
 
 

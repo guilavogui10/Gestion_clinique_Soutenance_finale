@@ -36,7 +36,11 @@ class PrescriptionValidationHandler:
             return
 
         if self.ctrl:
-            valide, _ = self.ctrl.valider_quantite(valeur)
+            try:
+                qte = int(valeur)
+                valide = qte > 0
+            except ValueError:
+                valide = False
             self._appliquer_style(input_widget, valide)
 
     # =========================================================================

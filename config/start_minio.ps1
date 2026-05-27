@@ -10,7 +10,6 @@ Write-Host ""
 # Configuration
 $MINIO_ROOT_USER = "minioadmin"
 $MINIO_ROOT_PASSWORD = "minioadmin"
-$MINIO_DATA_DIR = "$PSScriptRoot\..\minio_data"
 $MINIO_API_PORT = "9000"
 $MINIO_CONSOLE_PORT = "9001"
 
@@ -35,7 +34,7 @@ function Test-MinIOActive {
 }
 
 # Verifier si MinIO est installe
-Write-Host "[1/4] Verification de l'installation de MinIO..." -ForegroundColor Yellow
+Write-Host "[1/5] Verification de l'installation de MinIO..." -ForegroundColor Yellow
 if (-not (Test-MinIOInstalled)) {
     Write-Host "X MinIO n'est pas installe sur ce systeme" -ForegroundColor Red
     Write-Host ""
@@ -48,62 +47,70 @@ if (-not (Test-MinIOInstalled)) {
 }
 Write-Host "OK MinIO est installe" -ForegroundColor Green
 
-# Verifier si MinIO est deja actif
+# Arreter tout processus MinIO existant (peu importe son dossier de donnees)
 Write-Host ""
-Write-Host "[2/4] Verification de l'etat de MinIO..." -ForegroundColor Yellow
-if (Test-MinIOActive) {
-    Write-Host "OK MinIO est deja actif" -ForegroundColor Green
+Write-Host "[2/5] Arret de tout MinIO existant..." -ForegroundColor Yellow
+$minioProcess = Get-Process -Name "minio" -ErrorAction SilentlyContinue
+if ($minioProcess) {
+    Stop-Process -Name "minio" -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
+    Write-Host "OK Ancien processus MinIO arrete" -ForegroundColor Green
 } else {
-    Write-Host "-> Demarrage du serveur MinIO..." -ForegroundColor Yellow
-    
-    # Creer le repertoire de donnees s'il n'existe pas
-    if (-not (Test-Path $MINIO_DATA_DIR)) {
-        New-Item -ItemType Directory -Path $MINIO_DATA_DIR -Force | Out-Null
-        Write-Host "OK Repertoire de donnees cree: $MINIO_DATA_DIR" -ForegroundColor Green
+    Write-Host "OK Aucun processus MinIO en cours" -ForegroundColor Green
+}
+
+# Demarrer MinIO depuis le dossier de donnees du projet
+Write-Host ""
+Write-Host "[3/5] Demarrage de MinIO (dossier projet)..." -ForegroundColor Yellow
+
+# Construire le chemin a partir du dossier du script (fonctionne sur toute machine)
+$dataDir = Join-Path $PSScriptRoot "..\minio_data"
+if (-not (Test-Path $dataDir)) {
+    New-Item -ItemType Directory -Path $dataDir -Force | Out-Null
+    Write-Host "OK Repertoire de donnees cree: $dataDir" -ForegroundColor Green
+}
+Write-Host "   Dossier de donnees : $dataDir" -ForegroundColor Gray
+
+# Definir les variables d'environnement
+$env:MINIO_ROOT_USER = $MINIO_ROOT_USER
+$env:MINIO_ROOT_PASSWORD = $MINIO_ROOT_PASSWORD
+
+# Demarrer MinIO en arriere-plan avec le bon dossier
+$minioJob = Start-Job -ScriptBlock {
+    param($dataDir, $apiPort, $consolePort, $rootUser, $rootPassword)
+    $env:MINIO_ROOT_USER = $rootUser
+    $env:MINIO_ROOT_PASSWORD = $rootPassword
+    minio server $dataDir --address ":$apiPort" --console-address ":$consolePort"
+} -ArgumentList $dataDir, $MINIO_API_PORT, $MINIO_CONSOLE_PORT, $MINIO_ROOT_USER, $MINIO_ROOT_PASSWORD
+
+# Attendre que MinIO soit pret (max 30 secondes)
+$maxAttempts = 60
+$attempt = 0
+$minioReady = $false
+
+while ($attempt -lt $maxAttempts -and -not $minioReady) {
+    Start-Sleep -Milliseconds 500
+    $attempt++
+    if (Test-MinIOActive) {
+        $minioReady = $true
     }
-    
-    # Definir les variables d'environnement
-    $env:MINIO_ROOT_USER = $MINIO_ROOT_USER
-    $env:MINIO_ROOT_PASSWORD = $MINIO_ROOT_PASSWORD
-    
-    # Demarrer MinIO en arriere-plan
-    $minioJob = Start-Job -ScriptBlock {
-        param($dataDir, $apiPort, $consolePort, $rootUser, $rootPassword)
-        $env:MINIO_ROOT_USER = $rootUser
-        $env:MINIO_ROOT_PASSWORD = $rootPassword
-        minio server $dataDir --address ":$apiPort" --console-address ":$consolePort"
-    } -ArgumentList $MINIO_DATA_DIR, $MINIO_API_PORT, $MINIO_CONSOLE_PORT, $MINIO_ROOT_USER, $MINIO_ROOT_PASSWORD
-    
-    # Attendre que MinIO soit pret (max 30 secondes)
-    $maxAttempts = 60
-    $attempt = 0
-    $minioReady = $false
-    
-    while ($attempt -lt $maxAttempts -and -not $minioReady) {
-        Start-Sleep -Milliseconds 500
-        $attempt++
-        
-        if (Test-MinIOActive) {
-            $minioReady = $true
-        }
-    }
-    
-    if ($minioReady) {
-        Write-Host "OK Serveur MinIO demarre avec succes" -ForegroundColor Green
-    } else {
-        Write-Host "X Timeout lors du demarrage de MinIO" -ForegroundColor Red
-        Stop-Job -Job $minioJob
-        Remove-Job -Job $minioJob
-        Write-Host ""
-        Write-Host "Appuyez sur une touche pour fermer..." -ForegroundColor Gray
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-        exit 1
-    }
+}
+
+if ($minioReady) {
+    Write-Host "OK Serveur MinIO demarre avec succes" -ForegroundColor Green
+} else {
+    Write-Host "X Timeout lors du demarrage de MinIO" -ForegroundColor Red
+    Stop-Job -Job $minioJob
+    Remove-Job -Job $minioJob
+    Write-Host ""
+    Write-Host "Appuyez sur une touche pour fermer..." -ForegroundColor Gray
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    exit 1
 }
 
 # Verifier/Creer le bucket
 Write-Host ""
-Write-Host "[3/4] Configuration du bucket 'clinique-data'..." -ForegroundColor Yellow
+Write-Host "[4/5] Configuration du bucket 'clinique-data'..." -ForegroundColor Yellow
 
 # Installer le client MinIO (mc) si necessaire
 $mcInstalled = $false
@@ -138,7 +145,7 @@ if ($mcInstalled) {
 
 # Test de connexion
 Write-Host ""
-Write-Host "[4/4] Test de connexion..." -ForegroundColor Yellow
+Write-Host "[5/5] Test de connexion..." -ForegroundColor Yellow
 if (Test-MinIOActive) {
     Write-Host "OK MinIO est accessible" -ForegroundColor Green
 } else {
@@ -157,7 +164,7 @@ Write-Host "  - Console Web: http://127.0.0.1:$MINIO_CONSOLE_PORT" -ForegroundCo
 Write-Host "  - Username: $MINIO_ROOT_USER" -ForegroundColor Gray
 Write-Host "  - Password: $MINIO_ROOT_PASSWORD" -ForegroundColor Gray
 Write-Host "  - Bucket: clinique-data" -ForegroundColor Gray
-Write-Host "  - Repertoire: $MINIO_DATA_DIR" -ForegroundColor Gray
+Write-Host "  - Repertoire: $dataDir" -ForegroundColor Gray
 Write-Host ""
 Write-Host "Acces Console Web:" -ForegroundColor Yellow
 Write-Host "  http://127.0.0.1:$MINIO_CONSOLE_PORT" -ForegroundColor Cyan

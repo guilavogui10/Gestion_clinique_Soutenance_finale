@@ -676,11 +676,13 @@ class ChirurgieFormWidget(QWidget):
             d = ch.date_chururgie
             self.edit_date.setDate(QDate(d.year, d.month, d.day))
 
-    def recharger_pour_patient(self, code_consultation: str, code_session: str):
+    def recharger_pour_patient(self, code_consultation: str, code_session: str, code_acte: str = ""):
         """Appelé depuis l'onglet patients en attente."""
         self.code_session = code_session
         self.edit_session.setText(code_session or "")
         self._on_cancel()
+        if code_acte:
+            self.edit_acte.setText(code_acte)
 
     # =========================================================================
     # THÈME

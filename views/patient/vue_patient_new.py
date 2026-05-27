@@ -247,16 +247,32 @@ class VuePatient(QWidget):
         ).exec()
     
     def on_facture_patient(self, patient):
-        """Affiche la facture d'un patient"""
-        CustomMessageBox(
-            "Information",
-            f"Facture du patient\n\n"
-            f"Patient : {patient.get_nom()} {patient.get_prenom()}\n"
-            f"Code : {patient.get_code_patient()}\n\n"
-            f"Fonctionnalité en cours d'implémentation.",
-            is_success=False,
-            parent=self
-        ).exec()
+        """Affiche la liste des factures par visite dans un popover"""
+        from views.patient.fonctions_avancees.factures_visites_popover import FacturesVisitesPopover
+        from PySide6.QtGui import QCursor
+        
+        # Le controleur historique est déjà initialisé dans __init__
+        popover = FacturesVisitesPopover(patient, self.controleur_historique, self)
+        
+        # Positionner AU-DESSUS du curseur pour rester visible
+        from PySide6.QtWidgets import QApplication
+        pos = QCursor.pos()
+        screen = QApplication.screenAt(pos)
+        if screen:
+            screen_geo = screen.availableGeometry()
+            x = max(screen_geo.x(), pos.x() - popover.width() // 2)
+            y = pos.y() - popover.maximumHeight() - 10  # Au-dessus du curseur
+            # Si ça dépasse en haut, on met en dessous
+            if y < screen_geo.y():
+                y = pos.y() + 15
+            # Si ça dépasse à droite
+            if x + popover.width() > screen_geo.right():
+                x = screen_geo.right() - popover.width()
+            popover.move(x, y)
+        else:
+            popover.move(pos.x() - 200, pos.y() - popover.maximumHeight() - 10)
+        
+        popover.exec()
     
     def on_imprimer_dossier_patient(self, patient):
         """Imprime le dossier complet d'un patient"""

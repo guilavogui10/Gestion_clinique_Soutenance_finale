@@ -121,6 +121,9 @@ class ExamenControleur:
     def obtenir_montant_par_mois(self, code_session: str) -> dict:
         return self.service.obtenir_montant_par_mois(code_session)
 
+    def obtenir_revenu_moyen_par_mois(self, code_session: str) -> dict:
+        return self.service.obtenir_revenu_moyen_par_mois(code_session)
+
     def obtenir_nombre_par_jour(self, code_session: str, annee: int = None, mois: int = None) -> dict:
         return self.service.obtenir_nombre_par_jour(code_session, annee, mois)
 
@@ -142,9 +145,60 @@ class ExamenControleur:
     def obtenir_moyenne_consultations_par_mois(self, code_session: str) -> dict:
         return self.service.obtenir_moyenne_consultations_par_mois(code_session)
 
+    # --------- WORKFLOW PATIENT ---------
+    def demarrer_examen(self, code_visite: str) -> tuple:
+        from service_metier.visite_service import VisiteService
+        return VisiteService().demarrer_examen(code_visite)
+
+    def terminer_examen(self, code_visite: str) -> tuple:
+        from service_metier.visite_service import VisiteService
+        return VisiteService().terminer_examen(code_visite)
+
     # --------- CABINET / PERSONNEL ---------
     def get_cabinet_info(self) -> Dict[str, Optional[str]]:
         return self.service.get_cabinet_info()
 
     def lister_personnel(self) -> list:
         return self.service.lister_personnel()
+
+    def rechercher_entre_dates(self, code_session: str, date_debut, date_fin) -> list:
+        return self.service.rechercher_entre_dates(code_session, date_debut, date_fin)
+
+    # --------- RAPPORTS PDF LISTE EXAMENS ---------
+
+    def generer_pdf_rapport_examens_par_date(self, code_session):
+        """
+        Récupère tous les examens de la session, les enrichit
+        et génère un PDF groupé par date avec totaux.
+        Retourne le chemin du PDF généré.
+        """
+        from services.pdf_rapports.rapport_examen import RapportExamenPDF
+        examens = self.lister_examens(code_session) or []
+        info_cabinet = self.get_cabinet_info()
+        details_list = []
+        for e in examens:
+            detail = self.obtenir_examen_complet(e.code)
+            if detail:
+                details_list.append(detail)
+        return RapportExamenPDF.generer_pdf_examens_par_date(
+            details_list, info_cabinet
+        )
+
+    def generer_pdf_rapport_date_precise_examens(self, code_session, date_cible):
+        """
+        Récupère les examens de la session pour une date précise,
+        les enrichit et génère un PDF pour cette date avec total.
+        date_cible : datetime.date ou str YYYY-MM-DD.
+        Retourne le chemin du PDF généré.
+        """
+        from services.pdf_rapports.rapport_examen import RapportExamenPDF
+        examens = self.rechercher_entre_dates(code_session, date_cible, date_cible) or []
+        info_cabinet = self.get_cabinet_info()
+        details_list = []
+        for e in examens:
+            detail = self.obtenir_examen_complet(e.code)
+            if detail:
+                details_list.append(detail)
+        return RapportExamenPDF.generer_pdf_examens_date_precise(
+            details_list, date_cible, info_cabinet
+        )

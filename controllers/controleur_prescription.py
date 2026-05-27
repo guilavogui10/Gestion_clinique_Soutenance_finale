@@ -175,3 +175,28 @@ class PrescriptionControleur:
     def get_cabinet_info(self) -> Dict[str, Optional[str]]:
         """Informations du cabinet pour l en-tête des ordonnances."""
         return self.service.get_cabinet_info()
+
+    # --------- RAPPORTS PDF ---------
+
+    def generer_pdf_rapport_prescriptions_par_date(self, code_session):
+        """Récupère tous les groupes de la session et génère un PDF groupé par date de consultation."""
+        from services.pdf_rapports.rapport_prescription import RapportPrescriptionPDF
+        groupes = self.lister_groupes_par_acte(code_session) or []
+        info_cabinet = self.get_cabinet_info()
+        return RapportPrescriptionPDF.generer_pdf_prescriptions_par_date(groupes, info_cabinet)
+
+    def generer_pdf_rapport_date_precise_prescriptions(self, code_session, date_cible):
+        """Génère un PDF des prescriptions pour une date de consultation précise."""
+        from services.pdf_rapports.rapport_prescription import RapportPrescriptionPDF
+        groupes = self.lister_groupes_par_acte(code_session) or []
+        info_cabinet = self.get_cabinet_info()
+        return RapportPrescriptionPDF.generer_pdf_prescriptions_date_precise(groupes, date_cible, info_cabinet)
+
+    # --------- WORKFLOW PATIENT ---------
+    def demarrer_prescription(self, code_visite: str) -> tuple:
+        from service_metier.visite_service import VisiteService
+        return VisiteService().demarrer_prescription(code_visite)
+
+    def terminer_prescription(self, code_visite: str) -> tuple:
+        from service_metier.visite_service import VisiteService
+        return VisiteService().terminer_prescription(code_visite)

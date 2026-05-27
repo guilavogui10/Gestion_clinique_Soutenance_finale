@@ -533,33 +533,26 @@ class PanneauStockProduits(FondArrondi):
         
         produits = []
         try:
-            # ✅ RESPECT DU MVC : Utiliser UNIQUEMENT les méthodes du contrôleur injecté
-            # Récupérer tous les mouvements de stock de la session
-            mouvements = self.ctrl.lister_par_session(self._code_session) or []
+            # ✅ Lire depuis la table stocks (tous les produits approvisionnes)
+            # plutôt que panier_facture_four (mouvements = peut être incomplet)
+            stock_detaille = self.ctrl.obtenir_stock_detaille(self._code_session, limite=100) or []
             
-            # Regrouper par produit pour éviter les doublons
-            produits_dict = {}
-            
-            for mouvement in mouvements:
-                code_prod = getattr(mouvement, 'code_produit', None)
-                if not code_prod or code_prod in produits_dict:
+            for row in stock_detaille:
+                code_prod = row.get('code_produit', '')
+                if not code_prod:
                     continue
                 
                 # Récupérer les lots pour calculer valides/expirés
                 lots = self.ctrl.lister_lots_par_produit(code_prod, self._code_session) or []
                 
-                stock_total = 0
+                stock_total = row.get('quantite', 0)
                 qte_valide = 0
                 qte_a_expirer = 0
                 qte_expire = 0
                 
                 for lot in lots:
-                    # lot est un dictionnaire
                     qte = lot.get('stock_lot', 0)
-                    stock_total += qte
                     statut = lot.get('statut_lot', 'Valide')
-                    
-                    # Comptage des QUANTITÉS par statut
                     if statut == 'Expiré':
                         qte_expire += qte
                     elif statut == 'À Expirer':
@@ -567,28 +560,26 @@ class PanneauStockProduits(FondArrondi):
                     else:
                         qte_valide += qte
                 
-                # Trouver le lot le plus proche de l'expiration pour afficher les jours
+                # Lot le plus proche de l'expiration
                 lot_proche = None
                 jours_min = float('inf')
                 for lot in lots:
                     jours = lot.get('jours_restants', float('inf'))
-                    if jours >= 0 and jours < jours_min:
+                    if isinstance(jours, (int, float)) and jours >= 0 and jours < jours_min:
                         jours_min = jours
                         lot_proche = lot
                 
-                produits_dict[code_prod] = {
-                    "code_produit": code_prod,
-                    "designation": getattr(mouvement, 'designation', '') or getattr(mouvement, 'libelle', 'Produit'),
-                    "type": getattr(mouvement, 'type', '—'),
+                produits.append({
+                    "code_produit":  code_prod,
+                    "designation":   row.get('designation', 'Produit'),
+                    "type":          row.get('type', '—'),
                     "quantite_stock": stock_total,
-                    "qte_valide": qte_valide,
+                    "qte_valide":    qte_valide,
                     "qte_a_expirer": qte_a_expirer,
-                    "qte_expire": qte_expire,
+                    "qte_expire":    qte_expire,
                     "jours_restants": jours_min if jours_min != float('inf') else None,
                     "statut_proche": lot_proche.get('statut_lot', 'Valide') if lot_proche else 'Valide',
-                }
-            
-            produits = list(produits_dict.values())
+                })
             
         except Exception as e:
             self.logger.error(f"Erreur chargement produits: {e}", exc_info=True)

@@ -254,9 +254,9 @@ class ConsultationsTableWidget(QWidget):
     def _imprimer_toutes_consultations(self):
         """Imprime toutes les consultations affichées dans le tableau"""
         from views.shared.message_box import CustomMessageBox
-        from services.historique_patient_pdf_service import HistoriquePatientPDFService
+        from services.pdf_actes.consultation_pdf import ConsultationPDF
         from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
-        
+
         if not self.consultations or len(self.consultations) == 0:
             CustomMessageBox(
                 "Information",
@@ -282,7 +282,7 @@ class ConsultationsTableWidget(QWidget):
                 except:
                     info_cabinet = {}
                 
-                pdf_path = HistoriquePatientPDFService.generer_pdf_consultations_multiples(
+                pdf_path = ConsultationPDF.generer_pdf_consultations_multiples(
                     consultations_completes, info_cabinet, None
                 )
                 dialog = ApercuPDFDialog(pdf_path, "Aperçu - Consultations", self)
@@ -305,7 +305,7 @@ class ConsultationsTableWidget(QWidget):
     def _imprimer_info_consultation(self, consultation):
         """Imprime les informations d'une consultation"""
         from views.shared.message_box import CustomMessageBox
-        from services.historique_patient_pdf_service import HistoriquePatientPDFService
+        from services.pdf_actes.consultation_pdf import ConsultationPDF
         from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
         
         code = consultation.get('code', 'N/A')
@@ -319,7 +319,7 @@ class ConsultationsTableWidget(QWidget):
                 except:
                     info_cabinet = {}
                 
-                pdf_path = HistoriquePatientPDFService.generer_pdf_consultation(
+                pdf_path = ConsultationPDF.generer_pdf_consultation(
                     details, info_cabinet, None
                 )
                 dialog = ApercuPDFDialog(pdf_path, f"Aperçu - Consultation {code}", self)
@@ -342,7 +342,7 @@ class ConsultationsTableWidget(QWidget):
     def _imprimer_consultation(self, consultation):
         """Imprime une consultation complète"""
         from views.shared.message_box import CustomMessageBox
-        from services.historique_patient_pdf_service import HistoriquePatientPDFService
+        from services.pdf_actes.consultation_pdf import ConsultationPDF
         from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
         
         code = consultation.get('code', 'N/A')
@@ -356,7 +356,7 @@ class ConsultationsTableWidget(QWidget):
                 except:
                     info_cabinet = {}
                 
-                pdf_path = HistoriquePatientPDFService.generer_pdf_consultation(
+                pdf_path = ConsultationPDF.generer_pdf_consultation(
                     details, info_cabinet, None
                 )
                 dialog = ApercuPDFDialog(pdf_path, f"Aperçu - Consultation {code}", self)
@@ -379,7 +379,7 @@ class ConsultationsTableWidget(QWidget):
     def _imprimer_tous_actes_consultation(self, consultation):
         """Imprime tous les actes liés à une consultation"""
         from views.shared.message_box import CustomMessageBox
-        from services.historique_patient_pdf_service import HistoriquePatientPDFService
+        from services.pdf_patient.historique_pdf import HistoriquePatientPDFService
         from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
         
         code = consultation.get('code', 'N/A')

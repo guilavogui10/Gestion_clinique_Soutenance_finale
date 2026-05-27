@@ -739,7 +739,7 @@ class TableauChirurgieView(QWidget):
     def _imprimer_filtre(self):
         try:
             from PySide6.QtWidgets import QFileDialog, QMessageBox
-            from services.chirurgie_pdf_service import ChirurgiePDFService
+            from services.pdf_rapports.chirurgie_analyses_pdf import ChirurgiePDFService
             import os
 
             chirurgies_a_imprimer = (

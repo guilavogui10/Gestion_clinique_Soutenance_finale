@@ -483,12 +483,13 @@ class VueActeMedical(QWidget):
         from datetime import datetime
         now = datetime.now()
 
-        # Vider les cartes existantes (sauf le stretch final)
+        # Vider les cartes existantes
         self._blink_widgets.clear()
-        while self._cards_layout.count() > 1:
+        while self._cards_layout.count() > 0:
             item = self._cards_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
+        self._cards_layout.addStretch()
 
         # Charger les données
         raw = []
@@ -811,7 +812,7 @@ class VueActeMedical(QWidget):
         """Passe le patient en 'Attente payement' (fin de séance)."""
         ok, msg = self.ctrl.valider_sejour_patient(code_visite)
         if ok:
-            # Rafraîchir IMMÉDIATEMENT avant d'afficher le message
+            # Mise à jour INSTANTANÉE de la file d'attente
             self._update_file_attente()
             self.load_data()
             
@@ -844,7 +845,7 @@ class VueActeMedical(QWidget):
 
         ok, result = self.ctrl.enregistrer_controle(code_acte, code_session)
         if ok:
-            # Rafraîchir IMMÉDIATEMENT avant d'afficher le message
+            # Mise à jour INSTANTANÉE de la file d'attente
             self._update_file_attente()
             self.load_data()
             
@@ -1315,6 +1316,8 @@ class VueActeMedical(QWidget):
 
             CustomMessageBox.success(self, "Choix enregistré",
                                      f"Choix « {choix} » enregistré pour l'acte #{id_acte}.")
+            # Mise à jour INSTANTANÉE de la file d'attente
+            self._update_file_attente()
             self.load_data()
 
         except Exception as e:
@@ -1334,7 +1337,7 @@ class VueActeMedical(QWidget):
             ok, msg = self.ctrl.demarrer_consultation(code_visite)
             
             if ok:
-                # Rafraîchir IMMÉDIATEMENT avant d'afficher le message
+                # Mise à jour INSTANTANÉE de la file d'attente
                 self._update_file_attente()
                 self.load_data()
                 
@@ -1360,7 +1363,7 @@ class VueActeMedical(QWidget):
             return
         ok, msg = self.ctrl.demarrer_passage_par_code_acte(code_acte)
         if ok:
-            # Rafraîchir IMMÉDIATEMENT avant d'afficher le message
+            # Mise à jour INSTANTANÉE de la file d'attente (statut + boutons)
             self._update_file_attente()
             self.load_data()
             
@@ -1386,7 +1389,7 @@ class VueActeMedical(QWidget):
             return
         ok, msg = self.ctrl.terminer_passage_par_code_acte(code_acte)
         if ok:
-            # Rafraîchir IMMÉDIATEMENT avant d'afficher le message
+            # Mise à jour INSTANTANÉE de la file d'attente (statut + boutons)
             self._update_file_attente()
             self.load_data()
             
@@ -1539,9 +1542,9 @@ class VueActeMedical(QWidget):
             def _pre_remplir_lunette():
                 page = dashboard.page_lunettes
                 page.tabs.setCurrentIndex(1)
-                if hasattr(page, 'form_widget') and code_consultation:
+                if hasattr(page, 'form_widget') and code_acte:
                     page.form_widget.recharger_pour_patient(
-                        code_consultation, code_session or ""
+                        code_acte, code_session or ""
                     )
                     # Connexion one-shot : terminer le passage après sauvegarde
                     def _apres_sauvegarde():
@@ -1860,9 +1863,9 @@ class VueActeMedical(QWidget):
                 # Rafraîchir les données AVANT le message
                 self._reset_nouveau_form()
                 self._load_nouveau_combos()
+                # Mise à jour INSTANTANÉE de la file d'attente
+                self._update_file_attente()
                 self.load_data()
-                # Rafraîchir la file d'attente avec un délai pour laisser la DB se mettre à jour
-                QTimer.singleShot(200, self._update_file_attente)
                 
                 CustomMessageBox.success(self, "Succès", "Acte médical enregistré avec succès.")
                 
@@ -1905,9 +1908,14 @@ class VueActeMedical(QWidget):
     # =========================================================================
 
     def _setup_auto_refresh(self):
-        # Rafraîchissement des données toutes les 60s
+        # Rafraîchissement RAPIDE de la file d'attente toutes les 3s (instantané)
+        self._timer_file = QTimer(self)
+        self._timer_file.setInterval(3_000)
+        self._timer_file.timeout.connect(self._update_file_attente)
+        self._timer_file.start()
+        # Rafraîchissement global (table actes + KPIs) toutes les 30s
         self._timer = QTimer(self)
-        self._timer.setInterval(60_000)
+        self._timer.setInterval(30_000)
         self._timer.timeout.connect(self.load_data)
         self._timer.start()
         # Clignotement de l'étape courante toutes les 800ms

@@ -39,7 +39,7 @@ class UserService:
 
     def _construire_user_info(self, infos_utilisateur: dict) -> dict:
         return {
-            "code_utilisateur": infos_utilisateur.get("code"),
+            "code": infos_utilisateur.get("code"),
             "code_personnel": infos_utilisateur.get("code_personnel"),
             "role": infos_utilisateur.get("role"),
             "nom": infos_utilisateur.get("nom"),
@@ -48,6 +48,7 @@ class UserService:
             "contact": infos_utilisateur.get("contact"),
             "fonction": infos_utilisateur.get("fonction"),
             "photo_path": infos_utilisateur.get("photo_path"),
+            "est_responsable": infos_utilisateur.get("est_responsable", 0),
         }
 
     @staticmethod
@@ -110,23 +111,32 @@ class UserService:
         Verifie le mot de passe puis declenche la seconde etape MFA via Vault TOTP.
 
         Args:
-            login (str): Identifiant saisi par l'utilisateur.
+            login (str): Identifiant saisi par l'utilisateur (peut correspondre à plusieurs rôles).
             mdp (str): Mot de passe saisi.
 
         Returns:
             dict: {"status": "otp_required"|"error", ...}
         """
-        code = self.dao.rechercher_code_par_login((login or "").strip())
-        if not code:
-            return {"status": "error", "message": "Erreur : Code ou mot de passe incorrect."}
-
-        infos_utilisateur = self.dao.rechercher_utilisateur(code)
-        if not infos_utilisateur:
+        # Obtenir TOUS les utilisateurs qui correspondent au login
+        utilisateurs_trouves = self.dao.rechercher_utilisateurs_par_login((login or "").strip())
+        
+        if not utilisateurs_trouves:
             return {"status": "error", "message": "Erreur : Utilisateur introuvable."}
 
-        mdp_hashe_stocke = infos_utilisateur["mdp"].encode("utf-8")
-        if not bcrypt.checkpw(mdp.encode("utf-8"), mdp_hashe_stocke):
+        # Chercher l'utilisateur dont le mot de passe correspond
+        utilisateur_valide = None
+        for u in utilisateurs_trouves:
+            mdp_hashe_stocke = u["mdp"].encode("utf-8")
+            if bcrypt.checkpw(mdp.encode("utf-8"), mdp_hashe_stocke):
+                utilisateur_valide = u
+                break
+        
+        if not utilisateur_valide:
             return {"status": "error", "message": "Erreur : Code ou mot de passe incorrect."}
+
+        # Utilisateur trouvé et mot de passe vérifié !
+        infos_utilisateur = utilisateur_valide
+        code = infos_utilisateur["code"]
         
         # VÉRIFIER LE BLOCAGE AVANT D'ENVOYER LE CODE OTP
         identifiant_otp = f"connexion_{code}"

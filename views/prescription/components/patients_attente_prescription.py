@@ -25,13 +25,18 @@ from views.shared.theme_manager import theme_manager
 
 class PatientCard(QFrame):
     proceder_signal = Signal(object)
+    changer_statut_clicked = Signal(object)
 
     CARD_WIDTH = 170
-    CARD_HEIGHT = 196
+    CARD_HEIGHT = 250
 
     def __init__(self, patient, parent=None):
         super().__init__(parent)
         self.patient = patient
+        self._statut_patient = (
+            patient.get("statut_patient", "") if isinstance(patient, dict)
+            else getattr(patient, "statut_patient", "")
+        ) or ""
         self._icon_rows = []
         self._setup_shadow()
         self._setup_ui()
@@ -57,19 +62,19 @@ class PatientCard(QFrame):
         self.setFixedSize(self.CARD_WIDTH, self.CARD_HEIGHT)
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(8, 8, 8, 6)
+        root.setContentsMargins(8, 6, 8, 6)
         root.setSpacing(0)
 
         avatar_row = QHBoxLayout()
         self._avatar_lbl = QLabel()
-        self._avatar_lbl.setFixedSize(30, 30)
+        self._avatar_lbl.setFixedSize(26, 26)
         self._avatar_lbl.setAlignment(Qt.AlignCenter)
         self._avatar_lbl.setStyleSheet("border: none; background: transparent;")
         avatar_row.addStretch()
         avatar_row.addWidget(self._avatar_lbl)
         avatar_row.addStretch()
         root.addLayout(avatar_row)
-        root.addSpacing(3)
+        root.addSpacing(2)
 
         nom = self.patient.get("nom", "") if isinstance(self.patient, dict) else getattr(self.patient, "nom", "")
         prenom = self.patient.get("prenom", "") if isinstance(self.patient, dict) else getattr(self.patient, "prenom", "")
@@ -80,10 +85,11 @@ class PatientCard(QFrame):
         self._lbl_nom.setWordWrap(True)
         self._lbl_nom.setStyleSheet("border: none;")
         root.addWidget(self._lbl_nom)
-        root.addSpacing(3)
+        root.addSpacing(2)
 
         badge_row = QHBoxLayout()
-        self._badge = QLabel("Attente Pharmacie")
+        badge_text = "En pharmacie" if "En pharmacie" in self._statut_patient else "Attente Pharmacie"
+        self._badge = QLabel(badge_text)
         self._badge.setAlignment(Qt.AlignCenter)
         self._badge.setFixedHeight(16)
         self._badge.setStyleSheet("border: none;")
@@ -91,16 +97,16 @@ class PatientCard(QFrame):
         badge_row.addWidget(self._badge)
         badge_row.addStretch()
         root.addLayout(badge_row)
-        root.addSpacing(3)
+        root.addSpacing(2)
 
         self._sep = QFrame()
         self._sep.setFrameShape(QFrame.HLine)
         self._sep.setFixedHeight(1)
         root.addWidget(self._sep)
-        root.addSpacing(3)
+        root.addSpacing(2)
 
         infos_layout = QVBoxLayout()
-        infos_layout.setSpacing(2)
+        infos_layout.setSpacing(1)
 
         champs = [
             ("fa5s.id-card", "Code", self._get_value("code_patient")),
@@ -115,13 +121,26 @@ class PatientCard(QFrame):
             self._icon_rows.append((icon_lbl, icon_name, value_lbl))
 
         root.addLayout(infos_layout)
-        root.addStretch()
+        root.addSpacing(4)
 
         self._btn = QPushButton(" Prescrire")
-        self._btn.setFixedHeight(26)
+        self._btn.setFixedHeight(24)
         self._btn.setCursor(Qt.PointingHandCursor)
         self._btn.clicked.connect(lambda: self.proceder_signal.emit(self.patient))
         root.addWidget(self._btn)
+
+        root.addSpacing(3)
+
+        statut = self._statut_patient.strip()
+        if statut == "En pharmacie":
+            btn_label = " Fin pharmacie"
+        else:
+            btn_label = " Démarrer pharmacie"
+        self._btn_statut = QPushButton(btn_label)
+        self._btn_statut.setFixedHeight(24)
+        self._btn_statut.setCursor(Qt.PointingHandCursor)
+        self._btn_statut.clicked.connect(lambda: self.changer_statut_clicked.emit(self.patient))
+        root.addWidget(self._btn_statut)
 
     def _get_value(self, key):
         if isinstance(self.patient, dict):
@@ -180,7 +199,7 @@ class PatientCard(QFrame):
             """
         )
 
-        self._avatar_lbl.setPixmap(qta.icon("fa5s.user-circle", color=c["primary"]).pixmap(QSize(30, 30)))
+        self._avatar_lbl.setPixmap(qta.icon("fa5s.user-circle", color=c["primary"]).pixmap(QSize(26, 26)))
         self._lbl_nom.setStyleSheet(
             f"font-size: 9px; font-weight: 700; color: {c['text_primary']}; border: none;"
         )
@@ -209,10 +228,36 @@ class PatientCard(QFrame):
         self._btn.setStyleSheet(PrescriptionStyles.button_primary())
         self._btn.setIcon(qta.icon("fa5s.prescription", color=c.get("text_inverse", "#ffffff")))
 
+        statut = self._statut_patient.strip()
+        if statut == "En pharmacie":
+            statut_bg = "#e67e22"
+            statut_hover = "#d35400"
+            statut_icon = "fa5s.check-circle"
+        else:
+            statut_bg = "#27ae60"
+            statut_hover = "#219a52"
+            statut_icon = "fa5s.play-circle"
+        self._btn_statut.setStyleSheet(f"""
+            QPushButton {{
+                background: {statut_bg};
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-size: 8px;
+                font-weight: 700;
+                padding: 0 4px;
+            }}
+            QPushButton:hover {{
+                background: {statut_hover};
+            }}
+        """)
+        self._btn_statut.setIcon(qta.icon(statut_icon, color="white"))
+
 
 class PatientsAttentePrescriptionView(QWidget):
     prescription_creee = Signal()
     ouvrir_formulaire = Signal(str)
+    changer_statut_signal = Signal(object)
     NB_COLS = 5
 
     def __init__(self, ctrl, code_session: str, parent=None):
@@ -312,6 +357,7 @@ class PatientsAttentePrescriptionView(QWidget):
         for idx, patient in enumerate(patients):
             card = PatientCard(patient)
             card.proceder_signal.connect(self._on_proceder)
+            card.changer_statut_clicked.connect(self.changer_statut_signal.emit)
             row = idx // self.NB_COLS
             col = idx % self.NB_COLS
             self._grid.addWidget(card, row, col)

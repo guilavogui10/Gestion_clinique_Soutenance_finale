@@ -28,6 +28,9 @@ class ChirurgiesTable(QWidget):
     edit_clicked = Signal(object)
     delete_clicked = Signal(object)
     new_clicked = Signal()
+    imprimer_info_clicked = Signal(object)
+    imprimer_avec_resultat_clicked = Signal(object)
+    new_resultat_clicked = Signal(object)
 
     def __init__(self, controleur, parent=None):
         super().__init__(parent)
@@ -574,9 +577,9 @@ class ChirurgiesTable(QWidget):
         layout.setSpacing(6)
 
         actions = [
-            ("fa5s.eye", c["primary"], c["primary_light"], "view"),
-            ("fa5s.pen", c["secondary"], c["info_bg"], "edit"),
-            ("fa5s.ellipsis-v", c["text_secondary"], c["hover"], "menu"),
+            ("fa5s.eye",        c["primary"],        c["primary_light"], "view"),
+            ("fa5s.pen",        c["secondary"],       c["info_bg"],       "edit"),
+            ("fa5s.ellipsis-v", c["text_secondary"],  c["hover"],         "menu"),
         ]
 
         for icon_name, icon_color, bg_color, action_name in actions:
@@ -584,8 +587,7 @@ class ChirurgiesTable(QWidget):
             btn.setFixedSize(30, 30)
             btn.setCursor(Qt.PointingHandCursor)
             btn.setIcon(qta.icon(icon_name, color=icon_color))
-            btn.setStyleSheet(
-                f"""
+            btn.setStyleSheet(f"""
                 QPushButton {{
                     background: {bg_color};
                     border: 1px solid {c['border_light']};
@@ -595,15 +597,71 @@ class ChirurgiesTable(QWidget):
                     border-color: {icon_color};
                     background: {c['bg_card']};
                 }}
-                """
-            )
+            """)
             if action_name == "view":
                 btn.clicked.connect(lambda checked=False, chir=chirurgie: self.view_clicked.emit(chir))
             elif action_name == "edit":
                 btn.clicked.connect(lambda checked=False, chir=chirurgie: self.edit_clicked.emit(chir))
+            elif action_name == "menu":
+                btn.clicked.connect(lambda checked=False, chir=chirurgie, b=btn: self._show_chirurgie_menu(chir, b))
             layout.addWidget(btn)
 
         return widget
+
+    def _show_chirurgie_menu(self, chirurgie, button):
+        """Affiche le menu contextuel pour une chirurgie."""
+        from PySide6.QtWidgets import QMenu
+        c = theme_manager.colors()
+
+        menu = QMenu(self)
+        menu.setStyleSheet(f"""
+            QMenu {{
+                background: white;
+                border: 1px solid {c['border']};
+                border-radius: 8px;
+                padding: 6px 0;
+            }}
+            QMenu::item {{
+                padding: 10px 20px;
+                color: {c['text_primary']};
+                font-size: 13px;
+                font-weight: 500;
+            }}
+            QMenu::item:selected {{
+                background: {c['primary_light']};
+                color: {c['primary']};
+                border-radius: 4px;
+            }}
+            QMenu::separator {{
+                height: 1px;
+                background: {c['border_light']};
+                margin: 4px 8px;
+            }}
+        """)
+
+        action_info = menu.addAction(
+            qta.icon("fa5s.print", color=c['primary']),
+            "  Imprimer informations"
+        )
+        action_info.triggered.connect(lambda: self.imprimer_info_clicked.emit(chirurgie))
+
+        menu.addSeparator()
+
+        action_avec_cr = menu.addAction(
+            qta.icon("fa5s.file-medical-alt", color=c['success']),
+            "  Imprimer avec compte rendu"
+        )
+        action_avec_cr.triggered.connect(lambda: self.imprimer_avec_resultat_clicked.emit(chirurgie))
+
+        menu.addSeparator()
+
+        action_new_resultat = menu.addAction(
+            qta.icon("fa5s.plus-circle", color=c['secondary']),
+            "  Nouveau résultat"
+        )
+        action_new_resultat.triggered.connect(lambda: self.new_resultat_clicked.emit(chirurgie))
+
+        menu.exec(button.mapToGlobal(button.rect().bottomLeft()))
 
     def _update_pagination(self):
         total_pages = self.total_pages()

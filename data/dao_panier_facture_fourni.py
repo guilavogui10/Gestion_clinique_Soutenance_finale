@@ -980,6 +980,7 @@ class PanierFactureFourniDAO:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT 
+                    s.code_produit,
                     p.libelle as designation,
                     p.type,
                     s.quantite_actuelle as quantite_totale
@@ -993,11 +994,13 @@ class PanierFactureFourniDAO:
             
             stock_detaille = []
             for row in resultats:
+                code_produit = row.get('code_produit', '')
                 designation = row.get('designation') or row.get('Designation') or 'Produit inconnu'
-                type_produit = (row.get('type') or row.get('Type') or 'ComprimÃ©').strip().capitalize()
+                type_produit = (row.get('type') or row.get('Type') or 'Comprime').strip().capitalize()
                 quantite = int(row.get('quantite_totale') or 0)
                 
                 stock_detaille.append({
+                    'code_produit': code_produit,
                     'designation': designation,
                     'type': type_produit,
                     'quantite': quantite

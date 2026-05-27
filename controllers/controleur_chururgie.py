@@ -128,11 +128,46 @@ class ChirurgieControleur:
     def rechercher_entre_dates(self, code_session: str, date_debut, date_fin) -> list:
         return self.service.rechercher_entre_dates(code_session, date_debut, date_fin)
 
+    # --------- RAPPORTS PDF LISTE CHIRURGIES ---------
+
+    def generer_pdf_rapport_chururgies_par_date(self, code_session):
+        """Récupère toutes les chirurgies de la session et génère un PDF groupé par date."""
+        from services.pdf_rapports.rapport_chirurgie import RapportChirurgiePDF
+        chirurgies = self.lister_chururgies(code_session) or []
+        info_cabinet = self.get_cabinet_info()
+        details_list = []
+        for c in chirurgies:
+            detail = self.obtenir_chururgie_complete(c.code)
+            if detail:
+                details_list.append(detail)
+        return RapportChirurgiePDF.generer_pdf_chururgies_par_date(details_list, info_cabinet)
+
+    def generer_pdf_rapport_date_precise_chururgies(self, code_session, date_cible):
+        """Génère un PDF des chirurgies pour une date précise."""
+        from services.pdf_rapports.rapport_chirurgie import RapportChirurgiePDF
+        chirurgies = self.rechercher_entre_dates(code_session, date_cible, date_cible) or []
+        info_cabinet = self.get_cabinet_info()
+        details_list = []
+        for c in chirurgies:
+            detail = self.obtenir_chururgie_complete(c.code)
+            if detail:
+                details_list.append(detail)
+        return RapportChirurgiePDF.generer_pdf_chururgies_date_precise(details_list, date_cible, info_cabinet)
+
     def chirurgies_par_patient_par_mois(self, code_session: str, code_patient: str = None) -> dict:
         return self.service.chirurgies_par_patient_par_mois(code_session, code_patient)
 
     def codes_patients_session(self, code_session: str) -> list:
         return self.service.codes_patients_session(code_session)
+
+    # --------- WORKFLOW PATIENT ---------
+    def demarrer_chirurgie(self, code_visite: str) -> tuple:
+        from service_metier.visite_service import VisiteService
+        return VisiteService().demarrer_chirurgie(code_visite)
+
+    def terminer_chirurgie(self, code_visite: str) -> tuple:
+        from service_metier.visite_service import VisiteService
+        return VisiteService().terminer_chirurgie(code_visite)
 
     # --------- CABINET / PERSONNEL ---------
     def get_cabinet_info(self) -> Dict[str, Optional[str]]:
