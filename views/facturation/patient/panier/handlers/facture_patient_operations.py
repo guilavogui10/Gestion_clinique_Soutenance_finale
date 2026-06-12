@@ -9,6 +9,7 @@ import logging
 from typing import Tuple, Dict, Any
 
 from views.shared.message_box import CustomMessageBox
+from views.shared.theme_manager import theme_manager
 from ..components.facture_patient_invoice_dialog import FacturePatientInvoiceDialog
 from models.modele_panier_facture import PanierFacture
 
@@ -16,10 +17,14 @@ from models.modele_panier_facture import PanierFacture
 class FacturePatientOperations:
     """Service layer pour la facture patient."""
 
-    def __init__(self, facture_ctrl, panier_ctrl, couleur="#1f6feb"):
+    def __init__(self, facture_ctrl, panier_ctrl, couleur=None):
         self.facture_ctrl = facture_ctrl
         self.panier_ctrl = panier_ctrl
-        self.couleur = couleur
+        self._couleur = couleur
+
+    @property
+    def couleur(self):
+        return self._couleur or theme_manager.colors()['primary']
         self.logger = logging.getLogger(__name__)
 
     def generer_facture(self, code_visite: str, telephone: str = "",
@@ -130,3 +135,8 @@ class FacturePatientOperations:
         return self.facture_ctrl.enregistrer_paiement(
             code_facture, data.get("mode_paiement", ""), data.get("telephone", "")
         )
+
+    def encaisser_facture_direct(self, code_facture: str, mode_paiement: str, telephone: str) -> Tuple[bool, str]:
+        if not self.facture_ctrl:
+            return False, "Controleur facture non initialise"
+        return self.facture_ctrl.enregistrer_paiement(code_facture, mode_paiement, telephone)

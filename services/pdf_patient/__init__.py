@@ -1,3 +1,4 @@
 from .patient_pdf import PatientPDFService
-from .facture_pdf import FacturePatientPDFService, PDFFactureHistoriquePatient
+from .facture_pdf import FacturePatientPDFService
 from .historique_pdf import HistoriquePatientPDFService
+from .pdf_dossier_medical import DossierMedicalPDF

@@ -1,0 +1,516 @@
+{
+    "acte_medical": [
+        {
+            "code_acte": "ACT001",
+            "code_consultation": "CLS001",
+            "type_acte": "examen",
+            "decision_medicale": "examen complementaire",
+            "choix_patient": "maintenant",
+            "mode_realisation": "interne",
+            "statut_acte": "en_cours",
+            "raison_refus": "",
+            "date_creation": "2026-06-05T18:17:23",
+            "date_modification": "2026-06-05T18:17:30"
+        },
+        {
+            "code_acte": "ACT002",
+            "code_consultation": "CLS001",
+            "type_acte": "chirurgie",
+            "decision_medicale": "operation de la cornée gauche",
+            "choix_patient": "maintenant",
+            "mode_realisation": "interne",
+            "statut_acte": "en_cours",
+            "raison_refus": "",
+            "date_creation": "2026-06-05T18:19:29",
+            "date_modification": "2026-06-05T18:19:35"
+        },
+        {
+            "code_acte": "ACT003",
+            "code_consultation": "CLS001",
+            "type_acte": "lunette",
+            "decision_medicale": "amelioration de la vision apres l'operation",
+            "choix_patient": "maintenant",
+            "mode_realisation": "interne",
+            "statut_acte": "en_cours",
+            "raison_refus": "",
+            "date_creation": "2026-06-05T18:21:29",
+            "date_modification": "2026-06-05T18:21:35"
+        },
+        {
+            "code_acte": "ACT004",
+            "code_consultation": "CLS001",
+            "type_acte": "prescription",
+            "decision_medicale": "prescription des produits",
+            "choix_patient": "maintenant",
+            "mode_realisation": "interne",
+            "statut_acte": "en_cours",
+            "raison_refus": "",
+            "date_creation": "2026-06-05T18:43:46",
+            "date_modification": "2026-06-05T18:43:54"
+        }
+    ],
+    "acte_visite": [
+        {
+            "code_acte": "ACT001",
+            "code_visite": "VIST001",
+            "role_visite": "execution",
+            "date_liaison": "2026-06-05T18:17:23",
+            "date_entre": "2026-06-05T18:17:23",
+            "date_debut_execution": "2026-06-05T18:17:30",
+            "date_sortie": null,
+            "date_creation": "2026-06-05T18:17:23",
+            "date_modification": "2026-06-05T18:17:30"
+        },
+        {
+            "code_acte": "ACT002",
+            "code_visite": "VIST001",
+            "role_visite": "execution",
+            "date_liaison": "2026-06-05T18:19:29",
+            "date_entre": "2026-06-05T18:19:29",
+            "date_debut_execution": "2026-06-05T18:19:35",
+            "date_sortie": null,
+            "date_creation": "2026-06-05T18:19:29",
+            "date_modification": "2026-06-05T18:19:35"
+        },
+        {
+            "code_acte": "ACT003",
+            "code_visite": "VIST001",
+            "role_visite": "execution",
+            "date_liaison": "2026-06-05T18:21:29",
+            "date_entre": "2026-06-05T18:21:29",
+            "date_debut_execution": "2026-06-05T18:21:35",
+            "date_sortie": null,
+            "date_creation": "2026-06-05T18:21:29",
+            "date_modification": "2026-06-05T18:21:35"
+        },
+        {
+            "code_acte": "ACT004",
+            "code_visite": "VIST001",
+            "role_visite": "execution",
+            "date_liaison": "2026-06-05T18:43:46",
+            "date_entre": "2026-06-05T18:43:46",
+            "date_debut_execution": "2026-06-05T18:43:54",
+            "date_sortie": null,
+            "date_creation": "2026-06-05T18:43:46",
+            "date_modification": "2026-06-05T18:43:54"
+        }
+    ],
+    "audit_permissions": [
+        {
+            "id": 9,
+            "code_demandeur": "U0006",
+            "role_demandeur": "Chirurgien",
+            "est_responsable": 1,
+            "action": "consultation",
+            "contexte": "Résultat médical RES-00000001",
+            "code_autorisateur": "U0006",
+            "statut": "en_attente",
+            "code_otp_envoye": "702295",
+            "email_destinataire": "loua701536@gmail.com",
+            "date_demande": "2026-06-04T14:49:03",
+            "date_reponse": null,
+            "ip_demandeur": null,
+            "user_agent": null,
+            "date_creation": "2026-06-04T14:49:03",
+            "date_modification": "2026-06-04T14:49:03"
+        },
+        {
+            "id": 10,
+            "code_demandeur": "U0008",
+            "role_demandeur": "Chirurgien",
+            "est_responsable": 0,
+            "action": "consultation",
+            "contexte": "Résultat médical RES-00000001",
+            "code_autorisateur": "U0008",
+            "statut": "en_attente",
+            "code_otp_envoye": "446619",
+            "email_destinataire": "loua701536@gmail.com",
+            "date_demande": "2026-06-04T15:05:15",
+            "date_reponse": null,
+            "ip_demandeur": null,
+            "user_agent": null,
+            "date_creation": "2026-06-04T15:05:15",
+            "date_modification": "2026-06-04T15:05:15"
+        },
+        {
+            "id": 11,
+            "code_demandeur": "U0007",
+            "role_demandeur": "Chirurgien",
+            "est_responsable": 1,
+            "action": "consultation",
+            "contexte": "Résultat médical RES-00000001",
+            "code_autorisateur": "U0007",
+            "statut": "en_attente",
+            "code_otp_envoye": "927727",
+            "email_destinataire": "loua701536@gmail.com",
+            "date_demande": "2026-06-04T15:22:15",
+            "date_reponse": null,
+            "ip_demandeur": null,
+            "user_agent": null,
+            "date_creation": "2026-06-04T15:22:15",
+            "date_modification": "2026-06-04T15:22:15"
+        }
+    ],
+    "chururgie": [
+        {
+            "code": "CHR001",
+            "libelle_chururgie": "operation de la corn",
+            "frais_chururgie": 800000.0,
+            "statut_facture": "Payé",
+            "date_chururgie": "2026-06-05T00:00:00",
+            "code_session": "ses01",
+            "code_personnel": "U0006",
+            "code_acte": "ACT002",
+            "compte_rendu_operatoire": "operation reusie",
+            "date_creation": "2026-06-05T18:20:41",
+            "date_modification": "2026-06-05T18:47:04"
+        }
+    ],
+    "commandeslunettes": [
+        {
+            "code": "CLT001",
+            "numero_cadre": "CAD-001",
+            "numero_verre": "+2.5",
+            "date_commande": "2026-06-05T18:42:50",
+            "date_livraison": "2026-06-12T00:00:00",
+            "prix": 850000.0,
+            "statut": "attente",
+            "statut_facture": "Payé",
+            "code_session": "ses01",
+            "code_personnel": "U0006",
+            "code_acte": "ACT003",
+            "date_creation": "2026-06-05T18:42:50",
+            "date_modification": "2026-06-05T18:47:04"
+        }
+    ],
+    "consultation": [
+        {
+            "code": "CLS001",
+            "diagnostique": "cataract",
+            "frais_consultation": 12000.0,
+            "statut_facture": "Payé",
+            "date_consultation": "2026-06-05T00:00:00",
+            "code_visite": "VIST001",
+            "code_session": "ses01",
+            "code_personnel": "U0006",
+            "date_creation": "2026-06-05T18:16:51",
+            "date_modification": "2026-06-05T18:47:04"
+        }
+    ],
+    "examen": [
+        {
+            "code": "EXM001",
+            "libelle_examen": "fond oeil",
+            "frais_examen": 80000.0,
+            "statut_facture": "Payé",
+            "date_examen": "2026-06-05T18:17:54",
+            "code_session": "ses01",
+            "code_personnel": "P0001",
+            "code_acte": "ACT001",
+            "interpreter_par": "P0001",
+            "date_interpretation": "2026-06-05T18:17:54",
+            "conclusion_medicale": "examen reussi",
+            "date_creation": "2026-06-05T18:18:42",
+            "date_modification": "2026-06-05T18:47:04"
+        }
+    ],
+    "facture_fournisseur": [
+        {
+            "code_facture_four": "FCF003",
+            "Montant_total": 0.0,
+            "mode_payement": "",
+            "telephone": "",
+            "date_facture_four": "2026-06-05T16:07:21",
+            "code_fournisseur": "medicoeil@gmail.com",
+            "code_session": "ses01",
+            "date_creation": "2026-06-05T16:07:21",
+            "date_modification": "2026-06-05T16:07:21"
+        },
+        {
+            "code_facture_four": "FCF004",
+            "Montant_total": 60000.0,
+            "mode_payement": "",
+            "telephone": "",
+            "date_facture_four": "2026-06-05T16:09:54",
+            "code_fournisseur": "medicoeil@gmail.com",
+            "code_session": "ses01",
+            "date_creation": "2026-06-05T16:09:35",
+            "date_modification": "2026-06-05T16:09:54"
+        },
+        {
+            "code_facture_four": "FCF005",
+            "Montant_total": 100000.0,
+            "mode_payement": "",
+            "telephone": "",
+            "date_facture_four": "2026-06-05T16:22:14",
+            "code_fournisseur": "opticpharma@gmail.com",
+            "code_session": "ses01",
+            "date_creation": "2026-06-05T16:21:38",
+            "date_modification": "2026-06-05T16:22:14"
+        },
+        {
+            "code_facture_four": "FCF006",
+            "Montant_total": 128000.0,
+            "mode_payement": "especes",
+            "telephone": "620151125",
+            "date_facture_four": "2026-06-05T18:54:33",
+            "code_fournisseur": "medicoeil@gmail.com",
+            "code_session": "ses01",
+            "date_creation": "2026-06-05T18:52:57",
+            "date_modification": "2026-06-05T18:54:33"
+        }
+    ],
+    "facture_patient": [
+        {
+            "code_facture": "FCT001",
+            "code_visite": "VIST001",
+            "Montant_total": 1827000.0,
+            "Mode_payement": "Espèces",
+            "telephone": "620151125",
+            "statut_facture": "Payé",
+            "date_facture": "2026-06-05T18:47:04",
+            "code_session": "ses01",
+            "date_creation": "2026-06-05T18:46:40",
+            "date_modification": "2026-06-05T18:47:04"
+        }
+    ],
+    "panier_facture": [
+        {
+            "code_paniere": "PAN001",
+            "designation": "Consultation",
+            "numero_reference": "CLS001",
+            "quantite_facture": 1,
+            "prix_appliqué": 12000.0,
+            "code_facture": "FCT001",
+            "date_creation": "2026-06-05T18:46:45",
+            "date_modification": "2026-06-05T18:46:45"
+        },
+        {
+            "code_paniere": "PAN002",
+            "designation": "Examen",
+            "numero_reference": "EXM001",
+            "quantite_facture": 1,
+            "prix_appliqué": 80000.0,
+            "code_facture": "FCT001",
+            "date_creation": "2026-06-05T18:46:45",
+            "date_modification": "2026-06-05T18:46:45"
+        },
+        {
+            "code_paniere": "PAN003",
+            "designation": "Chirurgie",
+            "numero_reference": "CHR001",
+            "quantite_facture": 1,
+            "prix_appliqué": 800000.0,
+            "code_facture": "FCT001",
+            "date_creation": "2026-06-05T18:46:46",
+            "date_modification": "2026-06-05T18:46:46"
+        },
+        {
+            "code_paniere": "PAN004",
+            "designation": "Lunettes",
+            "numero_reference": "CLT001",
+            "quantite_facture": 1,
+            "prix_appliqué": 850000.0,
+            "code_facture": "FCT001",
+            "date_creation": "2026-06-05T18:46:46",
+            "date_modification": "2026-06-05T18:46:46"
+        },
+        {
+            "code_paniere": "PAN005",
+            "designation": "Pharmacie",
+            "numero_reference": "PRS001",
+            "quantite_facture": 1,
+            "prix_appliqué": 85000.0,
+            "code_facture": "FCT001",
+            "date_creation": "2026-06-05T18:46:46",
+            "date_modification": "2026-06-05T18:46:46"
+        }
+    ],
+    "panier_facture_four": [
+        {
+            "code_panier_four": "PFF016",
+            "Designation": "Paracetamol",
+            "quantite_four": 3,
+            "prix_unitaire": 20000,
+            "date_expiration": "2027-02-25",
+            "code_produit": "L0011",
+            "code_facture_four": "FCF004",
+            "code_session": "ses01",
+            "date_creation": "2026-06-05T16:09:54",
+            "date_modification": "2026-06-05T16:09:54"
+        },
+        {
+            "code_panier_four": "PFF017",
+            "Designation": "Paracetamol",
+            "quantite_four": 5,
+            "prix_unitaire": 20000,
+            "date_expiration": "2026-08-21",
+            "code_produit": "L0011",
+            "code_facture_four": "FCF005",
+            "code_session": "ses01",
+            "date_creation": "2026-06-05T16:22:14",
+            "date_modification": "2026-06-05T16:22:14"
+        },
+        {
+            "code_panier_four": "PFF018",
+            "Designation": "Larmes artificielles Carbomer gel 10g",
+            "quantite_four": 2,
+            "prix_unitaire": 6500,
+            "date_expiration": "2026-06-27",
+            "code_produit": "L0007",
+            "code_facture_four": "FCF006",
+            "code_session": "ses01",
+            "date_creation": "2026-06-05T18:53:18",
+            "date_modification": "2026-06-05T18:53:18"
+        },
+        {
+            "code_panier_four": "PFF019",
+            "Designation": "Vitamine E oculaire capsules 30",
+            "quantite_four": 10,
+            "prix_unitaire": 11500,
+            "date_expiration": "2026-08-08",
+            "code_produit": "C0001",
+            "code_facture_four": "FCF006",
+            "code_session": "ses01",
+            "date_creation": "2026-06-05T18:53:45",
+            "date_modification": "2026-06-05T18:53:45"
+        }
+    ],
+    "personnel": [
+        {
+            "code": "P0001",
+            "nom": "Mamy",
+            "prenom": "Parfaite",
+            "date_naissance": "2026-06-05",
+            "adresse": "Mamou",
+            "contact": "622333333",
+            "mail": "guilavoguimaurice20@gmail.com",
+            "fonction": "Laboratin",
+            "photo_path": null,
+            "est_responsable": 0,
+            "date_creation": "2026-06-05T17:41:03",
+            "date_modification": "2026-06-05T17:41:03"
+        }
+    ],
+    "prescription_produit": [
+        {
+            "code_prescription": "PRS001",
+            "designation": "Paracetamol",
+            "code_produit": "L0011",
+            "quantite_prescript": 1,
+            "prix_applique": 30000.0,
+            "code_session": "ses01",
+            "date_expiration": "2026-08-21",
+            "code_acte": "ACT004",
+            "date_creation": "2026-06-05T18:44:42",
+            "date_modification": "2026-06-05T18:44:42"
+        },
+        {
+            "code_prescription": "PRS002",
+            "designation": "Collyre Neomycine polymyxine 5ml",
+            "code_produit": "L0009",
+            "quantite_prescript": 2,
+            "prix_applique": 9500.0,
+            "code_session": "ses01",
+            "date_expiration": "2027-10-31",
+            "code_acte": "ACT004",
+            "date_creation": "2026-06-05T18:44:58",
+            "date_modification": "2026-06-05T18:44:58"
+        },
+        {
+            "code_prescription": "PRS003",
+            "designation": "Larmes artificielles Hylo-Comod 10ml",
+            "code_produit": "L0002",
+            "quantite_prescript": 3,
+            "prix_applique": 12000.0,
+            "code_session": "ses01",
+            "date_expiration": "2027-06-30",
+            "code_acte": "ACT004",
+            "date_creation": "2026-06-05T18:45:12",
+            "date_modification": "2026-06-05T18:45:12"
+        }
+    ],
+    "produits": [
+        {
+            "code_produit": "L0011",
+            "libelle": "Paracetamol",
+            "type": "liquide",
+            "prix_achat_unitaire": 20000.0,
+            "prix_vente_unitaire": 30000.0,
+            "date_creation": "2026-06-05T16:09:13",
+            "date_modification": "2026-06-05T16:09:13"
+        }
+    ],
+    "stocks": [
+        {
+            "code_stock": "STK002",
+            "code_produit": "L0002",
+            "quantite_actuelle": 247,
+            "date_derniere_maj": "2026-06-05T18:45:34",
+            "code_session": "ses01",
+            "date_creation": "2026-06-03T14:27:01",
+            "date_modification": "2026-06-05T18:45:34"
+        },
+        {
+            "code_stock": "STK007",
+            "code_produit": "L0007",
+            "quantite_actuelle": 302,
+            "date_derniere_maj": "2026-06-05T18:53:18",
+            "code_session": "ses01",
+            "date_creation": "2026-06-03T14:27:01",
+            "date_modification": "2026-06-05T18:53:18"
+        },
+        {
+            "code_stock": "STK009",
+            "code_produit": "L0009",
+            "quantite_actuelle": 248,
+            "date_derniere_maj": "2026-06-05T18:45:34",
+            "code_session": "ses01",
+            "date_creation": "2026-06-03T14:27:01",
+            "date_modification": "2026-06-05T18:45:34"
+        },
+        {
+            "code_stock": "STK012",
+            "code_produit": "C0001",
+            "quantite_actuelle": 190,
+            "date_derniere_maj": "2026-06-05T18:53:45",
+            "code_session": "ses01",
+            "date_creation": "2026-06-03T14:27:01",
+            "date_modification": "2026-06-05T18:53:45"
+        },
+        {
+            "code_stock": "STK013",
+            "code_produit": "L0011",
+            "quantite_actuelle": 7,
+            "date_derniere_maj": "2026-06-05T18:45:34",
+            "code_session": "ses01",
+            "date_creation": "2026-06-05T16:09:54",
+            "date_modification": "2026-06-05T18:45:34"
+        }
+    ],
+    "utilisateur": [
+        {
+            "code": "U0005",
+            "mdp": "$2b$12$8HYjTBvMEFrdVa2QyMB1UujSCwUr6n9ev641MWjuGhno8odBWSqj2",
+            "role": "Laborantin",
+            "personnel": "P0001",
+            "date_creation": "2026-06-05T17:41:04",
+            "date_modification": "2026-06-05T17:41:04"
+        }
+    ],
+    "visite": [
+        {
+            "code_visite": "VIST001",
+            "code_patient": "PAT001",
+            "code_session": "ses01",
+            "type_visite": "Immediat",
+            "statut_visite": "terminée",
+            "statut_patient": "Terminée",
+            "urgent": "Non",
+            "date_visite": "2026-06-05T18:47:04",
+            "date_debut_consultation": "2026-06-05T18:16:26",
+            "date_creation": "2026-06-05T18:16:07",
+            "date_modification": "2026-06-05T18:47:04"
+        }
+    ]
+}

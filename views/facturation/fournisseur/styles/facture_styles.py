@@ -69,7 +69,7 @@ class FactureStyles:
         """Style pour les lignes de lot."""
         c = theme_manager.colors()
         return f"""
-            background: {c['bg_main']};
+            background: {c['bg_card']};
             border-radius: 8px;
             border: none;
         """
@@ -213,11 +213,15 @@ class FactureStyles:
     @staticmethod
     def scroll_area():
         """Style pour les QScrollArea."""
-        return """
-            QScrollArea {
+        c = theme_manager.colors()
+        return f"""
+            QScrollArea {{
                 border: none;
-                background: transparent;
-            }
+                background: {c['bg_card']};
+            }}
+            QScrollArea > QWidget {{
+                background: {c['bg_card']};
+            }}
         """
 
     # =========================================================================

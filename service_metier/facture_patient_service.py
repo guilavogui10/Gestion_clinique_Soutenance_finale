@@ -34,7 +34,7 @@ class FacturePatientService:
     # CONSTANTES MÉTIER
     # =========================================================================
 
-    MODES_PAIEMENT_VALIDES = ["Especes", "Mobile Money", "Carte bancaire"]
+    MODES_PAIEMENT_VALIDES = ["Especes", "Espèces", "Mobile Money", "Orange Money", "Carte bancaire"]
 
     def __init__(self, dao=None, cabinet_dao=None):
         self.dao = dao or FacturePatientDAO()
@@ -68,11 +68,11 @@ class FacturePatientService:
     def valider_telephone(self, telephone: str, mode_payement: str) -> Tuple[bool, str]:
         """
         Valide le numéro de téléphone.
-        Obligatoire uniquement si le mode de paiement est 'Mobile Money'.
+        Obligatoire uniquement si le mode de paiement est 'Mobile Money' ou 'Orange Money'.
         """
-        if mode_payement == "Mobile Money":
+        if mode_payement in ["Mobile Money", "Orange Money"]:
             if not telephone or telephone.strip() == "":
-                return False, "Le numero de telephone est obligatoire pour un paiement Mobile Money"
+                return False, f"Le numero de telephone est obligatoire pour un paiement {mode_payement}"
             if not re.match(r'^\+?[0-9]{8,15}$', telephone.strip()):
                 return False, "Le numero de telephone est invalide"
         return True, ""
@@ -357,9 +357,48 @@ class FacturePatientService:
         if not details:
             return False, "Aucune donnée trouvée pour cette facture."
 
-        return FacturePatientPDFService.generer_facture_pdf(
-            self, chemin_fichier, details
+        info_cabinet = self.get_cabinet_info()
+        try:
+            FacturePatientPDFService.generer_facture_pdf(details, info_cabinet, chemin_fichier)
+            return True, "PDF généré avec succès."
+        except Exception as e:
+            self.logger.error(f"Erreur lors de la génération du PDF de la facture: {e}")
+            return False, f"Erreur génération PDF : {e}"
+
+    # =========================================================================
+    # RAPPORTS PDF LISTE FACTURES
+    # =========================================================================
+
+    def generer_rapport_pdf_par_date(self, code_session: str) -> str:
+        """Génère un PDF de toutes les factures de la session groupées par date."""
+        from services.pdf_rapports.rapport_facture_patient import RapportFacturePatientPDF
+        factures = self.dao.lister_par_session(code_session) or []
+        info_cabinet = self.get_cabinet_info()
+        return RapportFacturePatientPDF.generer_pdf_par_date(
+            [self._facture_to_dict(f) for f in factures], info_cabinet
         )
+
+    def generer_rapport_pdf_date_precise(self, code_session: str, date_cible) -> str:
+        """Génère un PDF des factures de la session pour une date précise."""
+        from services.pdf_rapports.rapport_facture_patient import RapportFacturePatientPDF
+        factures = self.dao.lister_par_session(code_session) or []
+        info_cabinet = self.get_cabinet_info()
+        return RapportFacturePatientPDF.generer_pdf_date_precise(
+            [self._facture_to_dict(f) for f in factures], date_cible, info_cabinet
+        )
+
+    @staticmethod
+    def _facture_to_dict(f) -> dict:
+        """Convertit un objet FacturePatient (attributs privés) en dict pour les rapports PDF."""
+        return {
+            'code_facture':   f.get_code_facture(),
+            'montant_total':  f.get_montant_total(),
+            'mode_payement':  f.get_mode_payement(),
+            'statut_facture': f.get_statut_facture(),
+            'date_facture':   f.get_date_facture(),
+            'nom_patient':    getattr(f, 'nom_patient',    ''),
+            'prenom_patient': getattr(f, 'prenom_patient', ''),
+        }
 
     # =========================================================================
     # MÉTHODES PRIVÉES

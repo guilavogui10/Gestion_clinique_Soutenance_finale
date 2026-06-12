@@ -7,6 +7,7 @@ import qtawesome as qta
 from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve, QSize
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLabel
 from PySide6.QtGui import QFont
+from views.shared.theme_manager import theme_manager
 
 
 class ModernQuantitySpinner(QWidget):
@@ -18,9 +19,8 @@ class ModernQuantitySpinner(QWidget):
     # Signal émis quand la quantité change
     valueChanged = Signal(int)
     
-    def __init__(self, vert_principal: str = "#003f20", parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.vert_principal = vert_principal
         self._value = 1
         self._min_value = 1
         self._max_value = 9999
@@ -34,10 +34,11 @@ class ModernQuantitySpinner(QWidget):
         layout.setSpacing(0)
         
         # Container avec bordure arrondie
+        _c = theme_manager.colors()
         self.setStyleSheet(f"""
             QWidget {{
-                background: white;
-                border: 2px solid #e0e0e0;
+                background: {_c['bg_input']};
+                border: 2px solid {_c['border']};
                 border-radius: 10px;
             }}
         """)
@@ -45,26 +46,27 @@ class ModernQuantitySpinner(QWidget):
         self.setMinimumWidth(140)
         
         # Bouton Moins (-)
-        self.btn_minus = self._create_button("fa5s.minus", "#e74c3c")
+        self.btn_minus = self._create_button("fa5s.minus", theme_manager.colors()['danger'])
         self.btn_minus.clicked.connect(self._decrement)
         
         # Label affichage valeur
         self.lbl_value = QLabel(str(self._value))
         self.lbl_value.setAlignment(Qt.AlignCenter)
-        self.lbl_value.setStyleSheet("""
-            QLabel {
+        _c = theme_manager.colors()
+        self.lbl_value.setStyleSheet(f"""
+            QLabel {{
                 font-size: 16px;
                 font-weight: bold;
-                color: #2c3e50;
+                color: {_c['text_primary']};
                 background: transparent;
                 border: none;
                 padding: 0px 15px;
-            }
+            }}
         """)
         self.lbl_value.setMinimumWidth(50)
         
         # Bouton Plus (+)
-        self.btn_plus = self._create_button("fa5s.plus", self.vert_principal)
+        self.btn_plus = self._create_button("fa5s.plus", theme_manager.colors()['primary'])
         self.btn_plus.clicked.connect(self._increment)
         
         layout.addWidget(self.btn_minus)
@@ -76,6 +78,7 @@ class ModernQuantitySpinner(QWidget):
         btn = QPushButton(qta.icon(icon_name, color=color), "")
         btn.setFixedSize(44, 44)
         btn.setCursor(Qt.PointingHandCursor)
+        _c = theme_manager.colors()
         btn.setStyleSheet(f"""
             QPushButton {{
                 background: transparent;
@@ -83,10 +86,10 @@ class ModernQuantitySpinner(QWidget):
                 border-radius: 10px;
             }}
             QPushButton:hover {{
-                background: #f8f9fa;
+                background: {_c['hover']};
             }}
             QPushButton:pressed {{
-                background: #e9ecef;
+                background: {_c['border_light']};
             }}
         """)
         return btn
@@ -178,39 +181,40 @@ class ModernQuantitySpinner(QWidget):
         self.btn_plus.setEnabled(enabled and self._value < self._max_value)
         
         # Style visuel pour l'état désactivé
+        _c = theme_manager.colors()
         if not enabled:
-            self.setStyleSheet("""
-                QWidget {
-                    background: #f5f5f5;
-                    border: 2px solid #e0e0e0;
+            super().setStyleSheet(f"""
+                QWidget {{
+                    background: {_c['bg_input']};
+                    border: 2px solid {_c['border']};
                     border-radius: 10px;
-                }
+                }}
             """)
-            self.lbl_value.setStyleSheet("""
-                QLabel {
+            self.lbl_value.setStyleSheet(f"""
+                QLabel {{
                     font-size: 16px;
                     font-weight: bold;
-                    color: #bdc3c7;
+                    color: {_c['text_muted']};
                     background: transparent;
                     border: none;
                     padding: 0px 15px;
-                }
+                }}
             """)
         else:
-            self.setStyleSheet("""
-                QWidget {
-                    background: white;
-                    border: 2px solid #e0e0e0;
+            super().setStyleSheet(f"""
+                QWidget {{
+                    background: {_c['bg_input']};
+                    border: 2px solid {_c['border']};
                     border-radius: 10px;
-                }
+                }}
             """)
-            self.lbl_value.setStyleSheet("""
-                QLabel {
+            self.lbl_value.setStyleSheet(f"""
+                QLabel {{
                     font-size: 16px;
                     font-weight: bold;
-                    color: #2c3e50;
+                    color: {_c['text_primary']};
                     background: transparent;
                     border: none;
                     padding: 0px 15px;
-                }
+                }}
             """)

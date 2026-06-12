@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QFrame, QWidget, QPushButton,
     QGraphicsDropShadowEffect
 )
-from views.shared.modal_theme import MC
+from views.shared.theme_manager import theme_manager
 
 
 class DetailsExamenModal(QDialog):
@@ -39,6 +39,7 @@ class DetailsExamenModal(QDialog):
         self.setAttribute(Qt.WA_TranslucentBackground)
 
         self._init_ui()
+        theme_manager.theme_changed.connect(self.apply_theme)
 
     # =========================================================================
     # UI PRINCIPALE
@@ -52,13 +53,6 @@ class DetailsExamenModal(QDialog):
 
         self.container = QFrame(self)
         self.container.setGraphicsEffect(shadow)
-        self.container.setStyleSheet(f"""
-            QFrame {{
-                background-color: {MC.BG_CARD};
-                border-radius: 20px;
-                border: 1px solid {MC.BORDER};
-            }}
-        """)
 
         main = QVBoxLayout(self.container)
         main.setContentsMargins(0, 0, 0, 0)
@@ -73,55 +67,145 @@ class DetailsExamenModal(QDialog):
         wrapper.setContentsMargins(20, 20, 20, 20)
         wrapper.addWidget(self.container)
 
+        self.apply_theme()
+
     # =========================================================================
-    # HEADER
+    # APPLY THEME — styles + reconstruction du contenu scrollable
     # =========================================================================
 
-    def _setup_header(self, layout):
-        header = QFrame()
-        header.setFixedHeight(80)
-        header.setStyleSheet(f"""
+    def apply_theme(self):
+        c = theme_manager.colors()
+
+        # Container principal
+        self.container.setStyleSheet(f"""
             QFrame {{
-                background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
-                    stop:0 {MC.BG_CARD}, stop:1 {MC.BG_MAIN});
-                border-top-left-radius: 20px;
-                border-top-right-radius: 20px;
-                border-bottom: 1px solid {MC.BORDER_LIGHT};
+                background-color: {c['bg_card']};
+                border-radius: 20px;
+                border: 1px solid {c['border']};
             }}
         """)
-        h = QHBoxLayout(header)
-        h.setContentsMargins(25, 10, 25, 10)
 
-        # Texte cabinet
-        cab = QVBoxLayout()
-        cab.setSpacing(2)
-        nom = QLabel(self.info_cabinet.get("nom_cabinet", "Cabinet Medical").upper())
-        nom.setStyleSheet(
-            f"font-weight: 900; font-size: 16px; color: {MC.PRIMARY};"
+        # Header
+        self._header.setStyleSheet(f"""
+            QFrame {{
+                background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
+                    stop:0 {c['bg_card']}, stop:1 {c['bg_main']});
+                border-top-left-radius: 20px;
+                border-top-right-radius: 20px;
+                border-bottom: 1px solid {c['border_light']};
+            }}
+        """)
+        self._lbl_nom.setStyleSheet(
+            f"font-weight: 900; font-size: 16px; color: {c['primary']};"
             "border: none; background: transparent;"
         )
-        adr = QLabel(self.info_cabinet.get("adresse_cabinet", ""))
-        adr.setStyleSheet(f"color: {MC.TEXT_SECONDARY}; font-size: 10px; border: none; background: transparent;")
-        adr.setWordWrap(True)
-        cab.addWidget(nom)
-        cab.addWidget(adr)
-        h.addLayout(cab, 4)
-
-        # Badge "EXAMEN MEDICAL"
-        badge = QLabel("  EXAMEN MÉDICAL  ")
-        badge.setStyleSheet("""
-            background-color: #EFF6FF;
-            color: #3B82F6;
-            border: 1px solid #BFDBFE;
+        self._lbl_adr.setStyleSheet(
+            f"color: {c['text_secondary']}; font-size: 10px; border: none; background: transparent;"
+        )
+        self._badge.setStyleSheet(f"""
+            background-color: {c['primary_light']};
+            color: {c['primary']};
+            border: 1px solid {c['border']};
             border-radius: 8px;
             font-weight: bold;
             font-size: 10px;
             padding: 4px 8px;
         """)
-        h.addWidget(badge, 0, Qt.AlignVCenter)
+
+        # Bandeau
+        self._bandeau.setStyleSheet(
+            f"background-color: {c['text_primary']}; border: none;"
+        )
+        self._lbl_patient.setStyleSheet(
+            f"color: {c['bg_main']}; font-weight: bold; font-size: 13px; border:none;"
+        )
+        self._lbl_medecin.setStyleSheet(
+            f"color: {c['text_muted']}; font-size: 10px; border: none;"
+        )
+        self._lbl_code.setStyleSheet(
+            f"color: {c['primary']}; font-weight: bold; font-size: 13px;"
+            "font-family: 'Consolas'; border: none;"
+        )
+        self._lbl_date.setStyleSheet(
+            f"color: {c['text_secondary']}; font-size: 10px; border: none;"
+        )
+
+        # Scroll
+        self._scroll.setStyleSheet(f"""
+            QScrollArea {{ border: none; background: {c['bg_main']}; }}
+            QScrollBar:vertical {{
+                border: none; background: {c['border_light']};
+                width: 6px; border-radius: 3px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: {c['border']}; border-radius: 3px;
+            }}
+            QScrollBar::handle:vertical:hover {{ background: {c['text_muted']}; }}
+        """)
+
+        # Reconstruction du contenu scrollable avec les nouvelles couleurs
+        old = self._scroll.takeWidget()
+        if old:
+            old.deleteLater()
+        content = QWidget()
+        content.setStyleSheet(f"background: {c['bg_main']};")
+        root = QHBoxLayout(content)
+        root.setContentsMargins(20, 20, 20, 20)
+        root.setSpacing(16)
+        root.addLayout(self._colonne_gauche(), 55)
+        root.addLayout(self._colonne_droite(), 45)
+        self._scroll.setWidget(content)
+
+        # Footer
+        self._footer.setStyleSheet(f"""
+            background-color: {c['bg_main']};
+            border-bottom-left-radius: 20px;
+            border-bottom-right-radius: 20px;
+            border-top: 1px solid {c['border']};
+        """)
+        self._btn_close.setIcon(qta.icon("fa5s.times", color=c['text_secondary']))
+        self._btn_close.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {c['bg_card']}; color: {c['text_secondary']};
+                border-radius: 8px; font-weight: bold;
+                padding: 8px 20px; border: 1px solid {c['border']};
+            }}
+            QPushButton:hover {{ background-color: {c['border_light']}; }}
+        """)
+        self._btn_print.setIcon(qta.icon("fa5s.print", color=c['text_inverse']))
+        self._btn_print.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {c['primary']}; color: {c['text_inverse']};
+                border-radius: 8px; font-weight: bold;
+                padding: 8px 25px; border: none;
+            }}
+            QPushButton:hover {{ background-color: {c['primary_hover']}; }}
+        """)
+
+    # =========================================================================
+    # HEADER
+    # =========================================================================
+
+    def _setup_header(self, layout):
+        self._header = QFrame()
+        self._header.setFixedHeight(80)
+
+        h = QHBoxLayout(self._header)
+        h.setContentsMargins(25, 10, 25, 10)
+
+        cab = QVBoxLayout()
+        cab.setSpacing(2)
+        self._lbl_nom = QLabel(self.info_cabinet.get("nom_cabinet", "Cabinet Medical").upper())
+        self._lbl_adr = QLabel(self.info_cabinet.get("adresse_cabinet", ""))
+        self._lbl_adr.setWordWrap(True)
+        cab.addWidget(self._lbl_nom)
+        cab.addWidget(self._lbl_adr)
+        h.addLayout(cab, 4)
+
+        self._badge = QLabel("  EXAMEN MÉDICAL  ")
+        h.addWidget(self._badge, 0, Qt.AlignVCenter)
         h.addStretch()
 
-        # Logo
         logo_path = self.info_cabinet.get("logo_url")
         if logo_path and os.path.exists(logo_path):
             ll = QLabel()
@@ -130,7 +214,7 @@ class DetailsExamenModal(QDialog):
             ll.setStyleSheet("border: none; background: transparent;")
             h.addWidget(ll, 0, Qt.AlignRight)
 
-        layout.addWidget(header)
+        layout.addWidget(self._header)
 
     # =========================================================================
     # BANDEAU
@@ -152,107 +236,66 @@ class DetailsExamenModal(QDialog):
             if hasattr(date_val, "strftime") else str(date_val)
         )
 
-        bandeau = QFrame()
-        bandeau.setFixedHeight(75)
-        bandeau.setStyleSheet(
-            f"background-color: {MC.TEXT_PRIMARY}; border: none;"
-        )
-        b = QHBoxLayout(bandeau)
+        self._bandeau = QFrame()
+        self._bandeau.setFixedHeight(75)
+
+        b = QHBoxLayout(self._bandeau)
         b.setContentsMargins(25, 0, 25, 0)
         b.setSpacing(0)
 
-        # Gauche : patient + medecin
         left = QVBoxLayout()
         left.setSpacing(3)
-        lbl_p = QLabel(f"PATIENT : {nom_patient.upper()}")
-        lbl_p.setStyleSheet(
-            f"color: {MC.BG_MAIN}; font-weight: bold; font-size: 13px; border:none;"
-        )
-        lbl_m = QLabel(medecin)
-        lbl_m.setStyleSheet(
-            f"color: {MC.TEXT_MUTED}; font-size: 10px; border: none;"
-        )
-        left.addWidget(lbl_p)
-        left.addWidget(lbl_m)
+        self._lbl_patient = QLabel(f"PATIENT : {nom_patient.upper()}")
+        self._lbl_medecin = QLabel(medecin)
+        left.addWidget(self._lbl_patient)
+        left.addWidget(self._lbl_medecin)
         b.addLayout(left)
         b.addStretch()
 
-        # Droite : code + date
         right = QVBoxLayout()
         right.setSpacing(3)
         right.setAlignment(Qt.AlignRight)
-        lbl_code = QLabel(f"N° {self.code_examen}")
-        lbl_code.setStyleSheet(
-            "color: #3B82F6; font-weight: bold; font-size: 13px;"
-            "font-family: 'Consolas'; border: none;"
-        )
-        lbl_date = QLabel(date_str)
-        lbl_date.setStyleSheet(
-            f"color: {MC.TEXT_SECONDARY}; font-size: 10px; border: none;"
-        )
-        right.addWidget(lbl_code, 0, Qt.AlignRight)
-        right.addWidget(lbl_date, 0, Qt.AlignRight)
+        self._lbl_code = QLabel(f"N° {self.code_examen}")
+        self._lbl_date = QLabel(date_str)
+        right.addWidget(self._lbl_code, 0, Qt.AlignRight)
+        right.addWidget(self._lbl_date, 0, Qt.AlignRight)
         b.addLayout(right)
 
-        layout.addWidget(bandeau)
+        layout.addWidget(self._bandeau)
 
     # =========================================================================
-    # CORPS  — 2 colonnes
+    # CORPS  — 2 colonnes (contenu reconstruit dans apply_theme)
     # =========================================================================
 
     def _setup_corps(self, layout):
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setStyleSheet(f"""
-            QScrollArea {{ border: none; background: {MC.BG_MAIN}; }}
-            QScrollBar:vertical {{
-                border: none; background: {MC.BORDER_LIGHT};
-                width: 6px; border-radius: 3px;
-            }}
-            QScrollBar::handle:vertical {{
-                background: {MC.BORDER}; border-radius: 3px;
-            }}
-            QScrollBar::handle:vertical:hover {{ background: {MC.TEXT_MUTED}; }}
-        """)
-
-        content = QWidget()
-        content.setStyleSheet(f"background: {MC.BG_MAIN};")
-        root = QHBoxLayout(content)
-        root.setContentsMargins(20, 20, 20, 20)
-        root.setSpacing(16)
-
-        root.addLayout(self._colonne_gauche(), 55)
-        root.addLayout(self._colonne_droite(), 45)
-
-        scroll.setWidget(content)
-        layout.addWidget(scroll)
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        layout.addWidget(self._scroll)
 
     # ─── COLONNE GAUCHE : Libelle + Resultat ───
 
     def _colonne_gauche(self) -> QVBoxLayout:
+        c = theme_manager.colors()
         col = QVBoxLayout()
         col.setSpacing(12)
-
         d = self.data
 
-        # ── Carte Libelle ──
         col.addWidget(self._carte(
             titre     = "Libellé de l'Examen",
             icone     = "fa5s.microscope",
-            couleur_bg= "#EFF6FF",
-            couleur_b = "#BFDBFE",
-            couleur_t = "#3B82F6",
+            couleur_bg= c['primary_light'],
+            couleur_b = c['border'],
+            couleur_t = c['primary'],
             contenu   = d.get("libelle_examen", "—"),
             grand     = False
         ))
 
-        # ── Carte Resultat ──
         col.addWidget(self._carte(
             titre     = "Résultat de l'Examen",
             icone     = "fa5s.file-medical-alt",
-            couleur_bg= "#F0FDF4",
-            couleur_b = "#BBF7D0",
-            couleur_t = MC.PRIMARY,
+            couleur_bg= c['success_bg'],
+            couleur_b = c['border'],
+            couleur_t = c['success'],
             contenu   = d.get("resultat_examen", "—"),
             grand     = True
         ))
@@ -263,16 +306,15 @@ class DetailsExamenModal(QDialog):
     # ─── COLONNE DROITE : Infos + Facturation + Codes ───
 
     def _colonne_droite(self) -> QVBoxLayout:
+        c = theme_manager.colors()
         col = QVBoxLayout()
         col.setSpacing(12)
-
         d = self.data
 
-        # ── Infos Patient ──
         col.addWidget(self._bloc_infos(
             titre  = "Informations Patient",
             icone  = "fa5s.user-injured",
-            couleur= MC.PRIMARY,
+            couleur= c['primary'],
             lignes = [
                 ("Nom complet",
                  f"{d.get('patient_nom','')} {d.get('patient_prenom','')}".strip() or "—"),
@@ -281,16 +323,14 @@ class DetailsExamenModal(QDialog):
             ]
         ))
 
-        # ── Facturation ──
         frais  = d.get("frais_examen", 0)
         statut = d.get("statut_facture", "—")
         col.addWidget(self._bloc_facturation(frais, statut))
 
-        # ── Codes de traçabilité ──
         col.addWidget(self._bloc_infos(
             titre  = "Traçabilité",
             icone  = "fa5s.link",
-            couleur= "#6366F1",
+            couleur= c['accent'],
             lignes = [
                 ("Code Examen",       d.get("code",              "—")),
                 ("Code Consultation", d.get("code_consultation", "—")),
@@ -308,7 +348,7 @@ class DetailsExamenModal(QDialog):
 
     def _carte(self, titre, icone, couleur_bg, couleur_b,
                couleur_t, contenu, grand=False) -> QFrame:
-        """Carte avec titre coloré et contenu textuel."""
+        c = theme_manager.colors()
         frame = QFrame()
         frame.setStyleSheet(
             f"background-color: {couleur_bg}; border: 1px solid {couleur_b};"
@@ -318,7 +358,6 @@ class DetailsExamenModal(QDialog):
         lay.setContentsMargins(14, 12, 14, 12)
         lay.setSpacing(8)
 
-        # Titre
         head = QHBoxLayout()
         ic = QLabel()
         ic.setPixmap(qta.icon(icone, color=couleur_t).pixmap(14, 14))
@@ -339,11 +378,10 @@ class DetailsExamenModal(QDialog):
         sep.setStyleSheet(f"background: {couleur_b}; border: none;")
         lay.addWidget(sep)
 
-        # Contenu
         lbl = QLabel(contenu or "—")
         lbl.setWordWrap(True)
         lbl.setStyleSheet(
-            f"color: {MC.TEXT_PRIMARY}; font-size: 12px; line-height: 1.5;"
+            f"color: {c['text_primary']}; font-size: 12px; line-height: 1.5;"
             "border: none; background: transparent;"
         )
         if grand:
@@ -354,16 +392,15 @@ class DetailsExamenModal(QDialog):
         return frame
 
     def _bloc_infos(self, titre, icone, couleur, lignes) -> QFrame:
-        """Bloc liste de paires label : valeur."""
+        c = theme_manager.colors()
         frame = QFrame()
         frame.setStyleSheet(
-            f"background-color: {MC.BG_CARD}; border: 1px solid {MC.BORDER}; border-radius: 12px;"
+            f"background-color: {c['bg_card']}; border: 1px solid {c['border']}; border-radius: 12px;"
         )
         lay = QVBoxLayout(frame)
         lay.setContentsMargins(14, 12, 14, 12)
         lay.setSpacing(6)
 
-        # Titre
         head = QHBoxLayout()
         ic = QLabel()
         ic.setPixmap(qta.icon(icone, color=couleur).pixmap(13, 13))
@@ -381,23 +418,22 @@ class DetailsExamenModal(QDialog):
 
         sep = QFrame()
         sep.setFixedHeight(1)
-        sep.setStyleSheet(f"background: {MC.BORDER}; border: none;")
+        sep.setStyleSheet(f"background: {c['border']}; border: none;")
         lay.addWidget(sep)
 
-        # Lignes
         for label, valeur in lignes:
             row = QHBoxLayout()
             row.setSpacing(6)
             lbl_k = QLabel(f"{label} :")
             lbl_k.setFixedWidth(120)
             lbl_k.setStyleSheet(
-                f"color: {MC.TEXT_SECONDARY}; font-size: 11px; font-weight: 600;"
+                f"color: {c['text_secondary']}; font-size: 11px; font-weight: 600;"
                 "border: none; background: transparent;"
             )
             lbl_v = QLabel(str(valeur) if valeur else "—")
             lbl_v.setWordWrap(True)
             lbl_v.setStyleSheet(
-                f"color: {MC.TEXT_PRIMARY}; font-size: 11px;"
+                f"color: {c['text_primary']}; font-size: 11px;"
                 "border: none; background: transparent;"
             )
             row.addWidget(lbl_k)
@@ -407,11 +443,11 @@ class DetailsExamenModal(QDialog):
         return frame
 
     def _bloc_facturation(self, frais, statut) -> QFrame:
-        """Bloc facturation avec couleur selon statut."""
+        c = theme_manager.colors()
         paye   = "payé" in str(statut).lower()
-        bg     = "#F0FDF4" if paye else "#FFF7ED"
-        border = "#BBF7D0" if paye else "#FED7AA"
-        c_stat = "#16A34A" if paye else "#EA580C"
+        bg     = c['success_bg'] if paye else c['warning_bg']
+        border = c['border']
+        c_stat = c['success']    if paye else c['warning']
         c_icon = "fa5s.check-circle" if paye else "fa5s.clock"
 
         frame = QFrame()
@@ -422,15 +458,14 @@ class DetailsExamenModal(QDialog):
         lay.setContentsMargins(14, 12, 14, 12)
         lay.setSpacing(8)
 
-        # Titre
         head = QHBoxLayout()
         ic = QLabel()
         ic.setPixmap(
-            qta.icon("fa5s.file-invoice-dollar", color=MC.PRIMARY).pixmap(13, 13))
+            qta.icon("fa5s.file-invoice-dollar", color=c['primary']).pixmap(13, 13))
         ic.setStyleSheet("border: none; background: transparent;")
         tl = QLabel("FACTURATION")
         tl.setStyleSheet(
-            f"font-weight: bold; color: {MC.PRIMARY}; font-size: 10px;"
+            f"font-weight: bold; color: {c['primary']}; font-size: 10px;"
             "letter-spacing: 0.5px; border: none; background: transparent;"
         )
         head.addWidget(ic)
@@ -444,16 +479,15 @@ class DetailsExamenModal(QDialog):
         sep.setStyleSheet(f"background: {border}; border: none;")
         lay.addWidget(sep)
 
-        # Frais
         row_frais = QHBoxLayout()
         lbl_fk = QLabel("Frais d'examen :")
         lbl_fk.setStyleSheet(
-            f"color: {MC.TEXT_SECONDARY}; font-size: 11px; font-weight: 600;"
+            f"color: {c['text_secondary']}; font-size: 11px; font-weight: 600;"
             "border: none; background: transparent;"
         )
         lbl_fv = QLabel(f"{frais:,} GNF".replace(",", " ") if frais else "— GNF")
         lbl_fv.setStyleSheet(
-            f"color: {MC.TEXT_PRIMARY}; font-size: 13px; font-weight: bold;"
+            f"color: {c['text_primary']}; font-size: 13px; font-weight: bold;"
             "border: none; background: transparent;"
         )
         row_frais.addWidget(lbl_fk)
@@ -461,7 +495,6 @@ class DetailsExamenModal(QDialog):
         row_frais.addWidget(lbl_fv)
         lay.addLayout(row_frais)
 
-        # Statut
         row_s = QHBoxLayout()
         ic_s = QLabel()
         ic_s.setPixmap(qta.icon(c_icon, color=c_stat).pixmap(13, 13))
@@ -484,46 +517,23 @@ class DetailsExamenModal(QDialog):
     # =========================================================================
 
     def _setup_footer(self, layout):
-        footer = QFrame()
-        footer.setFixedHeight(65)
-        footer.setStyleSheet(f"""
-            background-color: {MC.BG_MAIN};
-            border-bottom-left-radius: 20px;
-            border-bottom-right-radius: 20px;
-            border-top: 1px solid {MC.BORDER};
-        """)
-        f = QHBoxLayout(footer)
+        self._footer = QFrame()
+        self._footer.setFixedHeight(65)
+
+        f = QHBoxLayout(self._footer)
         f.setContentsMargins(25, 0, 25, 0)
         f.setSpacing(12)
 
-        btn_close = QPushButton(
-            qta.icon("fa5s.times", color=MC.TEXT_SECONDARY), " Fermer")
-        btn_close.setCursor(Qt.PointingHandCursor)
-        btn_close.clicked.connect(self.close)
-        btn_close.setFixedHeight(38)
-        btn_close.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {MC.BG_CARD}; color: {MC.TEXT_SECONDARY};
-                border-radius: 8px; font-weight: bold;
-                padding: 8px 20px; border: 1px solid {MC.BORDER};
-            }}
-            QPushButton:hover {{ background-color: {MC.BORDER_LIGHT}; }}
-        """)
+        self._btn_close = QPushButton(" Fermer")
+        self._btn_close.setCursor(Qt.PointingHandCursor)
+        self._btn_close.clicked.connect(self.close)
+        self._btn_close.setFixedHeight(38)
 
-        btn_print = QPushButton(
-            qta.icon("fa5s.print", color="white"), " Imprimer")
-        btn_print.setCursor(Qt.PointingHandCursor)
-        btn_print.setFixedHeight(38)
-        btn_print.setStyleSheet("""
-            QPushButton {
-                background-color: #3B82F6; color: white;
-                border-radius: 8px; font-weight: bold;
-                padding: 8px 25px; border: none;
-            }
-            QPushButton:hover { background-color: #2563EB; }
-        """)
+        self._btn_print = QPushButton(" Imprimer")
+        self._btn_print.setCursor(Qt.PointingHandCursor)
+        self._btn_print.setFixedHeight(38)
 
-        f.addWidget(btn_close)
+        f.addWidget(self._btn_close)
         f.addStretch()
-        f.addWidget(btn_print)
-        layout.addWidget(footer)
+        f.addWidget(self._btn_print)
+        layout.addWidget(self._footer)

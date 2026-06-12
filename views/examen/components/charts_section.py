@@ -40,8 +40,8 @@ class ChartsSection(QWidget):
         self.chart2_graph = MontantExamensGraph(self.chart2_frame, width=6, height=4, dpi=100)
         self.chart2_frame.layout().addWidget(self.chart2_graph)
         
-        # Graphique 3: Moyenne journalière par mois (barres)
-        self.chart3_frame = self._create_chart_frame("Moyenne journalière par mois")
+        # Graphique 3: Revenu moyen journalier
+        self.chart3_frame = self._create_chart_frame("Revenu moyen journalier")
         self.chart3_graph = MoyenneJournaliereGraph(self.chart3_frame, width=6, height=4, dpi=100)
         self.chart3_frame.layout().addWidget(self.chart3_graph)
         
@@ -87,17 +87,18 @@ class ChartsSection(QWidget):
             self.chart2_graph.update_graph({})
         
         try:
-            moyenne_data = self.ctrl.obtenir_moyenne_examens_journaliers_par_mois(code_session)
+            moyenne_data = self.ctrl.obtenir_revenu_moyen_par_mois(code_session)
             self.chart3_graph.update_graph(moyenne_data or {})
         except:
             self.chart3_graph.update_graph({})
     
     def apply_theme(self):
         c = theme_manager.colors()
-        
+        bg = c['bg_card']
+
         self.setStyleSheet(f"""
             QFrame#ChartFrame {{
-                background: {c['bg_card']};
+                background: {bg};
                 border: 1px solid {c['border']};
                 border-radius: 15px;
             }}
@@ -107,3 +108,9 @@ class ChartsSection(QWidget):
                 border: none;
             }}
         """)
+
+        for graph in (self.chart1_graph, self.chart2_graph, self.chart3_graph):
+            graph.setStyleSheet(f"background-color: {bg};")
+            graph.fig.patch.set_facecolor(bg)
+            graph.axes.set_facecolor(bg)
+            graph.draw_idle()

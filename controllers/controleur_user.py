@@ -22,7 +22,14 @@ class UserController:
         Recherche un utilisateur via son code personnel lié.
         Permet d'identifier un utilisateur précis parmi ceux du même rôle.
         """
-        return self.dao.rechercher_par_code_personnel(code_personnel)
+        return self.service.dao.rechercher_par_code_personnel(code_personnel)
 
     def gerer_suppression(self, code: str) -> dict:
         return self.service.gerer_suppression(code)
+
+    def obtenir_roles_disponibles(self) -> list:
+        """
+        Récupère la liste des rôles disponibles dans le système.
+        Respect du principe MVC : Vue -> Contrôleur -> Service -> DAO
+        """
+        return self.service.obtenir_roles_disponibles()

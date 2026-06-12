@@ -129,20 +129,36 @@ class FacturesVisitesPopover(QDialog):
             # Statut facture
             statut = "Aucune"
             color_statut = c['text_secondary']
+            code_facture = None
             
             if facture:
+                # Récupération du statut et code facture
                 if isinstance(facture, dict):
-                    statut_val = facture.get('statut_facture', 'En attente')
+                    statut_val = facture.get('statut_facture', '')
                     code_facture = facture.get('code_facture')
                 else:
-                    statut_val = facture.get_statut_facture() if hasattr(facture, 'get_statut_facture') else getattr(facture, 'statut_facture', 'En attente')
+                    statut_val = facture.get_statut_facture() if hasattr(facture, 'get_statut_facture') else getattr(facture, 'statut_facture', '')
                     code_facture = facture.get_code_facture() if hasattr(facture, 'get_code_facture') else getattr(facture, 'code_facture', None)
                 
-                if statut_val.lower() in ['payée', 'terminée', 'terminer']:
+                # Normalisation et vérification du statut
+                statut_normalise = (statut_val or '').strip().lower()
+                
+                # Liste complète des statuts "terminé"
+                statuts_termines = [
+                    'payée', 'payee', 'payé', 'paye',
+                    'terminée', 'terminee', 'terminé', 'termine',
+                    'terminer', 'complète', 'complete', 'validée', 'validee'
+                ]
+                
+                if statut_normalise in statuts_termines:
                     statut = "Terminée"
                     color_statut = c['success']
-                else:
+                elif statut_normalise in ['en attente', 'attente', 'en cours', 'encours', 'à payer', 'a payer']:
                     statut = "En attente"
+                    color_statut = c['warning']
+                else:
+                    # Afficher le statut tel quel s'il n'est pas reconnu
+                    statut = statut_val.capitalize() if statut_val else "En attente"
                     color_statut = c['warning']
             
             lbl_statut = QLabel(statut)
@@ -192,7 +208,7 @@ class FacturesVisitesPopover(QDialog):
         """Imprime la facture et affiche l'aperçu PDF"""
         from views.shared.message_box import CustomMessageBox
         from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
-        from services.pdf_patient.facture_pdf import PDFFactureHistoriquePatient
+        from services.pdf_patient.facture_pdf import FacturePatientPDFService
         
         try:
             # Récupérer les détails complets (panier, patient, etc.)
@@ -209,7 +225,8 @@ class FacturesVisitesPopover(QDialog):
             os.close(fd)
             
             # Utilisation du nouveau service PDF
-            chemin = PDFFactureHistoriquePatient.generer_facture_pdf(details_facture, info_cabinet, chemin_pdf)
+            info_cabinet = self.controleur.get_cabinet_info()
+            chemin = FacturePatientPDFService.generer_facture_pdf(details_facture, info_cabinet, chemin_pdf)
             
             if chemin and os.path.exists(chemin):
                 # Fermer le popover

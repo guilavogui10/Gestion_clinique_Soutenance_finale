@@ -1,0 +1,189 @@
+{
+    "acte_medical": [
+        {
+            "code_acte": "ACT001",
+            "code_consultation": "CLS001",
+            "type_acte": "examen",
+            "decision_medicale": "examen complementaire",
+            "choix_patient": "plus_tard",
+            "mode_realisation": "interne",
+            "statut_acte": "en_cours",
+            "raison_refus": "",
+            "date_creation": "2026-06-06T09:11:59",
+            "date_modification": "2026-06-06T09:17:39"
+        }
+    ],
+    "acte_visite": [
+        {
+            "code_acte": "ACT001",
+            "code_visite": "VIST001",
+            "role_visite": "origine",
+            "date_liaison": "2026-06-06T09:11:59",
+            "date_entre": null,
+            "date_debut_execution": null,
+            "date_sortie": null,
+            "date_creation": "2026-06-06T09:11:59",
+            "date_modification": "2026-06-06T09:11:59"
+        },
+        {
+            "code_acte": "ACT001",
+            "code_visite": "VIST002",
+            "role_visite": "execution",
+            "date_liaison": "2026-06-06T09:17:03",
+            "date_entre": "2026-06-06T09:17:03",
+            "date_debut_execution": "2026-06-06T09:17:39",
+            "date_sortie": null,
+            "date_creation": "2026-06-06T09:17:03",
+            "date_modification": "2026-06-06T09:17:39"
+        }
+    ],
+    "annee": [
+        {
+            "code_session": "ses00",
+            "nom_session": "2024-2025",
+            "date_debut": "2024-01-01T00:00:00",
+            "date_fin": "2025-12-31T23:59:00",
+            "statut": "termine",
+            "date_creation": "2026-06-06T19:05:46",
+            "date_modification": "2026-06-06T19:06:38"
+        }
+    ],
+    "consultation": [
+        {
+            "code": "CLS001",
+            "diagnostique": "oeil gauche",
+            "frais_consultation": 12000.0,
+            "statut_facture": "Payé",
+            "date_consultation": "2026-06-06T00:00:00",
+            "code_visite": "VIST001",
+            "code_session": "ses01",
+            "code_personnel": "U0006",
+            "date_creation": "2026-06-06T09:11:13",
+            "date_modification": "2026-06-06T09:13:13"
+        }
+    ],
+    "examen": [
+        {
+            "code": "EXM001",
+            "libelle_examen": "fond oeil",
+            "frais_examen": 80000.0,
+            "statut_facture": "attente payement",
+            "date_examen": "2026-06-06T09:18:35",
+            "code_session": "ses01",
+            "code_personnel": "P0001",
+            "code_acte": "ACT001",
+            "interpreter_par": "P0001",
+            "date_interpretation": "2026-06-20T09:18:35",
+            "conclusion_medicale": "examen reussie",
+            "date_creation": "2026-06-06T09:19:22",
+            "date_modification": "2026-06-06T09:19:22"
+        }
+    ],
+    "facture_patient": [
+        {
+            "code_facture": "FCT001",
+            "code_visite": "VIST001",
+            "Montant_total": 12000.0,
+            "Mode_payement": "Espèces",
+            "telephone": "620151125",
+            "statut_facture": "Payé",
+            "date_facture": "2026-06-06T09:13:13",
+            "code_session": "ses01",
+            "date_creation": "2026-06-06T09:13:05",
+            "date_modification": "2026-06-06T09:13:13"
+        },
+        {
+            "code_facture": "FCT002",
+            "code_visite": "VIST002",
+            "Montant_total": 80000.0,
+            "Mode_payement": "Espèces",
+            "telephone": "620151125",
+            "statut_facture": "Payé",
+            "date_facture": "2026-06-06T09:20:05",
+            "code_session": "ses01",
+            "date_creation": "2026-06-06T09:19:59",
+            "date_modification": "2026-06-06T09:20:05"
+        }
+    ],
+    "panier_facture": [
+        {
+            "code_paniere": "PAN001",
+            "designation": "Consultation",
+            "numero_reference": "CLS001",
+            "quantite_facture": 1,
+            "prix_appliqué": 12000.0,
+            "code_facture": "FCT001",
+            "date_creation": "2026-06-06T09:13:09",
+            "date_modification": "2026-06-06T09:13:09"
+        },
+        {
+            "code_paniere": "PAN002",
+            "designation": "Examen",
+            "numero_reference": "EXM001",
+            "quantite_facture": 1,
+            "prix_appliqué": 80000.0,
+            "code_facture": "FCT002",
+            "date_creation": "2026-06-06T09:20:02",
+            "date_modification": "2026-06-06T09:20:02"
+        }
+    ],
+    "rendez_vous": [
+        {
+            "code_rendez_vous": "RDV001",
+            "code_visite": "VIST001",
+            "code_personnel": "U0006",
+            "code_session": "ses01",
+            "date_rendez_vous": "2026-06-06T09:17:00",
+            "statut_rendez_vous": "en_cours",
+            "code_acte": "ACT001",
+            "date_creation": "2026-06-06T09:12:30",
+            "date_modification": "2026-06-06T09:17:03"
+        }
+    ],
+    "utilisateur": [
+        {
+            "code": "U0002",
+            "mdp": "$2b$12$V8HJQxJGuWsXJrwA5u3OoOIxTDUDBeWDOY0xeylYXyj0NEVTJKIO2",
+            "role": "Directeur Général",
+            "personnel": "U0006",
+            "date_creation": "2026-06-03T14:27:02",
+            "date_modification": "2026-06-06T13:17:43"
+        },
+        {
+            "code": "U0005",
+            "mdp": "$2b$12$NUpwBlUVayKUEDRMtdvA0Ov3DtxgIe8285vTqpoN79tQka.OXPi16",
+            "role": "Laborantin",
+            "personnel": "P0001",
+            "date_creation": "2026-06-05T17:41:04",
+            "date_modification": "2026-06-06T12:32:29"
+        }
+    ],
+    "visite": [
+        {
+            "code_visite": "VIST001",
+            "code_patient": "PAT001",
+            "code_session": "ses01",
+            "type_visite": "Immediat",
+            "statut_visite": "terminée",
+            "statut_patient": "Attente rendez-vous examen",
+            "urgent": "Non",
+            "date_visite": "2026-06-06T09:13:13",
+            "date_debut_consultation": "2026-06-06T09:10:56",
+            "date_creation": "2026-06-06T09:10:24",
+            "date_modification": "2026-06-06T09:13:13"
+        },
+        {
+            "code_visite": "VIST002",
+            "code_patient": "PAT001",
+            "code_session": "ses01",
+            "type_visite": "rendez-vous",
+            "statut_visite": "terminée",
+            "statut_patient": "Terminée",
+            "urgent": "Non",
+            "date_visite": "2026-06-06T09:20:05",
+            "date_debut_consultation": null,
+            "date_creation": "2026-06-06T09:17:03",
+            "date_modification": "2026-06-06T09:20:05"
+        }
+    ]
+}

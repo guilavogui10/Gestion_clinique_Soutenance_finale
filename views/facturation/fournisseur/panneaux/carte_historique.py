@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from ..styles.facture_styles import FactureStyles
 from .ui_helpers import separateur_h
+from views.shared.theme_manager import theme_manager
 
 
 class CarteHistorique(QFrame):
@@ -142,10 +143,11 @@ class CarteHistorique(QFrame):
         )
         ic.setStyleSheet("background:transparent;")
 
+        _c = theme_manager.colors()
         lbl = QLabel(self.row.get('fournisseur_nom') or 'Fournisseur inconnu')
         lbl.setWordWrap(True)
         lbl.setStyleSheet(
-            f"color:#1F2937; font-size:11px; font-weight:600; "
+            f"color:{_c['text_primary']}; font-size:11px; font-weight:600; "
             f"background:transparent; border:none;"
         )
 

@@ -20,6 +20,7 @@ from ..components.carte_facture import CarteFacture
 from ..vues.vue_detail_facture import VueDetailFacture
 from ..styles.facture_styles import FactureStyles
 from .ui_helpers import FondArrondi, lbl_vide, scroll_wrap, separateur_h
+from views.shared.theme_manager import theme_manager
 from .carte_historique import CarteHistorique
 from .header_factures import HeaderFactures
 from .barre_onglets_factures import BarreOngletsFactures
@@ -54,6 +55,8 @@ class PanneauFactures(FondArrondi):
 
         self.move(parent.width(), self.y())
         self.hide()
+        self.apply_theme()
+        theme_manager.theme_changed.connect(self.apply_theme)
 
     # =========================================================================
     # ASSEMBLAGE UI
@@ -259,7 +262,7 @@ class PanneauFactures(FondArrondi):
         frame = QFrame()
         frame.setFixedHeight(28)
         frame.setStyleSheet(
-            f"background:{FactureStyles.GRIS_FOND}; border-radius:6px; border:none;"
+            f"background:{FactureStyles.BLANC}; border-radius:6px; border:none;"
         )
         lay = QHBoxLayout(frame)
         lay.setContentsMargins(10, 0, 10, 0)
@@ -362,3 +365,19 @@ class PanneauFactures(FondArrondi):
             pw = self.parent().width()
             self.setGeometry(pw - self.LARGEUR, 0,
                              self.LARGEUR, self.parent().height())
+
+    # =========================================================================
+    # THÈME
+    # =========================================================================
+
+    def apply_theme(self) -> None:
+        """Met à jour les couleurs selon le thème actif."""
+        c = theme_manager.colors()
+        self._couleur_fond = QColor(c['bg_card'])
+        self.update()
+        for attr in ('_header', '_barre', '_page_liste'):
+            widget = getattr(self, attr, None)
+            if widget:
+                fn = getattr(widget, 'apply_theme', None)
+                if fn:
+                    fn()

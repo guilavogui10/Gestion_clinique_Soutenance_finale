@@ -49,7 +49,7 @@ class HistoriquePatientChirurgieView(QWidget):
         top_bar.setSpacing(10)
 
         ico = QLabel()
-        ico.setPixmap(qta.icon("fa5s.history", color="#dc2626").pixmap(20, 20))
+        ico.setPixmap(qta.icon("fa5s.history", color=theme_manager.colors()['danger']).pixmap(20, 20))
         title = QLabel("Historique des chirurgies")
         title.setObjectName("HistTitre")
         top_bar.addWidget(ico)
@@ -222,7 +222,7 @@ class HistoriquePatientChirurgieView(QWidget):
         date_row.setSpacing(6)
 
         ico_cal = QLabel()
-        ico_cal.setPixmap(qta.icon("fa5s.calendar-alt", color=c.get("danger", "#dc2626")).pixmap(13, 13))
+        ico_cal.setPixmap(qta.icon("fa5s.calendar-alt", color=c['danger']).pixmap(13, 13))
         date_lbl = QLabel(date_str)
         date_lbl.setObjectName("HistTimelineDate")
         date_row.addWidget(ico_cal)
@@ -239,7 +239,7 @@ class HistoriquePatientChirurgieView(QWidget):
         dr_row = QHBoxLayout()
         dr_row.setSpacing(6)
         ico_dr = QLabel()
-        ico_dr.setPixmap(qta.icon("fa5s.user-md", color=c.get("text_secondary", "#666")).pixmap(12, 12))
+        ico_dr.setPixmap(qta.icon("fa5s.user-md", color=c['text_secondary']).pixmap(12, 12))
         dr_lbl = QLabel(dr_name)
         dr_lbl.setObjectName("HistTimelineDr")
         dr_row.addWidget(ico_dr)
@@ -250,7 +250,7 @@ class HistoriquePatientChirurgieView(QWidget):
         lib_row = QHBoxLayout()
         lib_row.setSpacing(6)
         ico_lib = QLabel()
-        ico_lib.setPixmap(qta.icon("fa5s.procedures", color=c.get("text_muted", "#999")).pixmap(11, 11))
+        ico_lib.setPixmap(qta.icon("fa5s.procedures", color=c['text_muted']).pixmap(11, 11))
         lib_lbl = QLabel(libelle or "-")
         lib_lbl.setObjectName("HistTimelineLib")
         lib_lbl.setWordWrap(True)
@@ -312,12 +312,12 @@ class HistoriquePatientChirurgieView(QWidget):
         wl.setAlignment(Qt.AlignCenter)
 
         ico = QLabel()
-        ico.setPixmap(qta.icon(icon_name, color=c.get("border", "#ddd")).pixmap(56, 56))
+        ico.setPixmap(qta.icon(icon_name, color=c['border']).pixmap(56, 56))
         ico.setAlignment(Qt.AlignCenter)
 
         msg = QLabel(message)
         msg.setAlignment(Qt.AlignCenter)
-        msg.setStyleSheet(f"color: {c.get('text_muted', '#aaa')}; font-size: 14px;")
+        msg.setStyleSheet(f"color: {c['text_muted']}; font-size: 14px;")
         msg.setWordWrap(True)
 
         wl.addStretch()
@@ -489,7 +489,7 @@ class HistoriquePatientChirurgieView(QWidget):
         # Titre section
         title_row = QHBoxLayout()
         title_ico = QLabel()
-        title_ico.setPixmap(qta.icon("fa5s.info-circle", color=c.get("danger", "#dc2626")).pixmap(14, 14))
+        title_ico.setPixmap(qta.icon("fa5s.info-circle", color=c['danger']).pixmap(14, 14))
         title_lbl = QLabel("Informations de la chirurgie")
         title_lbl.setObjectName("HistCardSectionTitle")
         title_row.addWidget(title_ico)
@@ -521,7 +521,7 @@ class HistoriquePatientChirurgieView(QWidget):
             top = QHBoxLayout()
             top.setSpacing(6)
             ico = QLabel()
-            ico.setPixmap(qta.icon(icon_name, color=c.get("danger", "#dc2626")).pixmap(12, 12))
+            ico.setPixmap(qta.icon(icon_name, color=c['danger']).pixmap(12, 12))
             lbl = QLabel(label)
             lbl.setObjectName("HistInfoLabel")
             top.addWidget(ico)
@@ -547,7 +547,7 @@ class HistoriquePatientChirurgieView(QWidget):
 
         title_row = QHBoxLayout()
         ico = QLabel()
-        ico.setPixmap(qta.icon("fa5s.notes-medical", color=c.get("danger", "#dc2626")).pixmap(16, 16))
+        ico.setPixmap(qta.icon("fa5s.notes-medical", color=c['danger']).pixmap(16, 16))
         title_lbl = QLabel("Compte rendu opératoire")
         title_lbl.setObjectName("HistCardSectionTitle")
         title_row.addWidget(ico)
@@ -586,7 +586,7 @@ class HistoriquePatientChirurgieView(QWidget):
         l.setContentsMargins(0, 0, 0, 0)
         l.setSpacing(5)
         ico = QLabel()
-        ico.setPixmap(qta.icon(icon_name, color=color or c.get("text_secondary", "#666")).pixmap(12, 12))
+        ico.setPixmap(qta.icon(icon_name, color=color or c['text_secondary']).pixmap(12, 12))
         txt = QLabel(str(text))
         txt.setObjectName("HistIconText")
         l.addWidget(ico)
@@ -599,12 +599,12 @@ class HistoriquePatientChirurgieView(QWidget):
 
     def apply_theme(self):
         c = theme_manager.colors()
-        danger = c.get("danger", "#dc2626")
-        danger_bg = c.get("danger_bg", "#fef2f2")
+        danger = c['danger']
+        danger_bg = c['danger_bg']
         self.setStyleSheet(f"""
             /* ── Fond général ── */
             QWidget {{
-                background: white;
+                background: {c['bg_main']};
                 font-family: 'Segoe UI', sans-serif;
             }}
 
@@ -636,7 +636,7 @@ class HistoriquePatientChirurgieView(QWidget):
 
             /* ── Panneau gauche ── */
             QFrame#HistLeftPanel {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 14px;
             }}
@@ -644,7 +644,7 @@ class HistoriquePatientChirurgieView(QWidget):
 
             /* ── Cards timeline ── */
             QFrame#HistTimelineCard {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border_light']};
                 border-radius: 10px;
             }}
@@ -675,12 +675,12 @@ class HistoriquePatientChirurgieView(QWidget):
             }}
 
             /* ── Panneau droit ── */
-            QFrame#HistRightPanel {{ background: white; }}
-            QWidget#HistDetailBg  {{ background: white; }}
+            QFrame#HistRightPanel {{ background: {c['bg_main']}; }}
+            QWidget#HistDetailBg  {{ background: {c['bg_main']}; }}
 
             /* ── Cartes blanches ── */
             QFrame#HistDetailCard {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 12px;
             }}
@@ -688,13 +688,13 @@ class HistoriquePatientChirurgieView(QWidget):
             /* ── Header patient ── */
             QLabel#HistAvatar {{
                 background: {danger};
-                color: white;
+                color: {c['text_inverse']};
                 border-radius: 28px;
                 font-size: 20px; font-weight: 700;
             }}
             QLabel#HistPersonnelAvatar {{
                 background: {c['warning']};
-                color: white;
+                color: {c['text_inverse']};
                 border-radius: 28px;
                 font-size: 20px; font-weight: 700;
             }}
@@ -707,7 +707,7 @@ class HistoriquePatientChirurgieView(QWidget):
 
             /* ── Grille infos ── */
             QFrame#HistInfoItem {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border_light']};
                 border-radius: 8px;
             }}

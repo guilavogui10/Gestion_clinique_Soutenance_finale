@@ -96,20 +96,36 @@ class FileAttenteService:
         Démarre le passage d'un patient en utilisant le code_acte.
         Récupère le passage actif (en attente) pour cet acte et le démarre.
         """
-        av = self.dao_visite.get_passage_actif(code_acte)
-        if not av:
-            return False, "Aucun passage actif trouvé pour cet acte"
-        
-        ok_visite = self.dao_visite.demarrer_passage(code_acte, av.code_visite)
-        ok_acte   = self.dao_acte.passer_en_cours(code_acte)
-        
-        if ok_visite and ok_acte:
-            self._mettre_a_jour_statut_patient_demarrage(av.code_visite, code_acte)
-            self.logger.info("Passage démarré pour acte %s", code_acte)
-            return True, "Passage démarré avec succès"
-        return False, "Erreur lors du démarrage du passage"
+        from core.connexion_db import DBConnection
+        db = DBConnection()
+        conn = db.connect()
+        if not conn:
+            return False, "Erreur de connexion à la base de données"
+
+        try:
+            av = self.dao_visite.get_passage_actif(code_acte)
+            if not av:
+                return False, "Aucun passage actif trouvé pour cet acte"
+            
+            ok_visite = self.dao_visite.demarrer_passage(code_acte, av.code_visite, ext_conn=conn)
+            ok_acte   = self.dao_acte.passer_en_cours(code_acte, ext_conn=conn)
+            
+            if ok_visite and ok_acte:
+                self._mettre_a_jour_statut_patient_demarrage(av.code_visite, code_acte, ext_conn=conn)
+                conn.commit()
+                self.logger.info("Passage démarré pour acte %s", code_acte)
+                return True, "Passage démarré avec succès"
+            
+            conn.rollback()
+            return False, "Erreur lors du démarrage du passage"
+        except Exception as e:
+            conn.rollback()
+            self.logger.error(f"Erreur demarrer_passage_par_code_acte: {e}")
+            return False, "Erreur système lors du démarrage du passage"
+        finally:
+            db.close()
     
-    def _mettre_a_jour_statut_patient_demarrage(self, code_visite: str, code_acte: str):
+    def _mettre_a_jour_statut_patient_demarrage(self, code_visite: str, code_acte: str, ext_conn=None):
         """Met à jour le statut du patient lors du démarrage (Attente X -> En X)."""
         try:
             from core.connexion_db import DBConnection
@@ -121,7 +137,7 @@ class FileAttenteService:
                 # Récupérer le type d'acte
                 acte = self.dao_acte.obtenir_par_id(code_acte)
                 if not acte:
-                    return
+                    raise ValueError(f"Acte {code_acte} introuvable dans la base de données")
                 
                 statut_map = {
                     TypeActe.EXAMEN: "En examen",
@@ -132,12 +148,17 @@ class FileAttenteService:
                 
                 nouveau_statut = statut_map.get(acte.type_acte)
                 if not nouveau_statut:
-                    return
+                    raise ValueError(f"Type d'acte inconnu ou non pris en charge: {acte.type_acte}")
             
-            db = DBConnection()
-            conn = db.connect()
+            if not ext_conn:
+                db = DBConnection()
+                conn = db.connect()
+            else:
+                conn = ext_conn
+                db = None
+                
             if not conn:
-                return
+                raise Exception("Impossible de se connecter à la base de données")
             
             try:
                 cursor = conn.cursor()
@@ -145,14 +166,17 @@ class FileAttenteService:
                     "UPDATE visite SET statut_patient = %s WHERE code_visite = %s",
                     (nouveau_statut, code_visite)
                 )
-                conn.commit()
+                if not ext_conn:
+                    conn.commit()
                 self.logger.info(f"Statut patient mis à jour: {nouveau_statut} pour visite {code_visite}")
             finally:
-                db.close()
+                if not ext_conn and db:
+                    db.close()
         except Exception as e:
             self.logger.error(f"Erreur _mettre_a_jour_statut_patient_demarrage: {e}")
+            raise
     
-    def _mettre_a_jour_statut_patient_terminaison(self, code_visite: str, code_acte: str):
+    def _mettre_a_jour_statut_patient_terminaison(self, code_visite: str, code_acte: str, ext_conn=None):
         """Met à jour le statut du patient lors de la terminaison (En X -> Attente prochaine étape ou Attente paiement)."""
         try:
             from core.connexion_db import DBConnection
@@ -160,44 +184,66 @@ class FileAttenteService:
             
             self.logger.info(f"Début _mettre_a_jour_statut_patient_terminaison pour visite {code_visite}, acte {code_acte}")
             
-            db = DBConnection()
-            conn = db.connect()
+            if not ext_conn:
+                db = DBConnection()
+                conn = db.connect()
+            else:
+                conn = ext_conn
+                db = None
+                
             if not conn:
                 self.logger.error("Impossible de se connecter à la base de données")
-                return
+                raise Exception("Connexion à la base de données échouée")
             
             try:
                 cursor = conn.cursor(pymysql.cursors.DictCursor)
-                
-                # Récupérer tous les actes de cette visite
+
+                # Vérifier si le patient est déjà en attente de rendez-vous (acte plus_tard)
+                # Si oui, ne pas écraser ce statut — le médecin a déjà prescrit un acte en RDV
+                cursor.execute(
+                    "SELECT statut_patient FROM visite WHERE code_visite = %s",
+                    (code_visite,)
+                )
+                row_visite = cursor.fetchone()
+                statut_courant = row_visite['statut_patient'] if row_visite else None
+                if statut_courant and statut_courant.lower().startswith('attente rendez-vous'):
+                    self.logger.info(
+                        f"Statut '{statut_courant}' déjà positionné (acte plus_tard) — "
+                        f"terminaison de {code_acte} n'écrase pas ce statut."
+                    )
+                    return
+
+                # Récupérer uniquement les actes d'exécution (role='execution') de cette visite.
+                # Les enregistrements role='origine' (actes plus_tard prescrits pour un RDV futur)
+                # ne sont pas des étapes d'exécution en file d'attente et ne doivent pas
+                # influencer le calcul du « prochain acte à faire ».
                 cursor.execute("""
                     SELECT am.code_acte, am.type_acte, av.date_sortie
                     FROM acte_visite av
                     JOIN acte_medical am ON am.code_acte = av.code_acte
                     WHERE av.code_visite = %s
+                      AND av.role_visite = 'execution'
                     ORDER BY av.date_liaison ASC
                 """, (code_visite,))
                 actes = cursor.fetchall()
-                
-                self.logger.info(f"Actes trouvés pour visite {code_visite}: {len(actes)}")
+
+                self.logger.info(f"Actes (execution) trouvés pour visite {code_visite}: {len(actes)}")
                 for acte in actes:
                     self.logger.info(f"  - Acte {acte['code_acte']}: type={acte['type_acte']}, date_sortie={acte['date_sortie']}")
-                
+
                 if not actes:
-                    # Aucun acte, passer à "Attente payement"
                     nouveau_statut = "Attente payement"
-                    self.logger.info("Aucun acte trouvé, passage à Attente payement")
+                    self.logger.info("Aucun acte d'exécution trouvé, passage à Attente payement")
                 else:
-                    # Trouver le prochain acte non terminé
+                    # Trouver le prochain acte d'exécution non terminé
                     prochain_acte = None
                     for acte in actes:
                         if acte['date_sortie'] is None:
                             prochain_acte = acte
                             self.logger.info(f"Prochain acte trouvé: {acte['code_acte']} ({acte['type_acte']})")
                             break
-                    
+
                     if prochain_acte:
-                        # Il reste des actes à faire
                         statut_map = {
                             TypeActe.EXAMEN: "Attente examen",
                             TypeActe.CHIRURGIE: "Attente chirurgie",
@@ -207,7 +253,7 @@ class FileAttenteService:
                         nouveau_statut = statut_map.get(prochain_acte['type_acte'], "Attente payement")
                         self.logger.info(f"Prochain acte détecté: {prochain_acte['type_acte']} -> {nouveau_statut}")
                     else:
-                        # Tous les actes sont terminés → attendre la décision du médecin
+                        # Tous les actes d'exécution sont terminés → attente décision médecin
                         cursor.execute(
                             "SELECT type_acte FROM acte_medical WHERE code_acte = %s",
                             (code_acte,)
@@ -221,19 +267,22 @@ class FileAttenteService:
                             TypeActe.PRESCRIPTION: "Pharmacie terminée",
                         }
                         nouveau_statut = terminaison_map.get(type_acte_courant, "Examen terminé")
-                        self.logger.info(f"Tous les actes terminés → {nouveau_statut} (attente décision médecin)")
-                
+                        self.logger.info(f"Tous les actes d'exécution terminés → {nouveau_statut} (attente décision médecin)")
+
                 self.logger.info(f"Mise à jour du statut patient: {nouveau_statut}")
                 cursor.execute(
                     "UPDATE visite SET statut_patient = %s WHERE code_visite = %s",
                     (nouveau_statut, code_visite)
                 )
-                conn.commit()
+                if not ext_conn:
+                    conn.commit()
                 self.logger.info(f"Statut patient mis à jour avec succès: {nouveau_statut} pour visite {code_visite}")
             finally:
-                db.close()
+                if not ext_conn and db:
+                    db.close()
         except Exception as e:
             self.logger.error(f"Erreur _mettre_a_jour_statut_patient_terminaison: {e}", exc_info=True)
+            raise
 
     def terminer_passage(self, id_acte_visite: int, raison: str = None) -> tuple:
         """
@@ -251,27 +300,42 @@ class FileAttenteService:
         """
         self.logger.info(f"Début terminer_passage_par_code_acte pour acte {code_acte}")
         
-        av = self.dao_visite.get_passage_actif(code_acte)
-        if not av:
-            self.logger.error(f"Aucun passage actif trouvé pour acte {code_acte}")
-            return False, "Aucun passage actif trouvé pour cet acte"
-        
-        self.logger.info(f"Passage actif trouvé: code_visite={av.code_visite}, statut={av.statut_passage}")
-        
-        ok_visite = self.dao_visite.terminer_passage(code_acte, av.code_visite)
-        self.logger.info(f"Résultat terminer_passage DAO: {ok_visite}")
-        
-        ok_acte = self.dao_acte.terminer(code_acte, raison)
-        self.logger.info(f"Résultat terminer acte DAO: {ok_acte}")
+        from core.connexion_db import DBConnection
+        db = DBConnection()
+        conn = db.connect()
+        if not conn:
+            return False, "Erreur de connexion à la base de données"
 
-        if ok_visite and ok_acte:
-            self.logger.info(f"Appel de _mettre_a_jour_statut_patient_terminaison")
-            self._mettre_a_jour_statut_patient_terminaison(av.code_visite, code_acte)
-            self.logger.info("Passage terminé pour acte %s", code_acte)
-            return True, "Passage terminé avec succès"
-        
-        self.logger.error(f"Erreur lors de la terminaison: ok_visite={ok_visite}, ok_acte={ok_acte}")
-        return False, "Erreur lors de la clôture du passage"
+        try:
+            av = self.dao_visite.get_passage_actif(code_acte)
+            if not av:
+                self.logger.error(f"Aucun passage actif trouvé pour acte {code_acte}")
+                return False, "Aucun passage actif trouvé pour cet acte"
+            
+            self.logger.info(f"Passage actif trouvé: code_visite={av.code_visite}, statut={av.statut_passage}")
+            
+            ok_visite = self.dao_visite.terminer_passage(code_acte, av.code_visite, ext_conn=conn)
+            self.logger.info(f"Résultat terminer_passage DAO: {ok_visite}")
+            
+            ok_acte = self.dao_acte.terminer(code_acte, raison, ext_conn=conn)
+            self.logger.info(f"Résultat terminer acte DAO: {ok_acte}")
+
+            if ok_visite and ok_acte:
+                self.logger.info(f"Appel de _mettre_a_jour_statut_patient_terminaison")
+                self._mettre_a_jour_statut_patient_terminaison(av.code_visite, code_acte, ext_conn=conn)
+                conn.commit()
+                self.logger.info("Passage terminé pour acte %s", code_acte)
+                return True, "Passage terminé avec succès"
+            
+            conn.rollback()
+            self.logger.error(f"Erreur lors de la terminaison: ok_visite={ok_visite}, ok_acte={ok_acte}")
+            return False, "Erreur lors de la clôture du passage"
+        except Exception as e:
+            conn.rollback()
+            self.logger.error(f"Erreur terminer_passage_par_code_acte: {e}")
+            return False, "Erreur système lors de la clôture du passage"
+        finally:
+            db.close()
 
     # =========================================================================
     # SECTION 3 — CONSULTATION DE LA FILE

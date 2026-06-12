@@ -81,7 +81,7 @@ class PersonnelTable(QWidget):
         self.btn_new.setFixedHeight(40)
         self.btn_new.setMinimumWidth(185)
         self.btn_new.setCursor(Qt.PointingHandCursor)
-        self.btn_new.setIcon(qta.icon("fa5s.plus", color="white"))
+        self.btn_new.setIcon(qta.icon("fa5s.plus", color=theme_manager.color("text_inverse")))
         self.btn_new.clicked.connect(self.new_clicked.emit)
 
         toolbar_layout.addWidget(self.search_input, 1)
@@ -143,6 +143,7 @@ class PersonnelTable(QWidget):
         self.btn_next.clicked.connect(self.next_page)
 
         self.pages_widget = QWidget()
+        self.pages_widget.setStyleSheet("background: transparent;")
         self.pages_layout = QHBoxLayout(self.pages_widget)
         self.pages_layout.setContentsMargins(0, 0, 0, 0)
         self.pages_layout.setSpacing(5)
@@ -162,7 +163,7 @@ class PersonnelTable(QWidget):
         self.container.setStyleSheet(
             f"""
             QFrame#PersonnelTableCard {{
-                background: white;
+                background: {c['bg_card']};
                 border: none;
             }}
             QLineEdit#SearchInput {{
@@ -210,7 +211,7 @@ class PersonnelTable(QWidget):
                 background: {c['primary_hover']};
             }}
             QTableWidget#PersonnelTable {{
-                background: white;
+                background: {c['bg_table']};
                 border: none;
                 gridline-color: {c['table_gridline']};
                 color: {c['text_primary']};
@@ -247,7 +248,11 @@ class PersonnelTable(QWidget):
 
         self.btn_prev.setIcon(qta.icon("fa5s.chevron-left", color=c["text_secondary"]))
         self.btn_next.setIcon(qta.icon("fa5s.chevron-right", color=c["text_secondary"]))
+        self.btn_new.setIcon(qta.icon("fa5s.plus", color=c["text_inverse"]))
         self._refresh_pagination_buttons()
+        # Recréer les lignes du tableau avec les nouvelles couleurs
+        if self.filtered_personnel:
+            self.update_table()
 
     def load_personnel(self):
         personnel = self.ctrl.get_all_personnels()
@@ -377,6 +382,7 @@ class PersonnelTable(QWidget):
         c = theme_manager.colors()
 
         container = QWidget()
+        container.setStyleSheet("background: transparent;")
         layout = QVBoxLayout(container)
         layout.setContentsMargins(10, 8, 10, 8)
         layout.setSpacing(5)
@@ -416,6 +422,7 @@ class PersonnelTable(QWidget):
     def _create_actions_buttons(self, personnel):
         c = theme_manager.colors()
         widget = QWidget()
+        widget.setStyleSheet("background: transparent;")
         layout = QHBoxLayout(widget)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)

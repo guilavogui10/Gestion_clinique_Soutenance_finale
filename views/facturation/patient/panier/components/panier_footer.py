@@ -106,7 +106,7 @@ class PanierFooter:
 
         # Bouton Finaliser
         self.btn_finaliser = QPushButton(
-            qta.icon("fa5s.check-circle", color="white"), " Valider la Facture"
+            qta.icon("fa5s.check-circle", color=theme_manager.colors()['text_inverse']), " Valider la Facture"
         )
         self.btn_finaliser.setFixedHeight(40)
         self.btn_finaliser.setCursor(Qt.PointingHandCursor)
@@ -114,7 +114,7 @@ class PanierFooter:
 
         # Bouton Annuler
         self.btn_annuler_facture = QPushButton(
-            qta.icon("fa5s.trash-alt", color="white"), " Annuler"
+            qta.icon("fa5s.trash-alt", color=theme_manager.colors()['text_inverse']), " Annuler"
         )
         self.btn_annuler_facture.setFixedHeight(40)
         self.btn_annuler_facture.setFixedWidth(100)
@@ -157,5 +157,7 @@ class PanierFooter:
             )
         if self.btn_finaliser:
             self.btn_finaliser.setStyleSheet(PanierStyles.btn_finaliser())
+            self.btn_finaliser.setIcon(qta.icon("fa5s.check-circle", color=c['text_inverse']))
         if self.btn_annuler_facture:
             self.btn_annuler_facture.setStyleSheet(PanierStyles.btn_annuler())
+            self.btn_annuler_facture.setIcon(qta.icon("fa5s.trash-alt", color=c['text_inverse']))

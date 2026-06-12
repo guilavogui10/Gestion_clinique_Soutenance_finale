@@ -20,13 +20,16 @@ class PrescriptionFooter:
     Pattern : Facade pour simplifier la création du footer.
     """
 
-    def __init__(self, bleu_principal: str):
-        self.bleu_principal = bleu_principal
-
+    def __init__(self):
         # Widgets exposés
         self.lbl_total       = None
         self.btn_valider     = None
         self.btn_annuler     = None
+        # Refs pour apply_theme
+        self._footer_frame   = None
+        self._sep_widget     = None
+        self._icon_total     = None
+        self._lbl_titre      = None
 
     def create(self, parent_layout):
         """
@@ -41,12 +44,14 @@ class PrescriptionFooter:
         # Séparateur
         sep = QFrame()
         sep.setFixedHeight(1)
-        sep.setStyleSheet("background: #f0f0f0; border: none;")
+        sep.setStyleSheet(f"background: {theme_manager.colors()['border_light']}; border: none;")
+        self._sep_widget = sep
         parent_layout.addWidget(sep)
 
         # Frame footer
         footer_frame = QFrame()
-        footer_frame.setStyleSheet("background: white; border: none;")
+        footer_frame.setStyleSheet(f"background: {theme_manager.colors()['bg_card']}; border: none;")
+        self._footer_frame = footer_frame
         footer_layout = QVBoxLayout(footer_frame)
         footer_layout.setContentsMargins(14, 10, 14, 12)
         footer_layout.setSpacing(10)
@@ -68,22 +73,25 @@ class PrescriptionFooter:
 
         # Icône
         icon_total = QLabel()
+        c = theme_manager.colors()
         icon_total.setPixmap(
-            qta.icon("fa5s.file-medical-alt", color=self.bleu_principal).pixmap(QSize(14, 14))
+            qta.icon("fa5s.file-medical-alt", color=c['primary']).pixmap(QSize(14, 14))
         )
         icon_total.setStyleSheet("border: none; background: transparent;")
+        self._icon_total = icon_total
 
         # Label titre
         lbl_titre = QLabel("Total Prescription")
         lbl_titre.setStyleSheet(
-            "font-weight: bold; color: #333; font-size: 12px;"
+            f"font-weight: bold; color: {c['text_primary']}; font-size: 12px;"
             "border: none; background: transparent;"
         )
+        self._lbl_titre = lbl_titre
 
         # Montant
         self.lbl_total = QLabel("0 GNF")
         self.lbl_total.setStyleSheet(
-            f"font-weight: bold; color: {self.bleu_principal};"
+            f"font-weight: bold; color: {c['primary']};"
             "font-size: 16px; border: none; background: transparent;"
         )
 
@@ -125,6 +133,36 @@ class PrescriptionFooter:
         btns_row.addWidget(self.btn_valider)
         btns_row.addWidget(self.btn_annuler)
         layout.addLayout(btns_row)
+
+    # =========================================================================
+    # THÈME DYNAMIQUE
+    # =========================================================================
+
+    def apply_theme(self):
+        """Met à jour tous les styles avec le thème courant."""
+        c = theme_manager.colors()
+        if self._sep_widget:
+            self._sep_widget.setStyleSheet(f"background: {c['border_light']}; border: none;")
+        if self._footer_frame:
+            self._footer_frame.setStyleSheet(f"background: {c['bg_card']}; border: none;")
+        if self._icon_total:
+            self._icon_total.setPixmap(
+                qta.icon("fa5s.file-medical-alt", color=c['primary']).pixmap(QSize(14, 14))
+            )
+        if self._lbl_titre:
+            self._lbl_titre.setStyleSheet(
+                f"font-weight: bold; color: {c['text_primary']}; font-size: 12px;"
+                "border: none; background: transparent;"
+            )
+        if self.lbl_total:
+            self.lbl_total.setStyleSheet(
+                f"font-weight: bold; color: {c['primary']};"
+                "font-size: 16px; border: none; background: transparent;"
+            )
+        if self.btn_valider:
+            self.btn_valider.setStyleSheet(PrescriptionStyles.btn_valider())
+        if self.btn_annuler:
+            self.btn_annuler.setStyleSheet(PrescriptionStyles.btn_annuler())
 
     # =========================================================================
     # API PUBLIQUE

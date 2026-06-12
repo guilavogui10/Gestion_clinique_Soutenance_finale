@@ -25,7 +25,7 @@ def _lbl_vide(texte):
     lbl = QLabel(texte)
     lbl.setAlignment(Qt.AlignCenter)
     lbl.setStyleSheet(
-        f"color:{c['text_secondary']}; font-size:11px; background:transparent;"
+        f"color:{c['text_secondary']}; font-size:11px; background:{c['bg_card']};"
     )
     return lbl
 
@@ -37,18 +37,18 @@ def _row_ic_val(icone_name, valeur, couleur_ic=None, couleur_val=None, gras=Fals
     if couleur_val is None:
         couleur_val = c['text_secondary']
     w = QWidget()
-    w.setStyleSheet("background:transparent;")
+    w.setStyleSheet(f"background:{c['bg_card']};")
     lay = QHBoxLayout(w)
     lay.setContentsMargins(0, 0, 0, 0)
     lay.setSpacing(5)
     ic = QLabel()
     ic.setPixmap(qta.icon(icone_name, color=couleur_ic).pixmap(QSize(11, 11)))
-    ic.setStyleSheet("background:transparent; border:none;")
+    ic.setStyleSheet(f"background:{c['bg_card']}; border:none;")
     lbl = QLabel(str(valeur) if valeur else "—")
     poids = "700" if gras else "400"
     lbl.setStyleSheet(
         f"color:{couleur_val}; font-size:11px; font-weight:{poids};"
-        f"background:transparent; border:none;"
+        f"background:{c['bg_card']}; border:none;"
     )
     lbl.setWordWrap(True)
     lay.addWidget(ic)
@@ -62,7 +62,7 @@ class VueCommandesMultiples(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setStyleSheet("background:transparent;")
+        self.setStyleSheet(f"background:{_c()['bg_card']};")
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(16, 12, 16, 16)
         self._layout.setSpacing(10)
@@ -114,7 +114,7 @@ class VueCommandesMultiples(QWidget):
         nom_lbl = QLabel(f"{nom} {prenom}".strip() or "—")
         nom_lbl.setStyleSheet(
             f"color:{c['text_primary']}; font-size:12px; font-weight:700;"
-            f"background:transparent; border:none;"
+            f"background:{c['bg_card']}; border:none;"
         )
         nb = p.get("nombre_commandes", 0)
         badge = QLabel(f"{nb} commandes")
@@ -126,7 +126,7 @@ class VueCommandesMultiples(QWidget):
         ic = QLabel()
         ic.setPixmap(
             qta.icon("fa5s.user", color=c['danger']).pixmap(QSize(12, 12)))
-        ic.setStyleSheet("background:transparent; border:none;")
+        ic.setStyleSheet(f"background:{c['bg_card']}; border:none;")
         l1.addWidget(ic)
         l1.addSpacing(6)
         l1.addWidget(nom_lbl)

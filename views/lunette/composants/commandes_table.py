@@ -235,9 +235,9 @@ class CommandesTable(QWidget):
     def _make_statut_badge(self, statut: str) -> QWidget:
         c = theme_manager.colors()
         colors_map = {
-            "attente":  (c.get('warning', '#f39c12'),  c.get('warning', '#f39c12') + '22'),
-            "livree":   (c.get('success', '#27ae60'),  c.get('success', '#27ae60') + '22'),
-            "annulee":  (c.get('danger',  '#e74c3c'),  c.get('danger',  '#e74c3c') + '22'),
+            "attente":  (c['warning'], c['warning'] + '22'),
+            "livree":   (c['success'], c['success'] + '22'),
+            "annulee":  (c['danger'],  c['danger']  + '22'),
         }
         fg, bg = colors_map.get(statut, (c['text_secondary'], c['bg_main']))
         labels = {"attente": "En attente", "livree": "Livrée", "annulee": "Annulée"}
@@ -261,9 +261,9 @@ class CommandesTable(QWidget):
         lay.setSpacing(4)
         lay.setAlignment(Qt.AlignCenter)
 
-        btn_view = QPushButton(qta.icon("fa5s.eye",  color=c.get('info', '#3498db')), "")
-        btn_edit = QPushButton(qta.icon("fa5s.edit", color=c.get('primary', '#2ecc71')), "")
-        btn_menu = QPushButton(qta.icon("fa5s.ellipsis-v", color=c.get('text_secondary', '#666')), "")
+        btn_view = QPushButton(qta.icon("fa5s.eye",  color=c['info']), "")
+        btn_edit = QPushButton(qta.icon("fa5s.edit", color=c['primary']), "")
+        btn_menu = QPushButton(qta.icon("fa5s.ellipsis-v", color=c['text_secondary']), "")
 
         style = LunetteStyles.button_table_action()
         for btn in [btn_view, btn_edit, btn_menu]:
@@ -282,8 +282,8 @@ class CommandesTable(QWidget):
         menu = QMenu(self)
         menu.setStyleSheet(f"""
             QMenu {{
-                background: {c.get('bg_card', '#ffffff')};
-                border: 1px solid {c.get('border', '#e0e0e0')};
+                background: {c['bg_card']};
+                border: 1px solid {c['border']};
                 border-radius: 8px;
                 padding: 4px;
             }}
@@ -291,25 +291,25 @@ class CommandesTable(QWidget):
                 padding: 8px 16px;
                 border-radius: 6px;
                 font-size: 13px;
-                color: {c.get('text_primary', '#222')};
+                color: {c['text_primary']};
             }}
             QMenu::item:selected {{
-                background: {c.get('primary', '#2ecc71')}22;
-                color: {c.get('primary', '#2ecc71')};
+                background: {c['primary']}22;
+                color: {c['primary']};
             }}
         """)
 
         act_imprimer = menu.addAction(
-            qta.icon("fa5s.print", color=c.get('primary', '#2ecc71')),
+            qta.icon("fa5s.print", color=c['primary']),
             "Imprimer commande"
         )
         act_avec_resultat = menu.addAction(
-            qta.icon("fa5s.file-medical-alt", color=c.get('info', '#3498db')),
+            qta.icon("fa5s.file-medical-alt", color=c['info']),
             "Imprimer avec résultat"
         )
         menu.addSeparator()
         act_new_resultat = menu.addAction(
-            qta.icon("fa5s.plus-circle", color=c.get('success', '#27ae60')),
+            qta.icon("fa5s.plus-circle", color=c['success']),
             "Nouveau résultat"
         )
 
@@ -333,5 +333,5 @@ class CommandesTable(QWidget):
         self._filter_statut.setStyleSheet(LunetteStyles.input_field())
         self._btn_new.setStyleSheet(LunetteStyles.button_primary())
         self._btn_new.setIcon(
-            qta.icon("fa5s.plus", color=c.get('text_inverse', '#ffffff'))
+            qta.icon("fa5s.plus", color=c['text_inverse'])
         )

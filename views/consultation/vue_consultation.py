@@ -261,22 +261,49 @@ class VueConsultation(QWidget):
             self.tabs.setCurrentIndex(2)
 
     def on_reports(self):
-        if not self.code_session:
-            return
-        _ResumeSessionDialog(self.ctrl, self.code_session, parent=self).exec()
+        """Affiche le menu export/import au-dessus du bouton Rapports & exports."""
+        from .export_import_consultation import ExportImportConsultationMenu
+        ExportImportConsultationMenu.afficher(
+            self, self.quick_actions.btn_reports, self.ctrl
+        )
 
     def apply_theme(self):
         c = theme_manager.colors()
-        self.setStyleSheet(f"""
-            QWidget {{
-                background: {c['bg_main']};
-            }}
-        """)
+        self.setStyleSheet(f"background: {c['bg_main']};")
         self._apply_tab_styles()
+
         if hasattr(self, 'tabs'):
+            for tab, bg in (
+                (getattr(self, 'tab_stats',      None), c['bg_card']),
+                (getattr(self, 'tab_nouveau',    None), c['bg_main']),
+                (getattr(self, 'tab_liste',      None), c['bg_card']),
+                (getattr(self, 'tab_statut',     None), c['bg_card']),
+                (getattr(self, 'tab_historique', None), c['bg_card']),
+            ):
+                if tab:
+                    tab.setStyleSheet(f"QWidget {{ background: {bg}; }}")
+
             main_frame = self.findChild(QFrame, "MainWhiteFrame")
             if main_frame:
                 self._apply_main_frame_style(main_frame)
+
+        # Propagation explicite aux composants enfants
+        for widget in (
+            getattr(self, 'kpi_cards',           None),
+            getattr(self, 'charts',              None),
+            getattr(self, 'table',               None),
+            getattr(self, 'quick_actions',       None),
+            getattr(self, 'form_widget',         None),
+            getattr(self, 'patients_attente_view', None),
+            getattr(self, 'vue_historique',      None),
+        ):
+            if widget:
+                fn = getattr(widget, 'apply_theme', None) or getattr(widget, '_apply_theme', None)
+                if fn:
+                    try:
+                        fn()
+                    except Exception:
+                        pass
     
     def _get_icon(self, icon_name):
         """Récupère une icône Font Awesome ou standard"""
@@ -304,7 +331,6 @@ class VueConsultation(QWidget):
         from .consultation_form_widget import ConsultationFormWidget
         
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -333,7 +359,6 @@ class VueConsultation(QWidget):
     def _create_stats_tab(self):
         """Crée l'onglet Statistiques"""
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(12, 8, 12, 12)
         layout.setSpacing(8)
@@ -352,7 +377,6 @@ class VueConsultation(QWidget):
     def _create_liste_tab(self):
         """Crée l'onglet Liste des consultations"""
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(12, 8, 12, 12)
         
@@ -371,7 +395,6 @@ class VueConsultation(QWidget):
         """Crée l'onglet Statut patients"""
         import qtawesome as qta
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(12, 8, 12, 12)
         layout.setSpacing(8)
@@ -381,21 +404,22 @@ class VueConsultation(QWidget):
         toolbar.setSpacing(8)
         toolbar.addStretch()
 
-        btn_acte = QPushButton(qta.icon("fa5s.arrow-right", color="#ffffff"), "  Aller sur acte médical")
+        _c = theme_manager.colors()
+        btn_acte = QPushButton(qta.icon("fa5s.arrow-right", color=_c['text_inverse']), "  Aller sur acte médical")
         btn_acte.setFixedHeight(32)
         btn_acte.setCursor(Qt.PointingHandCursor)
-        btn_acte.setStyleSheet("""
-            QPushButton {
-                background: #2563EB;
-                color: #ffffff;
+        btn_acte.setStyleSheet(f"""
+            QPushButton {{
+                background: {_c['primary']};
+                color: {_c['text_inverse']};
                 border: none;
                 border-radius: 6px;
                 padding: 0 14px;
                 font-size: 13px;
                 font-weight: 600;
-            }
-            QPushButton:hover  { background: #1D4ED8; }
-            QPushButton:pressed{ background: #1E40AF; }
+            }}
+            QPushButton:hover   {{ background: {_c['primary_hover']}; }}
+            QPushButton:pressed {{ background: {_c['primary_hover']}; }}
         """)
         btn_acte.clicked.connect(self._aller_sur_acte_medical)
         toolbar.addWidget(btn_acte)
@@ -574,7 +598,6 @@ class VueConsultation(QWidget):
     def _create_historique_tab(self):
         """Crée l'onglet Historique patient"""
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
         lay = QVBoxLayout(tab)
         lay.setContentsMargins(0, 0, 0, 0)
         self.vue_historique = HistoriqueConsultationView(
@@ -586,22 +609,20 @@ class VueConsultation(QWidget):
         return tab
 
     def _apply_main_frame_style(self, frame):
-        """Applique le style au frame principal blanc"""
         c = theme_manager.colors()
         frame.setStyleSheet(f"""
             QFrame#MainWhiteFrame {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 16px;
             }}
         """)
     
     def _apply_statut_frame_style(self, frame):
-        """Applique le style aux frames de l'onglet statut"""
         c = theme_manager.colors()
         frame.setStyleSheet(f"""
             QFrame#StatutFrame {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 8px;
             }}

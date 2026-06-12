@@ -315,6 +315,15 @@ class RendezVousControleur:
     def lister_personnel(self) -> list:
         return self.service.lister_personnel()
 
+    def lister_personnel_par_roles(self, roles: list) -> list:
+        return self.service.lister_personnel_par_roles(roles)
+
+    def rdv_du_jour_sans_acte(self, code_session: str) -> list:
+        return self.service.rdv_du_jour_sans_acte(code_session)
+
+    def traiter_rdv_arrive(self, code_rdv: str, action: str, nouvelle_date=None) -> tuple:
+        return self.service.traiter_rdv_arrive(code_rdv, action, nouvelle_date)
+
     def lister_actes_en_attente_rdv(self, code_session: str) -> list:
         """Retourne les actes médicaux avec choix_patient='plus_tard' pour cette session."""
         return self.service.lister_actes_en_attente_rdv(code_session)

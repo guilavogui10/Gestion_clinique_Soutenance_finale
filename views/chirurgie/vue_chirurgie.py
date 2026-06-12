@@ -105,6 +105,10 @@ class ChirurgieView(QWidget):
         self.quick_actions.patient_history_clicked.connect(self.on_patient_history)
         self.quick_actions.imprimer_tous_rapports_clicked.connect(self._on_imprimer_tous_rapports)
         self.quick_actions.imprimer_rapport_date_clicked.connect(self._on_imprimer_rapport_par_date)
+        self.quick_actions.export_excel_clicked.connect(lambda: self._on_export_import("export", "excel"))
+        self.quick_actions.export_csv_clicked.connect(  lambda: self._on_export_import("export", "csv"))
+        self.quick_actions.import_excel_clicked.connect(lambda: self._on_export_import("import", "excel"))
+        self.quick_actions.import_csv_clicked.connect(  lambda: self._on_export_import("import", "csv"))
         main_frame_layout.addWidget(self.quick_actions)
 
         main_layout.addWidget(main_frame)
@@ -119,13 +123,13 @@ class ChirurgieView(QWidget):
             "history":     "fa5s.history",
         }
         c = theme_manager.colors()
-        return qta.icon(mapping.get(name, "fa5s.circle"), color=c.get("primary", "#3498db"))
+        return qta.icon(mapping.get(name, "fa5s.circle"), color=c['primary'])
 
     # â”€â”€â”€ Onglets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _create_stats_tab(self):
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
+        tab.setStyleSheet(f"background: {theme_manager.colors()['bg_main']};")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(12, 8, 12, 12)
         layout.setSpacing(8)
@@ -141,7 +145,7 @@ class ChirurgieView(QWidget):
 
     def _create_form_tab(self):
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
+        tab.setStyleSheet(f"background: {theme_manager.colors()['bg_main']};")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -157,7 +161,7 @@ class ChirurgieView(QWidget):
 
     def _create_liste_tab(self):
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
+        tab.setStyleSheet(f"background: {theme_manager.colors()['bg_main']};")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(12, 8, 12, 12)
 
@@ -175,7 +179,7 @@ class ChirurgieView(QWidget):
     def _create_attente_tab(self):
         from PySide6.QtWidgets import QHBoxLayout
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
+        tab.setStyleSheet(f"background: {theme_manager.colors()['bg_main']};")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(12, 8, 12, 12)
         layout.setSpacing(8)
@@ -185,21 +189,23 @@ class ChirurgieView(QWidget):
         toolbar.setSpacing(8)
         toolbar.addStretch()
 
-        btn_acte = QPushButton(qta.icon("fa5s.arrow-right", color="#ffffff"), "  Aller sur acte médical")
+        _c = theme_manager.colors()
+        self._btn_acte = QPushButton(qta.icon("fa5s.arrow-right", color=_c['text_inverse']), "  Aller sur acte médical")
+        btn_acte = self._btn_acte
         btn_acte.setFixedHeight(32)
         btn_acte.setCursor(Qt.PointingHandCursor)
-        btn_acte.setStyleSheet("""
-            QPushButton {
-                background: #2563EB;
-                color: #ffffff;
+        btn_acte.setStyleSheet(f"""
+            QPushButton {{
+                background: {_c['primary']};
+                color: {_c['text_inverse']};
                 border: none;
                 border-radius: 6px;
                 padding: 0 14px;
                 font-size: 13px;
                 font-weight: 600;
-            }
-            QPushButton:hover  { background: #1D4ED8; }
-            QPushButton:pressed{ background: #1E40AF; }
+            }}
+            QPushButton:hover  {{ background: {_c['primary_hover']}; }}
+            QPushButton:pressed{{ background: {_c['primary_hover']}; }}
         """)
         btn_acte.clicked.connect(self._aller_sur_acte_medical)
         toolbar.addWidget(btn_acte)
@@ -223,7 +229,7 @@ class ChirurgieView(QWidget):
 
     def _create_historique_tab(self):
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
+        tab.setStyleSheet(f"background: {theme_manager.colors()['bg_main']};")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -351,13 +357,47 @@ class ChirurgieView(QWidget):
         dlg.exec()
 
     def on_reports(self):
-        if not self.code_session:
-            return
-        dlg = _ResumeSessionDialog(self.ctrl, self.code_session, parent=self)
-        dlg.exec()
+        """Affiche le menu export/import au-dessus du bouton Rapports & exports."""
+        from PySide6.QtWidgets import QMenu
+        from PySide6.QtCore import QPoint
+        from views.acte_medical.export_import_acte import ApercuActeModal
+        import qtawesome as qta
+        from views.shared.theme_manager import theme_manager
+        c = theme_manager.colors()
+
+        menu = QMenu(self)
+        menu.setStyleSheet(f"""
+            QMenu {{ background: {c['bg_card']}; border: 1px solid {c['border']};
+                     border-radius: 10px; padding: 6px 4px; }}
+            QMenu::item {{ padding: 9px 20px 9px 12px; border-radius: 6px;
+                           font-size: 13px; color: {c['text_primary']}; min-width: 220px; }}
+            QMenu::item:selected {{ background: {c['primary_light']}; color: {c['primary']}; }}
+            QMenu::separator {{ height: 1px; background: {c['border']}; margin: 4px 10px; }}
+        """)
+        act_exp_xl = menu.addAction(qta.icon("fa5s.file-excel", color="#217346"), "  Exporter Excel (.xlsx)")
+        act_exp_cs = menu.addAction(qta.icon("fa5s.file-csv",   color="#0070c0"), "  Exporter CSV (.csv)")
+        menu.addSeparator()
+        act_imp_xl = menu.addAction(qta.icon("fa5s.upload", color="#217346"),     "  Importer Excel (.xlsx)")
+        act_imp_cs = menu.addAction(qta.icon("fa5s.upload", color="#0070c0"),     "  Importer CSV (.csv)")
+        act_exp_xl.triggered.connect(lambda: ApercuActeModal.ouvrir_export(self, self.ctrl, "chirurgie", "excel"))
+        act_exp_cs.triggered.connect(lambda: ApercuActeModal.ouvrir_export(self, self.ctrl, "chirurgie", "csv"))
+        act_imp_xl.triggered.connect(lambda: ApercuActeModal.ouvrir_import(self, self.ctrl, "chirurgie", "excel"))
+        act_imp_cs.triggered.connect(lambda: ApercuActeModal.ouvrir_import(self, self.ctrl, "chirurgie", "csv"))
+
+        from PySide6.QtGui import QCursor
+        menu.adjustSize()
+        cursor_pos = QCursor.pos()
+        menu.exec(QPoint(cursor_pos.x(), cursor_pos.y() - menu.sizeHint().height() - 6))
 
     def on_patient_history(self):
         self.tabs.setCurrentIndex(4)
+
+    def _on_export_import(self, mode: str, format_fichier: str):
+        from views.acte_medical.export_import_acte import ApercuActeModal
+        if mode == "export":
+            ApercuActeModal.ouvrir_export(self, self.ctrl, "chirurgie", format_fichier)
+        else:
+            ApercuActeModal.ouvrir_import(self, self.ctrl, "chirurgie", format_fichier)
 
     def _on_imprimer_tous_rapports(self):
         """Génère un PDF de toutes les chirurgies de la session groupées par date."""
@@ -593,7 +633,7 @@ class ChirurgieView(QWidget):
         c = theme_manager.colors()
         frame.setStyleSheet(f"""
             QFrame#MainWhiteFrame {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 16px;
             }}
@@ -607,6 +647,31 @@ class ChirurgieView(QWidget):
         c = theme_manager.colors()
         self.setStyleSheet(f"background: {c['bg_main']};")
         self._apply_tab_styles()
+
+        # ── Onglets ──────────────────────────────────────────────────────────
+        for tab in (self.tab_stats, self.tab_form, self.tab_liste,
+                    self.tab_attente, self.tab_historique):
+            tab.setStyleSheet(f"background: {c['bg_main']};")
+
+        # ── Bouton acte médical ───────────────────────────────────────────────
+        if hasattr(self, '_btn_acte'):
+            self._btn_acte.setIcon(
+                qta.icon("fa5s.arrow-right", color=c['text_inverse'])
+            )
+            self._btn_acte.setStyleSheet(f"""
+                QPushButton {{
+                    background: {c['primary']};
+                    color: {c['text_inverse']};
+                    border: none; border-radius: 6px;
+                    padding: 0 14px; font-size: 13px; font-weight: 600;
+                }}
+                QPushButton:hover   {{ background: {c['primary_hover']}; }}
+                QPushButton:pressed {{ background: {c['primary_hover']}; }}
+            """)
+
+        # ── Frame principal ───────────────────────────────────────────────────
+        if hasattr(self, 'main_frame'):
+            self._apply_main_frame_style(self.main_frame)
 
 
 # =============================================================================
@@ -636,12 +701,12 @@ class _RechercheEntresDatesDialog(QDialog):
                 border-radius: 8px; padding: 6px 12px;
                 color: {c['text_primary']}; font-size: 13px; min-height: 32px;
             }}
-            QDateEdit:focus {{ border-color: {c.get('danger', '#dc2626')}; }}
+            QDateEdit:focus {{ border-color: {c['danger']}; }}
             QPushButton#PrimaryBtn {{
-                background: {c.get('danger', '#dc2626')}; color: white; border: none;
+                background: {c['danger']}; color: {c['text_inverse']}; border: none;
                 border-radius: 8px; padding: 8px 24px; font-weight: 700; font-size: 13px;
             }}
-            QPushButton#PrimaryBtn:hover {{ background: {c.get('danger', '#dc2626')}cc; }}
+            QPushButton#PrimaryBtn:hover {{ background: {c['danger']}cc; }}
             QPushButton#SecondaryBtn {{
                 background: {c['bg_card']}; color: {c['text_primary']};
                 border: 1px solid {c['border']}; border-radius: 8px;
@@ -808,7 +873,7 @@ class _ResumeSessionDialog(QDialog):
                 if nb:
                     cnt = QLabel(f"{nb} fois")
                     cnt.setStyleSheet(
-                        f"color: {c.get('danger', '#dc2626')}; font-weight: 700;"
+                        f"color: {c['danger']}; font-weight: 700;"
                     )
                     row_l.addWidget(cnt)
                 layout.addWidget(row_w)
@@ -854,7 +919,7 @@ class _DateSelectDialog(QDialog):
             }}
             QDateEdit:focus {{ border-color: {c['primary']}; }}
             QDialogButtonBox QPushButton {{
-                background: {c['primary']}; color: white; border: none;
+                background: {c['primary']}; color: {c['text_inverse']}; border: none;
                 border-radius: 8px; padding: 8px 20px; font-weight: 700; font-size: 13px;
                 min-width: 80px;
             }}

@@ -78,18 +78,18 @@ class KpiCard(QFrame):
                 color: {c['text_secondary']};
                 font-size: 11px;
                 font-weight: 500;
-                background: transparent;
+                background: {c['bg_card']};
                 border: none;
             }}
             QLabel#KpiValue {{
                 color: {c['text_primary']};
-                background: transparent;
+                background: {c['bg_card']};
                 border: none;
             }}
             QLabel#KpiSubtitle {{
                 color: {c['text_secondary']};
                 font-size: 10px;
-                background: transparent;
+                background: {c['bg_card']};
                 border: none;
             }}
         """)

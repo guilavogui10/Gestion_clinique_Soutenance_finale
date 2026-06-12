@@ -46,16 +46,16 @@ class ChirurgieStyles:
         return f"""
             QTabWidget::pane {{
                 border: none;
-                background: white;
+                background: {c['bg_main']};
                 padding: 0px;
                 margin-top: 0px;
             }}
             QTabBar {{
-                background: white;
+                background: {c['bg_main']};
                 border: none;
             }}
             QTabBar::tab {{
-                background: white;
+                background: {c['bg_main']};
                 color: {c['text_secondary']};
                 border: none;
                 border-bottom: 3px solid transparent;
@@ -67,13 +67,13 @@ class ChirurgieStyles:
                 min-width: 120px;
             }}
             QTabBar::tab:selected {{
-                background: white;
+                background: {c['bg_main']};
                 color: {c['primary']};
                 border: none;
                 border-bottom: 3px solid {c['primary']};
             }}
             QTabBar::tab:hover {{
-                background: white;
+                background: {c['bg_main']};
                 color: {c['text_primary']};
                 border: none;
             }}
@@ -115,9 +115,9 @@ class ChirurgieStyles:
         """Badge d'urgence chirurgicale (haute, moyenne, basse)."""
         c = theme_manager.colors()
         colors_map = {
-            "haute":   (c.get('danger', '#ef4444'),  c.get('danger_bg', '#fee2e2')),
-            "moyenne": (c.get('warning', '#f59e0b'), c.get('warning_bg', '#fef3c7')),
-            "basse":   (c.get('success', '#10b981'), c.get('success_bg', '#d1fae5')),
+            "haute":   (c['danger'],  c['danger_bg']),
+            "moyenne": (c['warning'], c['warning_bg']),
+            "basse":   (c['success'], c['success_bg']),
         }
         fg, bg = colors_map.get(level, (c['text_secondary'], c['bg_card']))
         return f"""

@@ -1,4 +1,4 @@
-﻿import sys
+import sys
 import os
 import logging
 
@@ -69,10 +69,42 @@ class FournisseurControleur:
     def importer_fournisseurs_from_excel(self, fichier):
         return self.service.importer_fournisseurs_from_excel(fichier)
 
+    # --------- APERÇU EXPORT (compatibilité ApercuActeModal) ---------
+    def obtenir_donnees_export(self) -> list:
+        """Retourne les fournisseurs sous forme de liste de dicts pour l'aperçu."""
+        fournisseurs = self.service.get_all_fournisseurs()
+        return [
+            {
+                'email_fournisseur': str(f.get('email_fournisseur', '')),
+                'nom_entreprise':    str(f.get('nom_entreprise',    '')),
+                'telephone':         str(f.get('telephone',         '')),
+                'adresse':           str(f.get('adresse',           '')),
+            }
+            for f in (fournisseurs or [])
+        ]
+
+    def export_to_excel(self, chemin: str):
+        """Alias utilisé par le pattern ApercuActeModal."""
+        return self.service.exporter_fournisseurs_to_excel(chemin)
+
+    def export_to_csv(self, chemin: str):
+        """Alias utilisé par le pattern ApercuActeModal."""
+        return self.service.exporter_fournisseurs_to_csv(chemin)
+
     # --------- CABINET / PDF ---------
     def get_cabinet_info(self):
         return self.service.get_cabinet_info()
 
     def generer_liste_pdf(self, chemin_fichier):
         return self.service.generer_liste_pdf(chemin_fichier)
+
+    def generer_rapport_fournisseurs(self):
+        """Retourne le chemin du PDF temporaire pour ApercuPDFDialog."""
+        return self.service.generer_rapport_fournisseurs()
+
+    def generer_rapport_activites_un_fournisseur(self, email_fournisseur, code_session=None):
+        return self.service.generer_rapport_activites_un_fournisseur(email_fournisseur, code_session)
+
+    def generer_rapport_toutes_activites_fournisseurs(self, code_session=None):
+        return self.service.generer_rapport_toutes_activites_fournisseurs(code_session)
 

@@ -84,7 +84,7 @@ class FournisseursTable(QWidget):
         self.btn_new.setFixedHeight(40)
         self.btn_new.setMinimumWidth(185)
         self.btn_new.setCursor(Qt.PointingHandCursor)
-        self.btn_new.setIcon(qta.icon("fa5s.plus", color="white"))
+        self.btn_new.setIcon(qta.icon("fa5s.plus", color=theme_manager.colors()['text_inverse']))
         self.btn_new.clicked.connect(self.new_clicked.emit)
 
         toolbar_layout.addWidget(self.search_input, 1)
@@ -165,7 +165,7 @@ class FournisseursTable(QWidget):
         self.container.setStyleSheet(
             f"""
             QFrame#FournisseursTableCard {{
-                background: white;
+                background: {c['bg_card']};
                 border: none;
             }}
             QLineEdit#SearchInput {{
@@ -213,7 +213,7 @@ class FournisseursTable(QWidget):
                 background: {c['primary_hover']};
             }}
             QTableWidget#FournisseurTable {{
-                background: white;
+                background: {c['bg_table']};
                 border: none;
                 gridline-color: {c['table_gridline']};
                 color: {c['text_primary']};

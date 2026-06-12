@@ -109,7 +109,7 @@ class FournisseurFormWidget(QWidget):
 
         # Bouton Enregistrer
         label_save = " Enregistrer" if not self.fournisseur_obj else " Mettre à jour"
-        self.btn_save = QPushButton(qta.icon("fa5s.save", color="#ffffff"), label_save)
+        self.btn_save = QPushButton(qta.icon("fa5s.save", color=c['text_inverse']), label_save)
         self.btn_save.setFixedSize(140, 40)
         self.btn_save.setEnabled(False)
         self._apply_save_btn_style()
@@ -132,7 +132,7 @@ class FournisseurFormWidget(QWidget):
             }}
             QPushButton:enabled {{
                 background-color: {c['primary']};
-                color: #ffffff;
+                color: {c['text_inverse']};
             }}
             QPushButton:enabled:hover {{ background-color: {c['primary_hover']}; }}
         """)
@@ -179,7 +179,7 @@ class FournisseurFormWidget(QWidget):
         hbox.addWidget(badge, 0, v_align)
         hbox.addWidget(widget, 1)
         vbox.addWidget(wrapper)
-        return vbox, wrapper
+        return vbox, wrapper, badge, ico_lbl
 
     def _apply_wrapper_style(self, wrapper: QFrame, border_color: str = None):
         c = theme_manager.colors()
@@ -238,8 +238,8 @@ class FournisseurFormWidget(QWidget):
 
         self.edit_mail = QLineEdit()
         self.edit_mail.setPlaceholderText("Ex: fournisseur@example.com")
-        vb_mail, self._wrap_mail = self._make_field(
-            "Email", self.edit_mail, "fa5s.envelope", "#3498db"
+        vb_mail, self._wrap_mail, _badge_mail, _ico_mail = self._make_field(
+            "Email", self.edit_mail, "fa5s.envelope", c['info']
         )
         self._err_mail = self._err_label()
         vb_mail.addWidget(self._err_mail)
@@ -247,8 +247,8 @@ class FournisseurFormWidget(QWidget):
 
         self.edit_nom = QLineEdit()
         self.edit_nom.setPlaceholderText("Ex: Entreprise ABC")
-        vb_nom, self._wrap_nom = self._make_field(
-            "Entreprise", self.edit_nom, "fa5s.building", "#1abc9c"
+        vb_nom, self._wrap_nom, _badge_nom, _ico_nom = self._make_field(
+            "Entreprise", self.edit_nom, "fa5s.building", c['primary']
         )
         self._err_nom = self._err_label()
         vb_nom.addWidget(self._err_nom)
@@ -263,8 +263,8 @@ class FournisseurFormWidget(QWidget):
 
         self.edit_tel = QLineEdit()
         self.edit_tel.setPlaceholderText("Ex: +224 123 456 789")
-        vb_tel, self._wrap_tel = self._make_field(
-            "Téléphone", self.edit_tel, "fa5s.phone", "#e67e22"
+        vb_tel, self._wrap_tel, _badge_tel, _ico_tel = self._make_field(
+            "Téléphone", self.edit_tel, "fa5s.phone", c['warning']
         )
         self._err_tel = self._err_label()
         vb_tel.addWidget(self._err_tel)
@@ -272,12 +272,19 @@ class FournisseurFormWidget(QWidget):
 
         self.edit_adresse = QLineEdit()
         self.edit_adresse.setPlaceholderText("Ex: Conakry, Guinée")
-        vb_adr, self._wrap_adresse = self._make_field(
-            "Adresse", self.edit_adresse, "fa5s.map-marker-alt", "#9b59b6"
+        vb_adr, self._wrap_adresse, _badge_adresse, _ico_adresse = self._make_field(
+            "Adresse", self.edit_adresse, "fa5s.map-marker-alt", c['accent']
         )
         self._err_adresse = self._err_label()
         vb_adr.addWidget(self._err_adresse)
         row2.addWidget(self._field_widget(vb_adr), 1, Qt.AlignTop)
+
+        self._field_configs = [
+            (_badge_mail,    _ico_mail,    "fa5s.envelope",       'info'),
+            (_badge_nom,     _ico_nom,     "fa5s.building",       'primary'),
+            (_badge_tel,     _ico_tel,     "fa5s.phone",          'warning'),
+            (_badge_adresse, _ico_adresse, "fa5s.map-marker-alt", 'accent'),
+        ]
 
         vbox.addLayout(row2)
         parent_layout.addWidget(card)
@@ -303,7 +310,7 @@ class FournisseurFormWidget(QWidget):
         ifi = QHBoxLayout(ico_frame)
         ifi.setContentsMargins(0, 0, 0, 0)
         il = QLabel()
-        il.setPixmap(qta.icon("fa5s.info", color="#ffffff").pixmap(14, 14))
+        il.setPixmap(qta.icon("fa5s.info", color=c['text_inverse']).pixmap(14, 14))
         il.setAlignment(Qt.AlignCenter)
         ifi.addWidget(il, alignment=Qt.AlignCenter)
 
@@ -457,3 +464,10 @@ class FournisseurFormWidget(QWidget):
             """)
         if hasattr(self, 'btn_save'):
             self._apply_save_btn_style()
+        if hasattr(self, '_field_configs'):
+            for badge, ico_lbl, icon_name, color_key in self._field_configs:
+                color = c[color_key]
+                badge.setStyleSheet(
+                    f"background-color: {color}20; border-radius: 7px; border: none;"
+                )
+                ico_lbl.setPixmap(qta.icon(icon_name, color=color).pixmap(14, 14))

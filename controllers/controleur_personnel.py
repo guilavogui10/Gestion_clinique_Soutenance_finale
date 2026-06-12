@@ -100,8 +100,6 @@ class ControllerPersonnel:
     def generer_liste_pdf(self, chemin_fichier):
         return self.service.generer_liste_pdf(chemin_fichier)
 
-    def generer_carte_membre_pdf(self, code_personnel, chemin_fichier, couleur_hex="#2E86C1"):
-        return self.service.generer_carte_membre_pdf(code_personnel, chemin_fichier, couleur_hex)
 
     def export_to_csv(self, chemin_fichier):
         return self.service.export_to_csv(chemin_fichier)

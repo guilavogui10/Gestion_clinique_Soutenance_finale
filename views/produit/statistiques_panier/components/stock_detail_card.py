@@ -47,6 +47,7 @@ class StockDetailCard(AnimatedFrame):
         self.couleur_principale = couleur_principale
         self.show_header = show_header
         self._setup_ui()
+        theme_manager.theme_changed.connect(self.apply_theme)
     
     def _setup_ui(self):
         """Configure l'interface de la card."""
@@ -75,23 +76,23 @@ class StockDetailCard(AnimatedFrame):
         """
         header = QHBoxLayout()
         
-        # IcÃ´ne
-        icon_lbl = QLabel()
-        icon_lbl.setPixmap(
+        # Icône
+        self._icon_lbl = QLabel()
+        self._icon_lbl.setPixmap(
             qta.icon("fa5s.layer-group", color=self.couleur_principale).pixmap(QSize(16, 16))
         )
-        icon_lbl.setStyleSheet(StatistiquesStyles.icone_base())
-        
+        self._icon_lbl.setStyleSheet(StatistiquesStyles.icone_base())
+
         # Titre
-        title_lbl = QLabel("Stock Disponible par LibellÃ©")
-        title_lbl.setStyleSheet(
+        self._title_lbl = QLabel("Stock Disponible par Libellé")
+        self._title_lbl.setStyleSheet(
             f"font-weight: bold; color: {self.couleur_principale}; "
             f"font-size: 11px; border: none; background: transparent;"
         )
-        
-        header.addWidget(icon_lbl)
+
+        header.addWidget(self._icon_lbl)
         header.addSpacing(6)
-        header.addWidget(title_lbl)
+        header.addWidget(self._title_lbl)
         header.addStretch()
         
         return header
@@ -197,11 +198,27 @@ class StockDetailCard(AnimatedFrame):
     def update_theme_color(self, nouvelle_couleur: str):
         """Met à jour la couleur du header lors d'un changement de thème."""
         self.couleur_principale = nouvelle_couleur
-        self._icon_lbl.setPixmap(
-            qta.icon("fa5s.layer-group", color=nouvelle_couleur).pixmap(QSize(16, 16))
-        )
-        self._title_lbl.setStyleSheet(
-            f"font-weight: bold; color: {nouvelle_couleur}; "
-            f"font-size: 11px; border: none; background: transparent;"
-        )
+        if hasattr(self, '_icon_lbl'):
+            self._icon_lbl.setPixmap(
+                qta.icon("fa5s.layer-group", color=nouvelle_couleur).pixmap(QSize(16, 16))
+            )
+        if hasattr(self, '_title_lbl'):
+            self._title_lbl.setStyleSheet(
+                f"font-weight: bold; color: {nouvelle_couleur}; "
+                f"font-size: 11px; border: none; background: transparent;"
+            )
+
+    def apply_theme(self):
+        """Met à jour les couleurs selon le thème actif."""
+        c = theme_manager.colors()
+        self.setStyleSheet(StatistiquesStyles.card_base())
+        if hasattr(self, 'scroll_area'):
+            _bg = c['bg_card']
+            self.scroll_area.setStyleSheet(
+                f"QScrollArea {{ border: none; background: {_bg}; }}"
+                f"QScrollArea > QWidget {{ background: {_bg}; }}"
+            )
+        if hasattr(self, 'container_lignes'):
+            self.container_lignes.setStyleSheet(f"background: {c['bg_card']};")
+        self.update_theme_color(self.couleur_principale)
 

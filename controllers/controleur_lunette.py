@@ -184,6 +184,9 @@ class CommandeLunetteControleur:
     def lister_personnel(self) -> list:
         return self.service.lister_personnel()
 
+    def lister_personnel_par_roles(self, roles: list) -> list:
+        return self.service.lister_personnel_par_roles(roles)
+
     # =========================================================================
     # RAPPORTS PDF LISTE COMMANDES
     # =========================================================================
@@ -223,3 +226,23 @@ class CommandeLunetteControleur:
     def terminer_lunette(self, code_visite: str) -> tuple:
         from service_metier.visite_service import VisiteService
         return VisiteService().terminer_lunette(code_visite)
+
+    # =========================================================================
+    # EXPORT / IMPORT LUNETTES
+    # =========================================================================
+
+    def obtenir_donnees_export(self) -> list:
+        from service_metier.acte_import_export_service import obtenir_donnees_export
+        return obtenir_donnees_export("lunette")
+
+    def export_to_excel(self, chemin: str) -> tuple:
+        from service_metier.acte_import_export_service import export_lunettes_excel
+        return export_lunettes_excel(chemin)
+
+    def export_to_csv(self, chemin: str) -> tuple:
+        from service_metier.acte_import_export_service import export_lunettes_csv
+        return export_lunettes_csv(chemin)
+
+    def import_lunettes(self, chemin: str, format_fichier: str) -> tuple:
+        from service_metier.acte_import_export_service import import_lunettes
+        return import_lunettes(chemin, format_fichier)

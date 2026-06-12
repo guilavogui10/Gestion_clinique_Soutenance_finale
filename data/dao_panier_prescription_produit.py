@@ -222,8 +222,8 @@ class PrescriptionProduitDAO:
     def valider_prescription_visite(self, code_acte: str) -> bool:
         """
         Valide la prescription d'un acte médical.
-        Récupère code_visite via acte_medical → consultation.
-        Met à jour statut_patient vers 'Attente payement'.
+        Met à jour statut_patient de V_new vers 'Attente payement'.
+        Dans le flux RDV (plus_tard), marque aussi V_orig comme 'terminée'.
         """
         conn = self.db.connect()
         if not conn:
@@ -231,49 +231,88 @@ class PrescriptionProduitDAO:
         try:
             cursor = conn.cursor(DictCursor)
 
-            # Récupérer code_visite + code_consultation via acte_medical
+            # V_orig : visite de la consultation d'origine (acte_medical → consultation → visite)
             cursor.execute("""
-                SELECT c.code AS code_consultation, c.code_visite
+                SELECT c.code_visite AS code_visite_orig
                 FROM acte_medical am
-                INNER JOIN consultation c ON am.code_consultation = c.code
+                INNER JOIN consultation c ON c.code = am.code_consultation
                 WHERE am.code_acte = %s
             """, (code_acte,))
-            row = cursor.fetchone()
-            if not row:
-                return False
-            code_consultation = row['code_consultation']
-            code_visite = row['code_visite']
+            row_orig = cursor.fetchone()
+            code_visite_orig = row_orig.get('code_visite_orig') if row_orig else None
 
-            # Éviter double décrément si déjà validé
-            cursor.execute(
-                "SELECT statut_patient FROM visite WHERE code_visite = %s",
-                (code_visite,)
-            )
-            row_statut = cursor.fetchone()
-            if row_statut and str(row_statut.get('statut_patient', '')).strip() == "Attente payement":
-                return True
-
-            # Décrémenter le stock global pour chaque produit de l'acte
+            # V_new : visite d'exécution RDV (créée par traiter_rdv_du_jour pour les plus_tard)
             cursor.execute("""
-                SELECT code_produit, code_session, SUM(quantite_prescript) AS total_qte
-                FROM prescription_produit
-                WHERE code_acte = %s
-                GROUP BY code_produit, code_session
+                SELECT av.code_visite AS code_visite_new
+                FROM acte_visite av
+                WHERE av.code_acte = %s
+                  AND av.role_visite = 'execution'
+                LIMIT 1
             """, (code_acte,))
-            for row in cursor.fetchall():
-                code_produit = row.get('code_produit')
-                code_session = row.get('code_session')
-                total_qte = int(row.get('total_qte') or 0)
-                if code_produit and code_session and total_qte > 0:
-                    self._decrementer_stock(cursor, code_produit, total_qte, code_session)
+            row_new = cursor.fetchone()
+            code_visite_new = row_new.get('code_visite_new') if row_new else None
 
-            nouveau_statut = self._determiner_prochain_statut_apres_prescription(
-                cursor, code_acte
-            )
-            cursor.execute(
-                "UPDATE visite SET statut_patient = %s WHERE code_visite = %s",
-                (nouveau_statut, code_visite)
-            )
+            # Idempotence : si une visite liée à cet acte est déjà 'Attente payement',
+            # la validation a déjà eu lieu (évite double décrémentation du stock).
+            cursor.execute("""
+                SELECT 1 FROM visite v
+                INNER JOIN acte_visite av ON av.code_visite = v.code_visite
+                WHERE av.code_acte = %s
+                  AND v.statut_patient = 'Attente payement'
+                LIMIT 1
+            """, (code_acte,))
+            already_done = cursor.fetchone() is not None
+
+            if not already_done:
+                # Décrémenter le stock global pour chaque produit de l'acte
+                cursor.execute("""
+                    SELECT code_produit, code_session, SUM(quantite_prescript) AS total_qte
+                    FROM prescription_produit
+                    WHERE code_acte = %s
+                    GROUP BY code_produit, code_session
+                """, (code_acte,))
+                for row in cursor.fetchall():
+                    code_produit = row.get('code_produit')
+                    code_session = row.get('code_session')
+                    total_qte = int(row.get('total_qte') or 0)
+                    if code_produit and code_session and total_qte > 0:
+                        self._decrementer_stock(cursor, code_produit, total_qte, code_session)
+
+                nouveau_statut = self._determiner_prochain_statut_apres_prescription(
+                    cursor, code_acte
+                )
+
+                # Mettre à jour UNIQUEMENT les visites en état pharmacie (Attente / En cours).
+                # Flux direct (maintenant) : acte_visite(role='execution') sur V_orig → V_orig mis à jour.
+                # Flux RDV (plus_tard) : seule V_new est en 'Attente pharmacie'/'En pharmacie'.
+                # V_orig ('Attente rendez-vous pharmacie') n'est pas dans la liste → non touchée.
+                cursor.execute("""
+                    UPDATE visite v
+                    INNER JOIN acte_visite av ON av.code_visite = v.code_visite
+                    SET v.statut_patient = %s
+                    WHERE av.code_acte = %s
+                      AND v.statut_patient IN ('Attente pharmacie', 'En pharmacie')
+                """, (nouveau_statut, code_acte))
+
+            # Cas RDV (plus_tard) : V_orig et V_new sont distinctes.
+            # Marquer V_orig 'terminée' pour la sortir de toutes les files actives.
+            # S'exécute même si already_done pour corriger les données incohérentes
+            # (V_orig en 'Attente payement' par ancien bug).
+            if code_visite_orig and code_visite_new and code_visite_orig != code_visite_new:
+                cursor.execute("""
+                    SELECT COUNT(*) AS cnt FROM acte_visite
+                    WHERE code_visite = %s
+                      AND role_visite = 'execution'
+                      AND date_sortie IS NULL
+                """, (code_visite_orig,))
+                row_cnt = cursor.fetchone()
+                remaining = int(row_cnt.get('cnt', 0) if row_cnt else 0)
+                if remaining == 0:
+                    cursor.execute("""
+                        UPDATE visite SET statut_patient = 'terminée'
+                        WHERE code_visite = %s AND statut_patient != 'terminée'
+                    """, (code_visite_orig,))
+
             conn.commit()
             return True
         except Exception as e:
@@ -882,6 +921,113 @@ class PrescriptionProduitDAO:
         finally:
             self.db.close()
 
+    # ── Méthodes graphiques (mois / jour) ─────────────────────────────────────
+
+    _MOIS_LABELS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin',
+                    'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc']
+    _MOIS_MAP    = {i+1: m for i, m in enumerate(_MOIS_LABELS)}
+
+    def montant_par_mois(self, code_session: str) -> dict:
+        """Montant total des prescriptions par mois. {'Jan': X.X, ...}"""
+        stats = {m: 0.0 for m in self._MOIS_LABELS}
+        conn  = self.db.connect()
+        if not conn:
+            return stats
+        try:
+            cursor = conn.cursor(DictCursor)
+            cursor.execute("""
+                SELECT MONTH(c.date_consultation) AS num_mois,
+                       COALESCE(SUM(pp.prix_applique * pp.quantite_prescript), 0) AS total
+                FROM prescription_produit pp
+                LEFT JOIN acte_medical am ON pp.code_acte = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                WHERE pp.code_session = %s
+                  AND c.date_consultation IS NOT NULL
+                GROUP BY MONTH(c.date_consultation)
+            """, (code_session,))
+            for row in cursor.fetchall():
+                m = row['num_mois']
+                if m in self._MOIS_MAP:
+                    stats[self._MOIS_MAP[m]] = float(row['total'] or 0)
+            return stats
+        except Exception as e:
+            print(f"[PanierPrescriptionProduitDAO] Erreur montant_par_mois: {e}")
+            return stats
+        finally:
+            self.db.close()
+
+    def moyenne_nombre_journalier_par_mois(self, code_session: str) -> dict:
+        """Moyenne journalière du nombre de prescriptions par mois. {'Jan': X.X, ...}"""
+        import calendar
+        from datetime import datetime
+        stats = {m: 0.0 for m in self._MOIS_LABELS}
+        conn  = self.db.connect()
+        if not conn:
+            return stats
+        try:
+            cursor = conn.cursor(DictCursor)
+            cursor.execute("""
+                SELECT MONTH(c.date_consultation)  AS num_mois,
+                       YEAR(c.date_consultation)   AS num_annee,
+                       COUNT(*)                    AS total
+                FROM prescription_produit pp
+                LEFT JOIN acte_medical am ON pp.code_acte = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                WHERE pp.code_session = %s
+                  AND c.date_consultation IS NOT NULL
+                GROUP BY YEAR(c.date_consultation), MONTH(c.date_consultation)
+            """, (code_session,))
+            today = datetime.now()
+            for row in cursor.fetchall():
+                mois  = int(row['num_mois'])
+                annee = int(row['num_annee'])
+                total = int(row['total'] or 0)
+                if mois == today.month and annee == today.year:
+                    nb_jours = today.day
+                else:
+                    nb_jours = calendar.monthrange(annee, mois)[1]
+                if mois in self._MOIS_MAP and nb_jours > 0:
+                    stats[self._MOIS_MAP[mois]] = round(total / nb_jours, 2)
+            return stats
+        except Exception as e:
+            print(f"[PanierPrescriptionProduitDAO] Erreur moyenne_nombre_journalier_par_mois: {e}")
+            return stats
+        finally:
+            self.db.close()
+
+    def nombre_par_jour(self, code_session: str, annee: int = None, mois: int = None) -> dict:
+        """Nombre de prescriptions par jour pour un mois donné. {'01': X, ...}"""
+        from datetime import datetime
+        now   = datetime.now()
+        annee = annee or now.year
+        mois  = mois  or now.month
+        stats = {f"{d:02d}": 0 for d in range(1, 32)}
+        conn  = self.db.connect()
+        if not conn:
+            return stats
+        try:
+            cursor = conn.cursor(DictCursor)
+            cursor.execute("""
+                SELECT DAY(c.date_consultation) AS num_jour, COUNT(*) AS total
+                FROM prescription_produit pp
+                LEFT JOIN acte_medical am ON pp.code_acte = am.code_acte
+                LEFT JOIN consultation c  ON am.code_consultation = c.code
+                WHERE pp.code_session = %s
+                  AND YEAR(c.date_consultation)  = %s
+                  AND MONTH(c.date_consultation) = %s
+                  AND c.date_consultation IS NOT NULL
+                GROUP BY DAY(c.date_consultation)
+            """, (code_session, annee, mois))
+            for row in cursor.fetchall():
+                j = int(row['num_jour'])
+                stats[f"{j:02d}"] = int(row['total'] or 0)
+            return stats
+        except Exception as e:
+            print(f"[PanierPrescriptionProduitDAO] Erreur nombre_par_jour: {e}")
+            return stats
+        finally:
+            self.db.close()
+
     def top_designations(self, code_session: str, limite: int = 10) -> list:
         """Top N désignations les plus fréquentes dans la session."""
         conn = self.db.connect()
@@ -956,6 +1102,88 @@ class PrescriptionProduitDAO:
             return []
         finally:
             self.db.close()
+
+    # =========================================================================
+    # EXPORT / IMPORT
+    # =========================================================================
+
+    def lister_pour_export(self) -> list:
+        """Retourne toutes les prescriptions avec code_consultation pour export CSV/Excel."""
+        conn = self.db.connect()
+        if not conn:
+            return []
+        try:
+            cursor = conn.cursor(DictCursor)
+            cursor.execute("""
+                SELECT pp.code_prescription,
+                       am.code_consultation,
+                       pp.code_produit,
+                       pp.designation,
+                       pp.quantite_prescript AS quantite,
+                       pp.prix_applique,
+                       pp.date_expiration
+                FROM prescription_produit pp
+                JOIN acte_medical am ON pp.code_acte = am.code_acte
+                ORDER BY pp.code_prescription DESC
+            """)
+            return cursor.fetchall() or []
+        except Exception as e:
+            print(f"[PrescriptionProduitDAO] Erreur lister_pour_export: {e}")
+            return []
+        finally:
+            self.db.close()
+
+    def _inserer_import(self, cursor, code_acte: str, code_session: str, data: dict) -> bool:
+        """
+        INSERT prescription en mode import avec logique FEFO — reçoit curseur externe.
+        Ne commit pas (géré par le service).
+        Lève ValueError si stock insuffisant ou code_produit absent.
+        """
+        code_produit = data.get('code_produit') or None
+        if not code_produit:
+            raise ValueError("code_produit obligatoire pour la prescription (FEFO).")
+
+        quantite    = int(float(data.get('quantite') or 1))
+        prix        = float(data.get('prix_applique') or 0) or None
+        designation = data.get('designation') or None
+
+        # Auto-compléter depuis produits si champs absents
+        if not designation or not prix:
+            cursor.execute(
+                "SELECT libelle, prix_vente_unitaire FROM produits WHERE code_produit = %s",
+                (code_produit,)
+            )
+            p = cursor.fetchone()
+            if p:
+                if not designation:
+                    designation = p.get('libelle') if isinstance(p, dict) else p[0]
+                if not prix:
+                    val = p.get('prix_vente_unitaire') if isinstance(p, dict) else p[1]
+                    prix = float(val) if val else 0.0
+
+        # FEFO — allocation sur les lots disponibles
+        allocations = self._calculer_allocations_fefo(cursor, code_produit, code_session, quantite)
+        if not allocations:
+            raise ValueError(
+                f"Aucun lot disponible (FEFO) pour '{code_produit}'. "
+                "Importez d'abord les lots de stock avec leurs dates d'expiration."
+            )
+
+        # INSERT une ligne par lot alloué
+        for alloc in allocations:
+            code_prs = self._generer_code(cursor)
+            cursor.execute("""
+                INSERT INTO prescription_produit (
+                    code_prescription, designation, code_produit,
+                    quantite_prescript, prix_applique,
+                    code_session, date_expiration, code_acte
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                code_prs, designation, code_produit,
+                alloc['quantite'], prix,
+                code_session, alloc['date_expiration'], code_acte,
+            ))
+        return True
 
     # =========================================================================
     # FEFO

@@ -147,7 +147,7 @@ class HeroSection(QWidget):
         btn_layout.addWidget(self.btn_rdv)
         
         self.btn_services = QPushButton()
-        self.btn_services.setIcon(qta.icon('fa5s.info-circle', color='#3B82F6'))
+        self.btn_services.setIcon(qta.icon('fa5s.info-circle', color=theme_manager.colors()['primary']))
         self.btn_services.setIconSize(QSize(14, 14))
         self.btn_services.setText("  Nos services")
         self.btn_services.setFixedHeight(42)
@@ -166,27 +166,28 @@ class HeroSection(QWidget):
         badges_layout = QHBoxLayout()
         badges_layout.setSpacing(35)
         
+        _primary = theme_manager.colors()['primary']
         badge1 = BadgeConfiance(
-            'fa5s.shield-alt', 
+            'fa5s.shield-alt',
             'Soins de qualité',
             'Excellence médicale',
-            '#3B82F6'
+            _primary
         )
         badges_layout.addWidget(badge1)
-        
+
         badge2 = BadgeConfiance(
             'fa5s.users',
             'Équipe experte',
             'Professionnels qualifiés',
-            '#3B82F6'
+            _primary
         )
         badges_layout.addWidget(badge2)
-        
+
         badge3 = BadgeConfiance(
             'fa5s.cogs',
             'Technologie avancée',
             'Équipements modernes',
-            '#3B82F6'
+            _primary
         )
         badges_layout.addWidget(badge3)
         
@@ -274,20 +275,20 @@ class HeroSection(QWidget):
         c = theme_manager.colors()
         menu.setStyleSheet(f"""
             QMenu {{
-                background-color: white;
-                border: 1px solid #E5E7EB;
+                background-color: {c['bg_card']};
+                border: 1px solid {c['border']};
                 border-radius: 8px;
                 padding: 8px 0;
             }}
             QMenu::item {{
                 padding: 10px 20px;
-                color: #1F2937;
+                color: {c['text_primary']};
                 font-size: 13px;
                 font-weight: 500;
             }}
             QMenu::item:selected {{
-                background-color: #EFF6FF;
-                color: #3B82F6;
+                background-color: {c['primary_light']};
+                color: {c['primary']};
             }}
             QMenu::icon {{
                 padding-left: 10px;
@@ -299,6 +300,7 @@ class HeroSection(QWidget):
     
     def _apply_theme(self):
         """Applique le thème actuel."""
+        c = theme_manager.colors()
         self.setStyleSheet(f"""
             HeroSection {{
                 background-color: transparent;
@@ -309,29 +311,29 @@ class HeroSection(QWidget):
                 border: none;
             }}
             QLabel#hero_title {{
-                color: #1E293B;
+                color: {c['text_primary']};
                 font-size: 32px;
                 font-weight: 700;
                 background: transparent;
                 border: none;
             }}
             QLabel#hero_title_blue {{
-                color: #3B82F6;
+                color: {c['primary']};
                 font-size: 32px;
                 font-weight: 700;
                 background: transparent;
                 border: none;
             }}
             QLabel#hero_desc {{
-                color: #475569;
+                color: {c['text_secondary']};
                 font-size: 14px;
                 line-height: 1.6;
                 background: transparent;
                 border: none;
             }}
             QPushButton#btn_primary {{
-                background-color: #3B82F6;
-                color: white;
+                background-color: {c['primary']};
+                color: {c['text_inverse']};
                 border: none;
                 border-radius: 8px;
                 font-size: 13px;
@@ -339,39 +341,39 @@ class HeroSection(QWidget):
                 padding: 0 20px;
             }}
             QPushButton#btn_primary:hover {{
-                background-color: #2563EB;
+                background-color: {c['primary_hover']};
             }}
             QPushButton#btn_secondary {{
-                background-color: white;
-                color: #3B82F6;
-                border: 2px solid #3B82F6;
+                background-color: {c['bg_card']};
+                color: {c['primary']};
+                border: 2px solid {c['primary']};
                 border-radius: 8px;
                 font-size: 13px;
                 font-weight: 600;
                 padding: 0 20px;
             }}
             QPushButton#btn_secondary:hover {{
-                background-color: #EFF6FF;
+                background-color: {c['primary_light']};
             }}
             QFrame#floating_card {{
-                background-color: rgba(255, 255, 255, 0.95);
-                border: 1px solid rgba(226, 232, 240, 0.8);
+                background-color: {c['bg_card']};
+                border: 1px solid {c['border_light']};
                 border-radius: 12px;
             }}
             QFrame#icon_circle {{
-                background-color: #3B82F6;
+                background-color: {c['primary']};
                 border-radius: 25px;
                 border: none;
             }}
             QLabel#card_title {{
-                color: #1E293B;
+                color: {c['text_primary']};
                 font-size: 14px;
                 font-weight: 600;
                 background: transparent;
                 border: none;
             }}
             QLabel#card_desc {{
-                color: #64748B;
+                color: {c['text_secondary']};
                 font-size: 11px;
                 background: transparent;
                 border: none;

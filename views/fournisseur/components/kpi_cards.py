@@ -98,7 +98,7 @@ class KpiCard(QFrame):
         self.icon_circle.setStyleSheet(
             f"background: {accent}; border: none; border-radius: 21px;"
         )
-        self.icon_label.setPixmap(qta.icon(self.icon_name, color="white").pixmap(22, 22))
+        self.icon_label.setPixmap(qta.icon(self.icon_name, color=c['text_inverse']).pixmap(22, 22))
 
 
 class KpiCardsSection(QWidget):

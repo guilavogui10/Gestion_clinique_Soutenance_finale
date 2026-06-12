@@ -43,21 +43,29 @@ class PrescriptionWidgetOptimized(QWidget):
         self.lignes_panier = []
 
         # Composants
-        _bleu = theme_manager.colors()['primary']
-        self.form_component = PrescriptionFormOptimized(_bleu)
-        self.footer_component = PrescriptionFooter(_bleu)
+        self.form_component = PrescriptionFormOptimized()
+        self.footer_component = PrescriptionFooter()
 
         # Handlers
-        self.data_loader = PrescriptionDataLoader(_bleu)
+        self.data_loader = PrescriptionDataLoader()
         self.validation_handler = PrescriptionValidationHandler(prescription_ctrl)
         self.operations = PrescriptionOperations(prescription_ctrl)
 
         self._init_ui()
         self._connecter_signaux()
+        theme_manager.theme_changed.connect(self.apply_theme)
+
+    def apply_theme(self) -> None:
+        """Met à jour le thème du widget et de ses composants."""
+        c = theme_manager.colors()
+        self.setStyleSheet(f"QWidget#PrescriptionOptimized {{ background: {c['bg_card']}; border-radius: 12px; }}")
+        self.form_component.apply_theme()
+        self.footer_component.apply_theme()
 
     def _init_ui(self) -> None:
         """Initialise l'interface"""
-        self.setStyleSheet("background: white; border-radius: 12px;")
+        self.setObjectName("PrescriptionOptimized")
+        self.setStyleSheet(f"QWidget#PrescriptionOptimized {{ background: {theme_manager.colors()['bg_card']}; border-radius: 12px; }}")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)

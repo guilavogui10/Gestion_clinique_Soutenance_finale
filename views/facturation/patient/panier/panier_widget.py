@@ -127,6 +127,7 @@ class PanierProduitWidget(AnimatedFrame):
 
             # Colonne droite : liste des lignes + footer
             right_frame = QFrame()
+            right_frame.setMaximumWidth(320)
             right_frame.setStyleSheet("background: transparent; border: none;")
             right_layout = QVBoxLayout(right_frame)
             right_layout.setContentsMargins(0, 0, 0, 0)
@@ -162,8 +163,8 @@ class PanierProduitWidget(AnimatedFrame):
             self.lbl_total_facture, self.btn_finaliser, self.btn_annuler_facture = \
                 self.footer_component.create(right_layout)
 
-            body_layout.addWidget(left_frame, 2)
-            body_layout.addWidget(right_frame, 3)
+            body_layout.addWidget(left_frame, 3)
+            body_layout.addWidget(right_frame, 2)
             layout.addLayout(body_layout)
         else:
             # Layout classique empilé
@@ -343,7 +344,7 @@ class PanierProduitWidget(AnimatedFrame):
         self.footer_component.update_total(total)
     
     def _finaliser_facture(self) -> None:
-        """Finalise la facture et redirige vers le panneau de paiement."""
+        """Finalise la facture et redirige vers l'onglet Facture Fournisseur."""
         print("[PanierWidget] _finaliser_facture appelé")
         
         if not self.lignes_panier:
@@ -366,38 +367,39 @@ class PanierProduitWidget(AnimatedFrame):
         print(f"[PanierWidget] Résultat finalisation: ok={ok}, msg={msg}")
         
         if ok and msg == "SHOW_PAYMENT_PANEL":
-            print("[PanierWidget] Recherche du parent GestionProduitsView...")
-            # Trouver le parent approprié (GestionProduitsView pour fournisseur, etc.)
-            parent = self.parent()
-            parent_found = False
-            while parent:
-                parent_name = type(parent).__name__
-                print(f"[PanierWidget] Vérification parent: {parent_name}")
-                
-                if hasattr(parent, 'show_payment_panel'):
-                    print(f"[PanierWidget] Appel de show_payment_panel({self.code_facture_four})")
-                    parent.show_payment_panel(self.code_facture_four)
-                    parent_found = True
-                    break
-                elif hasattr(parent, '_ouvrir_panneau_factures'):
-                    print(f"[PanierWidget] Appel de _ouvrir_panneau_factures()")
-                    parent._ouvrir_panneau_factures()
-                    if hasattr(parent, 'panneau_factures'):
-                        parent.panneau_factures.actualiser(self.code_session)
-                    # Réinitialiser le panier puisque la facture est finalisée
-                    self._reinitialiser_complet()
-                    self._afficher_message("Succès", "Facture finalisée avec succès", True)
-                    parent_found = True
-                    break
-                
-                parent = parent.parent()
+            print("[PanierWidget] Recherche de la MainWindow pour naviguer vers Facturation...")
+            # Trouver la MainWindow pour accéder au module Facturation
+            main_window = self._find_main_window()
             
-            if not parent_found:
-                print("[PanierWidget] ERREUR: Aucun parent avec show_payment_panel ou _ouvrir_panneau_factures trouvé")
-                self._afficher_message("Erreur", "Impossible d'afficher le panneau de paiement/facture", False)
+            if main_window:
+                print(f"[PanierWidget] MainWindow trouvée: {type(main_window).__name__}")
+                # Naviguer vers le module Facturation
+                if hasattr(main_window, 'naviguer_vers_facturation'):
+                    print(f"[PanierWidget] Navigation vers facturation avec facture {self.code_facture_four}")
+                    main_window.naviguer_vers_facturation(self.code_facture_four)
+                    self._reinitialiser_complet()
+                    self._afficher_message("Succès", f"Facture {self.code_facture_four} créée. Redirection vers la facturation...", True)
+                else:
+                    print("[PanierWidget] ERREUR: MainWindow n'a pas de méthode naviguer_vers_facturation")
+                    self._afficher_message("Erreur", "Impossible de naviguer vers la facturation", False)
+            else:
+                print("[PanierWidget] ERREUR: MainWindow introuvable")
+                self._afficher_message("Erreur", "Impossible de naviguer vers la facturation", False)
         elif not ok:
             if msg != "Finalisation annulée":
                 self._afficher_message("Erreur", msg, False)
+    
+    def _find_main_window(self):
+        """Trouve la fenêtre principale de l'application."""
+        parent = self.parent()
+        while parent:
+            parent_name = type(parent).__name__
+            print(f"[PanierWidget] Parcours parent: {parent_name}")
+            # MainWindow ou fenêtre principale qui a naviguer_vers_facturation
+            if parent_name in ('MainWindow', 'MainApp') or hasattr(parent, 'naviguer_vers_facturation'):
+                return parent
+            parent = parent.parent()
+        return None
     
     def _annuler_panier(self) -> None:
         """Annule le panier en cours avec confirmation."""

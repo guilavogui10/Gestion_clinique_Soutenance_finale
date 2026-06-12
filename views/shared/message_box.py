@@ -338,6 +338,10 @@ class CustomMessageBox(QDialog):
         return CustomMessageBox.show_question(message, title, parent=parent)
 
     @staticmethod
+    def question(parent, title, message):
+        return CustomMessageBox.show_question(message, title, parent=parent)
+
+    @staticmethod
     def info(parent, title, message):
         return CustomMessageBox.show_info(message, title, parent=parent)
 
@@ -348,105 +352,321 @@ class CustomMessageBox(QDialog):
 
 
 class PatientDetailDialog(QDialog):
+    """
+    Modal fiche patient — design identique à CustomMessageBox :
+    frameless, overlay semi-transparent, frame blanc arrondi avec ombre.
+    Couleur principale bleue (primary du thème).
+    """
+
     def __init__(self, patient, parent=None):
         super().__init__(parent)
         self.patient = patient
-        self.setWindowTitle(f"Détails - {patient.get_nom()}")
-        self.setFixedSize(500, 600)
-        self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint)
-        
-        self.init_ui()
-        self.apply_theme()
 
-    def apply_theme(self):
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setModal(True)
+
+        self._build_ui()
+        self._apply_shadow()
+        self._apply_styles()
+
+    # ------------------------------------------------------------------
+    # Overlay semi-transparent (même technique que CustomMessageBox)
+    # ------------------------------------------------------------------
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        if hasattr(self, 'frame') and self.frame.height() > 0:
+            w = self.frame.width() + 80
+            h = self.frame.height() + 80
+            x = (self.width()  - w) // 2
+            y = (self.height() - h) // 2
+            painter.setBrush(QColor(0, 0, 0, 110))
+            painter.setPen(Qt.NoPen)
+            painter.drawRoundedRect(x, y, w, h, 24, 24)
+        painter.end()
+
+    # ------------------------------------------------------------------
+    # Ombre portée sur le frame blanc
+    # ------------------------------------------------------------------
+    def _apply_shadow(self):
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(50)
+        shadow.setOffset(0, 12)
+        shadow.setColor(QColor(0, 0, 0, 110))
+        self.frame.setGraphicsEffect(shadow)
+
+    # ------------------------------------------------------------------
+    # Construction de l'interface
+    # ------------------------------------------------------------------
+    def _build_ui(self):
         c = theme_manager.colors()
-        self.setStyleSheet(Styles.dialog_full())
+        primary = c['primary']
 
-    def init_ui(self):
-        c = theme_manager.colors()
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(50, 50, 50, 50)
+        outer.setAlignment(Qt.AlignCenter)
 
-        # --- HEADER (Avatar + Nom) ---
-        header = QHBoxLayout()
-        icon_label = QLabel()
-        icon_label.setPixmap(qta.icon("fa5s.user-circle", color=c['primary']).pixmap(80, 80))
-        
-        info_header = QVBoxLayout()
-        lbl_nom = QLabel(f"{self.patient.get_nom()} {self.patient.get_prenom()}")
-        lbl_nom.setStyleSheet(f"font-size: 22px; font-weight: bold; color: {c['primary']};")
-        lbl_code = QLabel(f"Code Patient: {self.patient.get_code_patient()}")
-        lbl_code.setStyleSheet(f"font-size: 14px; color: {c['text_muted']}; font-style: italic;")
-        
-        info_header.addWidget(lbl_nom)
-        info_header.addWidget(lbl_code)
-        header.addWidget(icon_label)
-        header.addLayout(info_header)
-        header.addStretch()
-        layout.addLayout(header)
+        # ── Frame blanc central ────────────────────────────────────────
+        self.frame = QFrame()
+        self.frame.setObjectName("PDetailFrame")
+        self.frame.setFixedWidth(540)
 
-        # --- SEPARATEUR ---
-        line = QFrame()
-        line.setFrameShape(QFrame.HLine)
-        line.setStyleSheet(f"color: {c['border_light']};")
-        layout.addWidget(line)
+        fl = QVBoxLayout(self.frame)
+        fl.setContentsMargins(36, 28, 36, 32)
+        fl.setSpacing(0)
 
-        # --- CORPS (Informations détaillées) ---
+        # ── Bouton ✕ (coin haut droit) ─────────────────────────────────
+        top_row = QHBoxLayout()
+        top_row.addStretch()
+        self._btn_x = QPushButton("✕")
+        self._btn_x.setObjectName("PDetailClose")
+        self._btn_x.setFixedSize(30, 30)
+        self._btn_x.setCursor(Qt.PointingHandCursor)
+        self._btn_x.clicked.connect(self.reject)
+        top_row.addWidget(self._btn_x)
+        fl.addLayout(top_row)
+        fl.addSpacing(4)
+
+        # ── Avatar circulaire bleu ────────────────────────────────────
+        avatar_frame = QFrame()
+        avatar_frame.setObjectName("PDetailAvatar")
+        avatar_frame.setFixedSize(76, 76)
+        av_lay = QVBoxLayout(avatar_frame)
+        av_lay.setContentsMargins(0, 0, 0, 0)
+        av_lay.setAlignment(Qt.AlignCenter)
+        lbl_av = QLabel()
+        lbl_av.setAlignment(Qt.AlignCenter)
+        lbl_av.setPixmap(qta.icon("fa5s.user", color="white").pixmap(34, 34))
+        av_lay.addWidget(lbl_av)
+
+        av_wrap = QHBoxLayout()
+        av_wrap.addStretch()
+        av_wrap.addWidget(avatar_frame)
+        av_wrap.addStretch()
+        fl.addLayout(av_wrap)
+        fl.addSpacing(14)
+
+        # ── Nom complet ───────────────────────────────────────────────
+        nom = f"{self.patient.get_nom()} {self.patient.get_prenom()}"
+        lbl_nom = QLabel(nom)
+        lbl_nom.setObjectName("PDetailNom")
+        lbl_nom.setAlignment(Qt.AlignCenter)
+        lbl_nom.setWordWrap(True)
+        fl.addWidget(lbl_nom)
+        fl.addSpacing(6)
+
+        # ── Badge code patient ────────────────────────────────────────
+        badge_wrap = QHBoxLayout()
+        badge_wrap.addStretch()
+        lbl_badge = QLabel(f"  #{self.patient.get_code_patient()}  ")
+        lbl_badge.setObjectName("PDetailBadge")
+        lbl_badge.setAlignment(Qt.AlignCenter)
+        badge_wrap.addWidget(lbl_badge)
+        badge_wrap.addStretch()
+        fl.addLayout(badge_wrap)
+        fl.addSpacing(22)
+
+        # ── Séparateur ────────────────────────────────────────────────
+        sep = QFrame()
+        sep.setFrameShape(QFrame.HLine)
+        sep.setObjectName("PDetailSep")
+        fl.addWidget(sep)
+        fl.addSpacing(20)
+
+        # ── Cards d'information (grille 2 colonnes) ───────────────────
+        infos_2col = [
+            ("fa5s.phone-alt",     "Téléphone",      str(self.patient.get_telephone() or "—")),
+            ("fa5s.venus-mars",    "Genre",           str(self.patient.get_genre()     or "—")),
+            ("fa5s.birthday-cake", "Date naissance",  str(self.patient.get_naissance() or "—")),
+            ("fa5s.briefcase",     "Profession",      str(self.patient.get_profession()or "—")),
+        ]
+
         grid = QGridLayout()
-        grid.setSpacing(15)
+        grid.setSpacing(10)
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 1)
 
-        def add_info_row(row, label, value, icon):
-            ic = QLabel()
-            ic.setPixmap(qta.icon(icon, color=c['primary']).pixmap(20, 20))
-            lbl = QLabel(f"<b>{label}:</b>")
-            val = QLabel(str(value))
-            val.setStyleSheet(f"color: {c['text_primary']};")
-            grid.addWidget(ic, row, 0)
-            grid.addWidget(lbl, row, 1)
-            grid.addWidget(val, row, 2)
+        for idx, (ico, lbl, val) in enumerate(infos_2col):
+            card = self._make_card(ico, lbl, val)
+            grid.addWidget(card, idx // 2, idx % 2)
 
-        add_info_row(0, "Téléphone", self.patient.get_telephone(), "fa5s.phone")
-        add_info_row(1, "Genre", self.patient.get_genre(), "fa5s.venus-mars")
-        add_info_row(2, "Naissance", self.patient.get_naissance(), "fa5s.calendar-alt")
-        add_info_row(3, "Profession", self.patient.get_profession(), "fa5s.briefcase")
-        add_info_row(4, "Adresse", self.patient.get_adresse(), "fa5s.map-marker-alt")
+        fl.addLayout(grid)
+        fl.addSpacing(10)
 
-        layout.addLayout(grid)
-        layout.addStretch()
+        # Adresse pleine largeur
+        fl.addWidget(self._make_card("fa5s.map-marker-alt", "Adresse",
+                                     str(self.patient.get_adresse() or "—")))
+        fl.addSpacing(28)
 
-        # --- BOUTON IMPRIMER ---
-        self.btn_print = QPushButton(qta.icon("fa5s.print", color=c['text_inverse']), " Imprimer le carnet")
+        # ── Boutons ───────────────────────────────────────────────────
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(12)
+
+        btn_fermer = QPushButton("  Fermer")
+        btn_fermer.setObjectName("PDetailSecondary")
+        btn_fermer.setFixedHeight(44)
+        btn_fermer.setCursor(Qt.PointingHandCursor)
+        btn_fermer.setIcon(qta.icon("fa5s.times", color=c['text_secondary']))
+        btn_fermer.clicked.connect(self.reject)
+
+        self.btn_print = QPushButton("  Imprimer le carnet")
+        self.btn_print.setObjectName("PDetailPrimary")
+        self.btn_print.setFixedHeight(44)
         self.btn_print.setCursor(Qt.PointingHandCursor)
-        self.btn_print.setFixedHeight(45)
-        self.btn_print.setStyleSheet(Styles.button_primary())
-        # Ici on connectera ta méthode d'impression
+        self.btn_print.setIcon(qta.icon("fa5s.print", color="white"))
         self.btn_print.clicked.connect(self.imprimer_carnet)
-        layout.addWidget(self.btn_print)
 
+        btn_row.addWidget(btn_fermer, 1)
+        btn_row.addWidget(self.btn_print, 2)
+        fl.addLayout(btn_row)
+
+        outer.addWidget(self.frame)
+
+    # ------------------------------------------------------------------
+    # Card info individuelle
+    # ------------------------------------------------------------------
+    def _make_card(self, icon_name: str, label: str, value: str) -> QFrame:
+        c = theme_manager.colors()
+        card = QFrame()
+        card.setObjectName("PDetailCard")
+        row = QHBoxLayout(card)
+        row.setContentsMargins(14, 11, 14, 11)
+        row.setSpacing(12)
+
+        lbl_ic = QLabel()
+        lbl_ic.setPixmap(qta.icon(icon_name, color=c['primary']).pixmap(16, 16))
+        lbl_ic.setFixedSize(18, 18)
+        row.addWidget(lbl_ic)
+
+        col = QVBoxLayout()
+        col.setSpacing(2)
+        lbl_l = QLabel(label)
+        lbl_l.setObjectName("PDetailCardLabel")
+        lbl_v = QLabel(value)
+        lbl_v.setObjectName("PDetailCardValue")
+        lbl_v.setWordWrap(True)
+        col.addWidget(lbl_l)
+        col.addWidget(lbl_v)
+        row.addLayout(col)
+        return card
+
+    # ------------------------------------------------------------------
+    # Styles
+    # ------------------------------------------------------------------
+    def _apply_styles(self):
+        c = theme_manager.colors()
+
+        self.frame.setStyleSheet(f"""
+            QFrame#PDetailFrame {{
+                background: {c['bg_card']};
+                border-radius: 20px;
+                border: none;
+            }}
+        """)
+
+        self.setStyleSheet(f"""
+            QPushButton#PDetailClose {{
+                background: {c['bg_input']};
+                border: none;
+                border-radius: 15px;
+                color: {c['text_muted']};
+                font-size: 13px;
+                font-weight: 700;
+            }}
+            QPushButton#PDetailClose:hover {{
+                background: {c['hover']};
+                color: {c['text_primary']};
+            }}
+
+            QFrame#PDetailAvatar {{
+                background: {c['primary']};
+                border-radius: 38px;
+            }}
+
+            QLabel#PDetailNom {{
+                color: {c['text_primary']};
+                font-size: 22px;
+                font-weight: 700;
+                background: transparent;
+            }}
+
+            QLabel#PDetailBadge {{
+                background: {c['primary_light']};
+                color: {c['primary']};
+                font-size: 12px;
+                font-weight: 600;
+                border-radius: 10px;
+                padding: 3px 0px;
+            }}
+
+            QFrame#PDetailSep {{
+                color: {c['border_light']};
+                max-height: 1px;
+            }}
+
+            QFrame#PDetailCard {{
+                background: {c['bg_input']};
+                border-radius: 10px;
+                border: 1px solid {c['border_light']};
+            }}
+            QLabel#PDetailCardLabel {{
+                color: {c['text_muted']};
+                font-size: 10px;
+                font-weight: 500;
+                background: transparent;
+            }}
+            QLabel#PDetailCardValue {{
+                color: {c['text_primary']};
+                font-size: 13px;
+                font-weight: 600;
+                background: transparent;
+            }}
+
+            QPushButton#PDetailSecondary {{
+                background: transparent;
+                border: 2px solid {c['border']};
+                border-radius: 12px;
+                color: {c['text_secondary']};
+                font-size: 13px;
+                font-weight: 600;
+                padding-left: 6px;
+                text-align: left;
+            }}
+            QPushButton#PDetailSecondary:hover {{
+                background: {c['hover']};
+                border-color: {c['text_muted']};
+                color: {c['text_primary']};
+            }}
+
+            QPushButton#PDetailPrimary {{
+                background: {c['primary']};
+                border: none;
+                border-radius: 12px;
+                color: {c['text_inverse']};
+                font-size: 13px;
+                font-weight: 700;
+                padding-left: 6px;
+                text-align: left;
+            }}
+            QPushButton#PDetailPrimary:hover {{
+                background: {c['primary_hover']};
+            }}
+        """)
+
+    # ------------------------------------------------------------------
+    # Impression carnet
+    # ------------------------------------------------------------------
     def imprimer_carnet(self):
         from PySide6.QtWidgets import QFileDialog
-        
-        # 1. Sélection du dossier
+
         dossier = QFileDialog.getExistingDirectory(self, "Sélectionner le dossier d'enregistrement")
-        
         if dossier:
-            # 2. Appel du contrôleur via le parent (PatientView)
-            # On utilise self.parent() pour atteindre le contrôleur de PatientView
             reussite, message = self.parent().controleur.generer_carnet_par_code(
-                self.patient.get_code_patient(), 
+                self.patient.get_code_patient(),
                 dossier
             )
-            
-            # 3. Appel DIRECT de CustomMessageBox (puisque c'est dans le même fichier)
             titre = "Succès" if reussite else "Erreur"
-            msg_dialog = CustomMessageBox(
-                title=titre, 
-                message=message, 
-                is_success=reussite, 
-                parent=self
-            )
-            msg_dialog.exec()
-            
+            CustomMessageBox(title=titre, message=message, is_success=reussite, parent=self).exec()
             if reussite:
-                self.accept() # On ferme la fiche détail si l'impression est lancée
+                self.accept()

@@ -84,6 +84,9 @@ class ControleurPatient:
     # EXPORT / IMPORT (délégation au service)
     # =========================================================================
 
+    def obtenir_donnees_pour_export(self):
+        return self.service.obtenir_donnees_pour_export()
+
     def export_to_excel(self, fichier):
         return self.service.export_to_excel(fichier)
 
@@ -115,6 +118,37 @@ class ControleurPatient:
 
     def generer_liste_total_patient(self, dossier_destination):
         return self.service.generer_liste_total_patient(dossier_destination)
+
+    def generer_rapport_patients(self):
+        """Retourne le chemin du PDF temporaire pour ApercuPDFDialog."""
+        return self.service.generer_rapport_patients()
+
+    def generer_dossier_medical(self, code_patient):
+        """Génère le PDF dossier médical complet pour un patient."""
+        from services.pdf_patient.pdf_dossier_medical import DossierMedicalPDF
+        from controllers.controleur_consultation import ConsultationControleur
+        from controllers.controleur_examen import ExamenControleur
+        from controllers.controleur_chururgie import ChirurgieControleur
+        from controllers.controleur_lunette import CommandeLunetteControleur
+        from controllers.controleur_prescription import PrescriptionControleur
+        from controllers.controleur_rendez_vous import RendezVousControleur
+        from controllers.controleur_historique_patient import HistoriquePatientControleur
+
+        patient      = self.reed_by_code_patient(code_patient)
+        info_cabinet = self.get_cabinet_info()
+
+        visites       = HistoriquePatientControleur().lister_visites_patient(code_patient)       or []
+        consultations = ConsultationControleur().obtenir_historique_patient(code_patient)        or []
+        examens       = ExamenControleur().obtenir_historique_patient(code_patient)              or []
+        chirurgies    = ChirurgieControleur().obtenir_historique_patient(code_patient)           or []
+        lunettes      = CommandeLunetteControleur().obtenir_historique_patient(code_patient)     or []
+        prescriptions = PrescriptionControleur().obtenir_historique_patient(code_patient)        or []
+        rendez_vous   = RendezVousControleur().obtenir_historique_patient(code_patient)          or []
+
+        return DossierMedicalPDF.generer(
+            patient, visites, consultations, examens, chirurgies,
+            prescriptions, lunettes, rendez_vous, info_cabinet
+        )
 
 
 

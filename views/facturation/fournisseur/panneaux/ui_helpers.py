@@ -90,10 +90,13 @@ def scroll_wrap(inner_widget: QWidget) -> QScrollArea:
         QScrollArea: Scroll configuré
     """
     scroll = QScrollArea()
+    from views.shared.theme_manager import theme_manager
+    _bg = theme_manager.colors()['bg_card']
     scroll.setWidgetResizable(True)
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     scroll.setStyleSheet(
-        "QScrollArea { border: none; background: transparent; }"
+        f"QScrollArea {{ border: none; background: {_bg}; }}"
+        f"QScrollArea > QWidget {{ background: {_bg}; }}"
     )
     scroll.verticalScrollBar().setStyleSheet(FactureStyles.scrollbar())
     scroll.setWidget(inner_widget)

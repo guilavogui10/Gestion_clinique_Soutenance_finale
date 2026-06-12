@@ -69,11 +69,9 @@ class VuePersonnel(QWidget):
         # Quick Actions (toujours visible en bas)
         self.quick_actions = QuickActions()
         self.quick_actions.new_personnel_clicked.connect(self.on_new_personnel)
-        self.quick_actions.export_clicked.connect(self.on_export)
-        self.quick_actions.import_clicked.connect(self.on_import)
-        self.quick_actions.pdf_clicked.connect(self.on_pdf)
-        self.quick_actions.reports_clicked.connect(self.on_reports)
-        self.quick_actions.search_clicked.connect(self.on_search)
+        self.quick_actions.refresh_clicked.connect(self.charger_donnees)
+        self.quick_actions.stats_clicked.connect(lambda: self.tabs.setCurrentIndex(0))
+        self.quick_actions.export_clicked.connect(self._show_export_menu)
         main_frame_layout.addWidget(self.quick_actions)
         
         # Ajouter le frame principal au layout
@@ -141,61 +139,132 @@ class VuePersonnel(QWidget):
     def on_new_personnel(self):
         self.tabs.setCurrentIndex(1)
     
-    def on_export(self):
-        chemin, _ = QFileDialog.getSaveFileName(
-            self, "Exporter personnel", "", "Excel Files (*.xlsx);;CSV Files (*.csv)"
+    def _show_export_menu(self):
+        """Affiche le menu export/import avec aperçu visuel au-dessus du bouton."""
+        from PySide6.QtWidgets import QMenu
+        from PySide6.QtCore import QPoint
+        from .export_import_personnel import ApercuPersonnelModal
+        import qtawesome as qta
+
+        c = theme_manager.colors()
+        menu = QMenu(self)
+        menu.setStyleSheet(f"""
+            QMenu {{
+                background: {c['bg_card']};
+                border: 1px solid {c['border']};
+                border-radius: 10px;
+                padding: 6px 4px;
+            }}
+            QMenu::item {{
+                padding: 9px 20px 9px 12px;
+                border-radius: 6px;
+                font-size: 13px;
+                color: {c['text_primary']};
+                min-width: 210px;
+            }}
+            QMenu::item:selected {{
+                background: {c['primary_light']};
+                color: {c['primary']};
+            }}
+            QMenu::separator {{
+                height: 1px;
+                background: {c['border']};
+                margin: 4px 10px;
+            }}
+        """)
+
+        act_export_excel = menu.addAction(
+            qta.icon("fa5s.file-excel", color="#217346"), "  Exporter en Excel (.xlsx)"
         )
-        if not chemin:
-            return
-        if chemin.lower().endswith(".csv"):
-            ok, msg = self.ctrl.export_to_csv(chemin)
-        else:
-            if not chemin.lower().endswith(".xlsx"):
-                chemin = chemin + ".xlsx"
-            ok, msg = self.ctrl.export_to_excel(chemin)
-        self.show_message(ok, msg)
-    
-    def on_import(self):
-        chemin, _ = QFileDialog.getOpenFileName(
-            self, "Importer personnel", "", "Excel Files (*.xlsx);;CSV Files (*.csv)"
+        act_export_csv = menu.addAction(
+            qta.icon("fa5s.file-csv", color="#0070c0"), "  Exporter en CSV (.csv)"
         )
-        if not chemin:
-            return
-        if chemin.lower().endswith(".csv"):
-            ok, msg = self.ctrl.import_from_csv(chemin)
-        else:
-            ok, msg = self.ctrl.import_from_excel(chemin)
-        self.show_message(ok, msg)
-        if ok:
-            self.charger_donnees()
-    
-    def on_pdf(self):
-        chemin, _ = QFileDialog.getSaveFileName(
-            self, "Exporter la liste du personnel", "", "PDF Files (*.pdf)"
+        menu.addSeparator()
+        act_import_excel = menu.addAction(
+            qta.icon("fa5s.upload", color="#217346"), "  Importer depuis Excel (.xlsx)"
         )
-        if not chemin:
-            return
-        ok, msg = self.ctrl.generer_liste_pdf(chemin)
-        self.show_message(ok, msg)
-    
-    def on_reports(self):
-        print("Rapports & exports")
-    
-    def on_search(self):
-        print("Recherche avancée")
+        act_import_csv = menu.addAction(
+            qta.icon("fa5s.upload", color="#0070c0"), "  Importer depuis CSV (.csv)"
+        )
+        menu.addSeparator()
+        act_print = menu.addAction(
+            qta.icon("fa5s.print", color=c['danger']), "  Imprimer Tout"
+        )
+
+        # Positionner le menu au-dessus du bouton export
+        btn = self.quick_actions.btn_export
+        menu.adjustSize()
+        menu_h = menu.sizeHint().height()
+        pos_global = btn.mapToGlobal(QPoint(0, 0))
+        target = QPoint(pos_global.x(), pos_global.y() - menu_h - 6)
+        action = menu.exec(target)
+
+        if action == act_export_excel:
+            ApercuPersonnelModal.ouvrir_export(self, self.ctrl, "excel")
+        elif action == act_export_csv:
+            ApercuPersonnelModal.ouvrir_export(self, self.ctrl, "csv")
+        elif action == act_import_excel:
+            ApercuPersonnelModal.ouvrir_import(self, self.ctrl, "excel")
+        elif action == act_import_csv:
+            ApercuPersonnelModal.ouvrir_import(self, self.ctrl, "csv")
+        elif action == act_print:
+            self._print_all()
+
+    def _print_all(self):
+        """Génère et affiche l'aperçu PDF de tout le personnel."""
+        from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+        import tempfile
+        import os
+        try:
+            temp_dir = tempfile.gettempdir()
+            pdf_path = os.path.join(temp_dir, "rapport_personnel.pdf")
+            self.ctrl.generer_liste_pdf(pdf_path)
+            if os.path.exists(pdf_path):
+                ApercuPDFDialog(pdf_path, "Rapport — Liste du personnel", self).exec()
+            else:
+                raise Exception("Le fichier PDF n'a pas pu être généré.")
+        except Exception as e:
+            CustomMessageBox("Erreur", f"Impossible de générer le rapport :\n{e}",
+                             is_success=False, parent=self).exec()
     
     def apply_theme(self):
         c = theme_manager.colors()
-        self.setStyleSheet(f"""
-            QWidget {{
-                background: {c['bg_main']};
-            }}
-        """)
+        self.setStyleSheet(f"VuePersonnel {{ background-color: {c['bg_main']}; }}")
         self._apply_tab_styles()
         if hasattr(self, 'tabs'):
             main_frame = self.findChild(QFrame, "MainWhiteFrame")
             if main_frame:
                 self._apply_main_frame_style(main_frame)
+            # Styler chaque onglet avec un sélecteur nommé (pas de cascade QWidget)
+            for attr in ('tab_stats', 'tab_nouveau', 'tab_liste', 'tab_cartes'):
+                tab = getattr(self, attr, None)
+                if tab and tab.objectName():
+                    tab.setStyleSheet(
+                        f"QWidget#{tab.objectName()} {{ background-color: {c['bg_card']}; }}"
+                    )
+
+        # Scroll area de l'onglet Nouveau
+        if hasattr(self, '_scroll_nouveau'):
+            self._scroll_nouveau.setStyleSheet(
+                f"QScrollArea {{ background: {c['bg_main']}; border: none; }}"
+                f"QScrollArea > QWidget > QWidget {{ background: {c['bg_main']}; }}"
+            )
+
+        # Propagation explicite aux composants enfants
+        for child in [
+            getattr(self, 'form_widget', None),
+            getattr(self, 'table', None),
+            getattr(self, 'stats_widget', None),
+            getattr(self, 'cartes_view', None),
+            getattr(self, 'quick_actions', None),
+        ]:
+            if child:
+                fn = getattr(child, 'apply_theme', None)
+                if fn:
+                    try:
+                        fn()
+                    except Exception:
+                        pass
     
     def _get_icon(self, icon_name):
         """Récupère une icône Font Awesome ou standard"""
@@ -220,9 +289,8 @@ class VuePersonnel(QWidget):
     def _create_nouveau_tab(self):
         """Crée l'onglet Nouveau avec le formulaire de personnel"""
         from .personnel_form_widget import PersonnelFormWidget
-        
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
+        tab.setObjectName("tab_nouveau")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -237,6 +305,7 @@ class VuePersonnel(QWidget):
         self.form_widget = PersonnelFormWidget(self.ctrl)
         self.form_widget.personnel_saved.connect(self._on_personnel_saved)
         scroll.setWidget(self.form_widget)
+        self._scroll_nouveau = scroll
         
         layout.addWidget(scroll)
         
@@ -251,9 +320,8 @@ class VuePersonnel(QWidget):
     def _create_stats_tab(self):
         """Crée l'onglet Statistiques"""
         from .statistiques_personnel_widget import StatistiquesPersonnelWidget
-        
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
+        tab.setObjectName("tab_stats")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -267,7 +335,7 @@ class VuePersonnel(QWidget):
     def _create_liste_tab(self):
         """Crée l'onglet Liste du personnel"""
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
+        tab.setObjectName("tab_liste")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(12, 8, 12, 12)
         
@@ -284,9 +352,8 @@ class VuePersonnel(QWidget):
     def _create_cartes_tab(self):
         """Crée l'onglet Cartes membres"""
         from .cartes_personnel_view import CartesPersonnelView
-        
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
+        tab.setObjectName("tab_cartes")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -297,11 +364,10 @@ class VuePersonnel(QWidget):
         return tab
     
     def _apply_main_frame_style(self, frame):
-        """Applique le style au frame principal blanc"""
         c = theme_manager.colors()
         frame.setStyleSheet(f"""
             QFrame#MainWhiteFrame {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 16px;
             }}

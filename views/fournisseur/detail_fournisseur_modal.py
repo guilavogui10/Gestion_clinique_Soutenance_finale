@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QFrame, QWidget, QPushButton, QGraphicsDropShadowEffect
 )
 from views.shared.modal_theme import MC
+from views.shared.theme_manager import theme_manager
 
 
 class DetailsFournisseurModal(QDialog):
@@ -94,11 +95,12 @@ class DetailsFournisseurModal(QDialog):
         cab.addWidget(adr)
         h.addLayout(cab, 4)
 
+        c = theme_manager.colors()
         badge = QLabel("  FOURNISSEUR  ")
-        badge.setStyleSheet("""
-            background-color: #ECFDF3;
-            color: #16A34A;
-            border: 1px solid #BBF7D0;
+        badge.setStyleSheet(f"""
+            background-color: {c['success_bg']};
+            color: {c['success']};
+            border: 1px solid {c['success']};
             border-radius: 8px;
             font-weight: bold;
             font-size: 10px;

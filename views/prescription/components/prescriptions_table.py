@@ -71,11 +71,11 @@ class PrescriptionsTable(QWidget):
         )
         self.search_input.textChanged.connect(self.apply_filters)
 
-        self.btn_rapport = QPushButton("  Imprimer rapport")
+        self.btn_rapport = QPushButton("  Rapports & exports")
         self.btn_rapport.setObjectName("RapportButton")
         self.btn_rapport.setFixedHeight(40)
         self.btn_rapport.setCursor(Qt.PointingHandCursor)
-        self.btn_rapport.setIcon(qta.icon("fa5s.print", color="white"))
+        self.btn_rapport.setIcon(qta.icon("fa5s.exchange-alt", color=theme_manager.colors()['text_inverse']))
         self.btn_rapport.clicked.connect(self.imprimer_rapport_clicked.emit)
 
         self.btn_new = QPushButton("Nouvelle prescription")
@@ -83,7 +83,7 @@ class PrescriptionsTable(QWidget):
         self.btn_new.setFixedHeight(40)
         self.btn_new.setMinimumWidth(185)
         self.btn_new.setCursor(Qt.PointingHandCursor)
-        self.btn_new.setIcon(qta.icon("fa5s.plus", color="white"))
+        self.btn_new.setIcon(qta.icon("fa5s.plus", color=theme_manager.colors()['text_inverse']))
         self.btn_new.clicked.connect(self.new_clicked.emit)
 
         toolbar_layout.addWidget(self.search_input, 1)
@@ -166,7 +166,7 @@ class PrescriptionsTable(QWidget):
         self.container.setStyleSheet(
             f"""
             QFrame#PrescriptionsTableCard {{
-                background: white;
+                background: {c['bg_card']};
                 border: none;
             }}
             QLineEdit#SearchInput {{
@@ -191,7 +191,7 @@ class PrescriptionsTable(QWidget):
                 font-weight: 600;
             }}
             QPushButton#RapportButton:hover {{
-                background: {c.get('success_hover', '#16a34a')};
+                background: {c['success']}cc;
             }}
             QPushButton#PrimaryButton {{
                 background: {c['primary']};
@@ -206,7 +206,7 @@ class PrescriptionsTable(QWidget):
                 background: {c['primary_hover']};
             }}
             QTableWidget#PrescriptionTable {{
-                background: white;
+                background: {c['bg_table']};
                 border: none;
                 gridline-color: {c['table_gridline']};
                 color: {c['text_primary']};
@@ -243,6 +243,8 @@ class PrescriptionsTable(QWidget):
 
         self.btn_prev.setIcon(qta.icon("fa5s.chevron-left", color=c["text_secondary"]))
         self.btn_next.setIcon(qta.icon("fa5s.chevron-right", color=c["text_secondary"]))
+        self.btn_rapport.setIcon(qta.icon("fa5s.exchange-alt", color=c['text_inverse']))
+        self.btn_new.setIcon(qta.icon("fa5s.plus", color=c['text_inverse']))
         self._refresh_pagination_buttons()
 
     def load_prescriptions(self, prescriptions):
@@ -392,7 +394,7 @@ class PrescriptionsTable(QWidget):
         menu = QMenu(self)
         menu.setStyleSheet(f"""
             QMenu {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 8px;
                 padding: 6px 0;

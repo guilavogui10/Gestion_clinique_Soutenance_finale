@@ -85,3 +85,10 @@ class FactureFournisseurControleur:
     def get_cabinet_info(self) -> Dict[str, Optional[str]]:
         return self.service.get_cabinet_info()
 
+    # --------- RAPPORTS PDF LISTE FACTURES ---------
+    def generer_rapport_pdf_par_date(self, code_session: str) -> str:
+        return self.service.generer_rapport_pdf_par_date(code_session)
+
+    def generer_rapport_pdf_date_precise(self, code_session: str, date_cible) -> str:
+        return self.service.generer_rapport_pdf_date_precise(code_session, date_cible)
+

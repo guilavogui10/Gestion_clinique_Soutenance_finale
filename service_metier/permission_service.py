@@ -33,24 +33,65 @@ class PermissionService:
     
     # Rôles spéciaux
     ROLE_DG = "Directeur Général"
-    ROLE_ADMIN = "Administrateur"
     
-    # Mapping rôle -> interfaces autorisées
+    # Mapping rôle (normalisé) -> interfaces autorisées
     ROLE_INTERFACES = {
-        "medecin": ["Consultations", "Examens", "Prescriptions", "Patients"],
-        "infimiere": ["Soins", "Examens", "Patients", "Rendez-vous"],
-        "caissier": ["Facturation", "Paiements", "Patients"],
-        "Ingenieur": ["Maintenance", "Équipements", "Inventaire"],
-        "Ingenieur informaticien": ["Système", "Utilisateurs", "Sécurité", "Base de données"],
-        # Rôles supplémentaires (si ajoutés plus tard)
-        "laborantin": ["Examens", "Laboratoire"],
-        "chirurgien": ["Accueil", "Chirurgies", "Résultats Médicaux", "Rendez-vous"],
+        "medecin": [
+            "Consultation", "Consultations",
+            "Prescription", "Prescriptions",
+            "Rendez-vous", "Rendezvous",
+            "Resultat", "Résultats", "Resultats",
+            "Acte medical", "Actes",
+            "Accueil", "Parametre", "Paramètres",
+        ],
+        "chirurgien": [
+            "Chirurgie", "Chirurgies",
+            "Rendez-vous", "Rendezvous",
+            "Acte medical", "Actes",
+            "Resultat", "Résultats", "Resultats",
+            "Accueil", "Parametre", "Paramètres",
+        ],
+        "laborantin": [
+            "Examen", "Examens", "examen", "examens",
+            "Rendez-vous", "Rendezvous",
+            "Acte medical", "Actes",
+            "Resultat", "Résultats", "Resultats",
+            "Accueil", "Parametre", "Paramètres",
+        ],
+        "caissier": [
+            "Patient", "Patients",
+            "Visite", "Visites",
+            "Fournisseur", "Fournisseurs",
+            "Facturation", "Pharmacie",
+            "Rendez-vous", "Rendezvous",
+            "Parametre", "Paramètres", "Accueil",
+        ],
+        # Autres rôles conservés pour ne pas casser l'application :
+        "infirmiere": ["Soins", "Examens", "Patients", "Rendez-vous"],
+        "ingenieur": ["Maintenance", "Équipements", "Inventaire"],
+        "ingenieur_informaticien": ["Système", "Utilisateurs", "Sécurité", "Base de données"],
         "opticien": ["Lunettes", "Optique"],
         "pharmacien": ["Pharmacie", "Prescriptions", "Médicaments"],
-        "réceptionniste": ["Rendez-vous", "Patients", "Accueil"],
-        "secrétaire": ["Rendez-vous", "Patients", "Facturation", "Documents"],
-        "comptable": ["Facturation", "Fournisseurs", "Comptabilité"],
+        "receptionniste": ["Rendez-vous", "Patients", "Accueil"],
+        "secretaire": ["Rendez-vous", "Patients", "Facturation", "Documents"],
     }
+    
+    def _normaliser_role(self, role: str) -> str:
+        """Normalise le rôle en retirant les accents, la casse et en groupant les synonymes."""
+        if not role:
+            return ""
+        import unicodedata
+        r = unicodedata.normalize('NFD', role).encode('ascii', 'ignore').decode('utf-8').lower().strip()
+        
+        if r in ["medecin", "Medecin","Médécin","Médecin"]: return "medecin"
+        if r in ["chirurgien", "chirurgienne","Chirurgien","Chirurgienne"]: return "chirurgien"
+        if r in ["laborantin", "Laborantin"]: return "laborantin"
+        if r in ["caissier", "caissiere", "comptable","Caissière","caissière"]: return "caissier"
+        if r in ["directeur general", "dg", "DG", "Directeur Général"]: return "directeur_general"
+        if r in ["infirmiere", "infirmier"]: return "infirmiere"
+        if r in ["ingenieur informaticien", "informaticien"]: return "ingenieur_informaticien"
+        return r
+
     
     def __init__(self):
         self.logger = logging.getLogger(__name__)
@@ -92,8 +133,10 @@ class PermissionService:
                 - (True, None) si autorisé
                 - (False, "message") si refusé avec raison
         """
-        # DG et Admin ont tous les droits
-        if role in [self.ROLE_DG, self.ROLE_ADMIN]:
+        role_norm = self._normaliser_role(role)
+        
+        # DG a tous les droits
+        if role_norm == "directeur_general":
             return True, None
         
         # Lecture et impression : autorisés pour tous
@@ -158,16 +201,26 @@ class PermissionService:
         Returns:
             True si accès autorisé, False sinon
         """
-        if not role:
-            return False
+        role_norm = self._normaliser_role(role)
             
-        # DG et Admin ont accès à tout
-        if role.lower() in [self.ROLE_DG.lower(), self.ROLE_ADMIN.lower()]:
+        # DG a accès à tout
+        if role_norm == "directeur_general":
             return True
         
-        # Vérifier dans le mapping avec le rôle en minuscules
-        interfaces_autorisees = self.ROLE_INTERFACES.get(role.lower(), [])
-        return interface in interfaces_autorisees
+        # Vérifier dans le mapping avec le rôle normalisé
+        interfaces_autorisees = self.ROLE_INTERFACES.get(role_norm, [])
+        
+        # On peut aussi normaliser l'interface pour être plus tolérant, 
+        # mais on va d'abord chercher l'interface exacte, puis faire une recherche insensible à la casse
+        if interface in interfaces_autorisees:
+            return True
+            
+        interface_lower = interface.lower()
+        for itf in interfaces_autorisees:
+            if itf.lower() == interface_lower:
+                return True
+                
+        return False
     
     # =========================================================================
     # GESTION OTP POUR ACTIONS NON AUTORISÉES
@@ -197,33 +250,23 @@ class PermissionService:
                 - (False, "erreur", None) si échec
         """
         try:
-            # Déterminer le destinataire selon l'action et le rôle
+            role_norm = self._normaliser_role(role)
+            
+            # 1. Vérification d'accès direct (Bypass OTP si l'utilisateur est déjà autorisé)
+            if role_norm == "directeur_general":
+                return True, "Accès direct accordé (Directeur Général).", None
+                
+            if est_responsable and action in [self.ACTION_CONSULTATION, self.ACTION_MODIFICATION, self.ACTION_CREATION]:
+                return True, "Accès direct accordé (Responsable de service).", None
+            
+            # 2. Déterminer le destinataire (le valideur) selon l'action et le rôle
             if action == self.ACTION_SUPPRESSION:
                 # Suppression : toujours envoyer au DG
                 destinataire = self._obtenir_responsable(self.ROLE_DG)
                 if not destinataire:
                     return False, "Impossible de contacter le Directeur Général.", None
-            elif action == self.ACTION_CONSULTATION:
-                # Consultation : si responsable/DG, envoyer à soi-même
-                if est_responsable or role in [self.ROLE_DG, self.ROLE_ADMIN]:
-                    # Récupérer ses propres infos
-                    from data.dao_user import UserDAO
-                    user_dao = UserDAO()
-                    user_info = user_dao.rechercher_utilisateur(code_utilisateur)
-                    if not user_info:
-                        return False, "Impossible de récupérer vos informations.", None
-                    destinataire = {
-                        "code": code_utilisateur,
-                        "prenom": user_info.get("prenom", ""),
-                        "mail": user_info.get("mail", "")
-                    }
-                else:
-                    # Non-responsable : envoyer au responsable du service
-                    destinataire = self._obtenir_responsable(role)
-                    if not destinataire:
-                        return False, f"Aucun responsable trouvé pour le service '{role}'.", None
             else:
-                # Autres actions : envoyer au responsable du service
+                # Autres actions : envoyer au responsable du service du demandeur
                 destinataire = self._obtenir_responsable(role)
                 if not destinataire:
                     return False, f"Aucun responsable trouvé pour le service '{role}'.", None
@@ -263,8 +306,8 @@ class PermissionService:
                 sujet = "Demande d'autorisation de suppression"
                 message_action = f"Une demande de suppression a été effectuée.\n\nContexte : {contexte}"
             elif action == self.ACTION_CONSULTATION:
-                sujet = "Confirmation de consultation de résultats"
-                message_action = f"Vous souhaitez consulter des résultats sensibles.\n\nContexte : {contexte}"
+                sujet = "Demande d'autorisation de consultation"
+                message_action = f"Un membre de votre équipe souhaite consulter des résultats médicaux et a besoin de votre autorisation.\n\nContexte : {contexte}"
             else:
                 sujet = "Demande d'autorisation de modification"
                 message_action = f"Une demande de modification a été effectuée.\n\nContexte : {contexte}"

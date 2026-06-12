@@ -267,8 +267,26 @@ class MinIOService:
             self.client.remove_object(self.bucket, object_name)
             self.logger.info(f"[MinIO] Suppression OK : {object_name}")
             return True
-        except S3Error as e:
+        except Exception as e:
             self.logger.error(f"[MinIO] Erreur suppression : {e}")
+            return False
+
+    def supprimer_dossier(self, prefix: str) -> bool:
+        """
+        Supprime tous les fichiers ayant un certain prefix (dossier virtuel).
+        Utile pour purger les fichiers orphelins lors de la suppression d'un résultat.
+        """
+        if not self.disponible:
+            self.logger.warning("[MinIO] supprimer_dossier ignoré : service non disponible.")
+            return False
+        try:
+            objects = self.client.list_objects(self.bucket, prefix=prefix, recursive=True)
+            for obj in objects:
+                self.client.remove_object(self.bucket, obj.object_name)
+            self.logger.info(f"[MinIO] Suppression dossier OK : {prefix}")
+            return True
+        except Exception as e:
+            self.logger.error(f"[MinIO] Erreur suppression dossier {prefix} : {e}")
             return False
 
     def supprimer_tous_fichiers_resultat(self, id_resultat: str) -> int:

@@ -55,15 +55,17 @@ class PrescriptionValidationHandler:
             widget : Widget à styler (ModernQuantitySpinner ou QLineEdit)
             valide : True = vert, False = rouge
         """
+        from views.shared.theme_manager import theme_manager
+        c = theme_manager.colors()
         if valide:
             widget.setStyleSheet(
-                "border-radius: 8px; border: 2px solid #27ae60;"
-                "padding-left: 12px; background: #f0f8f5; font-size: 12px;"
+                f"border-radius: 8px; border: 2px solid {c['success']};"
+                f"padding-left: 12px; background: {c['success_bg']}; font-size: 12px;"
             )
         else:
             widget.setStyleSheet(
-                "border-radius: 8px; border: 2px solid #e74c3c;"
-                "padding-left: 12px; background: #fdf2f2; font-size: 12px;"
+                f"border-radius: 8px; border: 2px solid {c['danger']};"
+                f"padding-left: 12px; background: {c['danger_bg']}; font-size: 12px;"
             )
 
     def _reset_style(self, widget: Any) -> None:
@@ -73,7 +75,9 @@ class PrescriptionValidationHandler:
         Args:
             widget : Widget à réinitialiser
         """
+        from views.shared.theme_manager import theme_manager
+        c = theme_manager.colors()
         widget.setStyleSheet(
-            "border-radius: 8px; border: 1px solid #e0e0e0;"
-            "padding-left: 12px; background: white; font-size: 12px;"
+            f"border-radius: 8px; border: 1px solid {c['border']};"
+            f"padding-left: 12px; background: {c['bg_input']}; font-size: 12px;"
         )

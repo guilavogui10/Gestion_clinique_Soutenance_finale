@@ -49,8 +49,9 @@ class MultiSegmentDonut(QWidget):
         self.segments = segments or []
         self.total = total
         self.taille = taille
-        
+
         self.setFixedSize(taille, taille)
+        theme_manager.theme_changed.connect(self.update)
     
     def set_segments(self, segments: List[Tuple[int, str, str]], total: int = 0):
         """

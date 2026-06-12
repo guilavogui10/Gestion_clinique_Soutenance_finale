@@ -19,9 +19,10 @@ class ModernQuantitySpinner(QWidget):
     # Signal émis quand la quantité change
     valueChanged = Signal(int)
     
-    def __init__(self, vert_principal: str = "#003f20", parent=None):
+    def __init__(self, vert_principal: str = None, parent=None):
         super().__init__(parent)
-        self.vert_principal = vert_principal
+        from views.shared.theme_manager import theme_manager
+        self.vert_principal = vert_principal or theme_manager.colors()['primary']
         self._value = 1
         self._min_value = 1
         self._max_value = 9999

@@ -87,18 +87,18 @@ def _row_ic_val(icone_name, valeur,
     if couleur_val is None:
         couleur_val = c['text_secondary']
     w   = QWidget()
-    w.setStyleSheet("background:transparent;")
+    w.setStyleSheet(f"background:{c['bg_card']};")
     lay = QHBoxLayout(w)
     lay.setContentsMargins(0, 0, 0, 0)
     lay.setSpacing(5)
     ic  = QLabel()
     ic.setPixmap(qta.icon(icone_name, color=couleur_ic).pixmap(QSize(11, 11)))
-    ic.setStyleSheet("background:transparent; border:none;")
+    ic.setStyleSheet(f"background:{c['bg_card']}; border:none;")
     lbl = QLabel(str(valeur) if valeur else "—")
     poids = "700" if gras else "400"
     lbl.setStyleSheet(
         f"color:{couleur_val}; font-size:11px; font-weight:{poids};"
-        f"background:transparent; border:none;"
+        f"background:{c['bg_card']}; border:none;"
     )
     lbl.setWordWrap(True)
     lay.addWidget(ic)
@@ -112,7 +112,7 @@ def _lbl_vide(texte):
     lbl.setAlignment(Qt.AlignCenter)
     c = _c()
     lbl.setStyleSheet(
-        f"color:{c['text_secondary']}; font-size:11px; background:transparent;"
+        f"color:{c['text_secondary']}; font-size:11px; background:{c['bg_card']};"
     )
     return lbl
 
@@ -124,7 +124,7 @@ def _scroll_wrap(inner_widget):
     scroll.setWidgetResizable(True)
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     scroll.setStyleSheet(
-        "QScrollArea{border:none; background:transparent;}"
+        f"QScrollArea{{border:none; background:{c['bg_main']};}}"
         f"QScrollBar:vertical{{border:none;background:{c['bg_main']};"
         "width:5px;border-radius:2px;}"
         f"QScrollBar::handle:vertical{{background:{c['border']};border-radius:2px;}}"
@@ -194,7 +194,7 @@ class BarreOnglets(QFrame):
 
             # Conteneur bouton + badge
             conteneur = QWidget()
-            conteneur.setStyleSheet("background:transparent;")
+            conteneur.setStyleSheet(f"background:{_c()['bg_card']};")
             c_lay = QHBoxLayout(conteneur)
             c_lay.setContentsMargins(0, 0, 8, 0)
             c_lay.setSpacing(0)
@@ -229,14 +229,14 @@ class BarreOnglets(QFrame):
         if actif:
             return (
                 f"QPushButton{{"
-                f"background:transparent; color:{c['primary']};"
+                f"background:{c['bg_card']}; color:{c['primary']};"
                 f"border:none; border-bottom:2px solid {c['primary']};"
                 f"font-size:11px; font-weight:700; padding:0 10px;"
                 f"}}"
             )
         return (
             f"QPushButton{{"
-            f"background:transparent; color:{c['text_secondary']};"
+            f"background:{c['bg_card']}; color:{c['text_secondary']};"
             f"border:none; border-bottom:2px solid transparent;"
             f"font-size:11px; font-weight:400; padding:0 10px;"
             f"}}"
@@ -365,11 +365,11 @@ class PanneauSuiviLivraisons(FondArrondi):
 
         # ── Stack principal ──
         self._stack = QStackedWidget()
-        self._stack.setStyleSheet("background:transparent;")
+        self._stack.setStyleSheet(f"background:{_c()['bg_main']};")
 
         # Page 0 — Livraisons
         self._page_livraisons = QWidget()
-        self._page_livraisons.setStyleSheet("background:transparent;")
+        self._page_livraisons.setStyleSheet(f"background:{_c()['bg_main']};")
         self._lay_livraisons = QVBoxLayout(self._page_livraisons)
         self._lay_livraisons.setContentsMargins(0, 0, 0, 0)
         self._lay_livraisons.setSpacing(0)
@@ -386,7 +386,7 @@ class PanneauSuiviLivraisons(FondArrondi):
         self._btn_refresh.setCursor(Qt.PointingHandCursor)
         self._btn_refresh.setToolTip("Rafraîchir")
         self._btn_refresh.setStyleSheet(
-            "background:transparent; border:none; border-radius:6px;")
+            f"background:{_c()['bg_card']}; border:none; border-radius:6px;")
         self._btn_refresh.clicked.connect(self._rafraichir)
         kpi_lay.addWidget(self._ic_kpi)
         kpi_lay.addSpacing(6)
@@ -396,7 +396,7 @@ class PanneauSuiviLivraisons(FondArrondi):
         self._lay_livraisons.addWidget(self._kpi_strip)
         # Scroll des cartes
         self._contenu_liv = QWidget()
-        self._contenu_liv.setStyleSheet("background:transparent;")
+        self._contenu_liv.setStyleSheet(f"background:{_c()['bg_card']};")
         self._lay_cartes = QVBoxLayout(self._contenu_liv)
         self._lay_cartes.setContentsMargins(16, 12, 16, 16)
         self._lay_cartes.setSpacing(10)
@@ -424,7 +424,7 @@ class PanneauSuiviLivraisons(FondArrondi):
         # Wrapper arrondi bas
         wrapper = QFrame()
         wrapper.setStyleSheet(
-            "background:transparent;"
+            f"background:{_c()['bg_card']};"
             "border-bottom-left-radius:20px;"
             "border-bottom-right-radius:20px;"
         )

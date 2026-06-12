@@ -140,6 +140,18 @@ class PrescriptionControleur:
         """Graphique barres : nombre de prescriptions par mois."""
         return self.service.obtenir_prescriptions_par_mois(code_session)
 
+    def obtenir_montant_par_mois(self, code_session: str) -> Dict[str, float]:
+        """Montant total des prescriptions par mois."""
+        return self.service.obtenir_montant_par_mois(code_session)
+
+    def obtenir_moyenne_nombre_journalier_par_mois(self, code_session: str) -> Dict[str, float]:
+        """Moyenne journalière du nombre de prescriptions par mois."""
+        return self.service.obtenir_moyenne_nombre_journalier_par_mois(code_session)
+
+    def obtenir_nombre_par_jour(self, code_session: str, annee: int = None, mois: int = None) -> Dict[str, int]:
+        """Nombre de prescriptions par jour pour un mois donné."""
+        return self.service.obtenir_nombre_par_jour(code_session, annee, mois)
+
     def obtenir_revenu_total(self, code_session: str, date_debut: str = None, date_fin: str = None) -> float:
         """Chiffre d affaire pharmacie avec filtre date optionnel."""
         return self.service.obtenir_revenu_total(code_session, date_debut, date_fin)
@@ -200,3 +212,23 @@ class PrescriptionControleur:
     def terminer_prescription(self, code_visite: str) -> tuple:
         from service_metier.visite_service import VisiteService
         return VisiteService().terminer_prescription(code_visite)
+
+    # =========================================================================
+    # EXPORT / IMPORT PRESCRIPTIONS
+    # =========================================================================
+
+    def obtenir_donnees_export(self) -> list:
+        from service_metier.acte_import_export_service import obtenir_donnees_export
+        return obtenir_donnees_export("prescription")
+
+    def export_to_excel(self, chemin: str) -> tuple:
+        from service_metier.acte_import_export_service import export_prescriptions_excel
+        return export_prescriptions_excel(chemin)
+
+    def export_to_csv(self, chemin: str) -> tuple:
+        from service_metier.acte_import_export_service import export_prescriptions_csv
+        return export_prescriptions_csv(chemin)
+
+    def import_prescriptions(self, chemin: str, format_fichier: str) -> tuple:
+        from service_metier.acte_import_export_service import import_prescriptions
+        return import_prescriptions(chemin, format_fichier)

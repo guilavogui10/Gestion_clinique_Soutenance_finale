@@ -149,7 +149,7 @@ class AlertCard(QFrame):
         
         self.setStyleSheet(f"""
             QFrame {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 10px;
             }}
@@ -348,13 +348,13 @@ class SidebarStats(QWidget):
     
     def apply_theme(self):
         c = theme_manager.colors()
-        
+
         self.setStyleSheet(f"""
             QWidget {{
-                background: white;
+                background: {c['bg_card']};
             }}
             QFrame#SectionFrame {{
-                background: white;
+                background: {c['bg_card']};
                 border: none;
             }}
             QLabel#SectionTitle {{
@@ -375,7 +375,7 @@ class SidebarStats(QWidget):
                 text-decoration: underline;
             }}
             QFrame#InfoCard {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 8px;
             }}

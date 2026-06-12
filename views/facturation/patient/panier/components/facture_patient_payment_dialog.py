@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..styles.facture_patient_styles import FacturePatientStyles
+from views.shared.theme_manager import theme_manager
 
 
 class FacturePatientPaymentDialog(QDialog):
@@ -29,13 +30,15 @@ class FacturePatientPaymentDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
 
+        _c = theme_manager.colors()
         frame = QFrame()
         frame.setStyleSheet(f"""
             QFrame {{
-                background: white;
-                border: 2px solid {FacturePatientStyles.BLEU_PRINCIPAL};
+                background: {_c['bg_card']};
+                border: 2px solid {_c['primary']};
                 border-radius: 14px;
             }}
+            QLabel {{ background: transparent; color: {_c['text_primary']}; border: none; }}
         """)
 
         frame_layout = QVBoxLayout(frame)
@@ -44,8 +47,7 @@ class FacturePatientPaymentDialog(QDialog):
 
         icon = QLabel()
         icon.setPixmap(
-            qta.icon("fa5s.credit-card",
-                     color=FacturePatientStyles.BLEU_PRINCIPAL).pixmap(46, 46)
+            qta.icon("fa5s.credit-card", color=_c['primary']).pixmap(46, 46)
         )
         icon.setAlignment(Qt.AlignCenter)
         frame_layout.addWidget(icon)
@@ -53,34 +55,36 @@ class FacturePatientPaymentDialog(QDialog):
         title = QLabel("Paiement de la facture")
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet(
-            f"font-size:16px; font-weight:bold; color:{FacturePatientStyles.BLEU_PRINCIPAL};"
+            f"font-size:16px; font-weight:bold; color:{_c['primary']};"
         )
         frame_layout.addWidget(title)
 
         # Mode paiement
         lbl_mode = QLabel("Mode de paiement")
-        lbl_mode.setStyleSheet("font-size:12px; font-weight:bold; color:#475569;")
+        lbl_mode.setStyleSheet(f"font-size:12px; font-weight:bold; color:{_c['text_secondary']};")
         frame_layout.addWidget(lbl_mode)
 
         self.combo_mode = QComboBox()
         self.combo_mode.addItems(["Especes", "Mobile Money", "Carte bancaire"])
         self.combo_mode.setFixedHeight(36)
         self.combo_mode.setStyleSheet(
-            "border:1px solid #e2e8f0; border-radius:8px; padding-left:10px;"
+            f"border:1px solid {_c['border']}; border-radius:8px; padding-left:10px; "
+            f"background:{_c['bg_input']}; color:{_c['text_primary']};"
         )
         self.combo_mode.currentIndexChanged.connect(self._toggle_phone)
         frame_layout.addWidget(self.combo_mode)
 
         # Telephone
         lbl_tel = QLabel("Telephone (Mobile Money uniquement)")
-        lbl_tel.setStyleSheet("font-size:12px; font-weight:bold; color:#475569;")
+        lbl_tel.setStyleSheet(f"font-size:12px; font-weight:bold; color:{_c['text_secondary']};")
         frame_layout.addWidget(lbl_tel)
 
         self.input_tel = QLineEdit()
         self.input_tel.setPlaceholderText("Ex: 628123456")
         self.input_tel.setFixedHeight(36)
         self.input_tel.setStyleSheet(
-            "border:1px solid #e2e8f0; border-radius:8px; padding-left:10px;"
+            f"border:1px solid {_c['border']}; border-radius:8px; padding-left:10px; "
+            f"background:{_c['bg_input']}; color:{_c['text_primary']};"
         )
         frame_layout.addWidget(self.input_tel)
 
@@ -91,14 +95,14 @@ class FacturePatientPaymentDialog(QDialog):
         btn_cancel = QPushButton("Annuler")
         btn_cancel.setFixedSize(110, 34)
         btn_cancel.setStyleSheet(
-            "background:#e5e7eb; border-radius:8px; font-weight:bold; font-size:12px;"
+            f"background:{_c['border_light']}; color:{_c['text_primary']}; border-radius:8px; font-weight:bold; font-size:12px;"
         )
         btn_cancel.clicked.connect(self.reject)
 
         btn_ok = QPushButton("Valider")
         btn_ok.setFixedSize(110, 34)
         btn_ok.setStyleSheet(
-            f"background:{FacturePatientStyles.BLEU_PRINCIPAL}; color:white; "
+            f"background:{_c['primary']}; color:{_c['text_inverse']}; "
             "border-radius:8px; font-weight:bold; font-size:12px;"
         )
         btn_ok.clicked.connect(self._validate)

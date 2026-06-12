@@ -46,6 +46,7 @@ class LigneStockCard(QFrame):
         self.couleur = couleur
 
         self._setup_ui()
+        theme_manager.theme_changed.connect(self.apply_theme)
 
     def _setup_ui(self):
         """Configure l'interface de la ligne."""
@@ -91,19 +92,19 @@ class LigneStockCard(QFrame):
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(2)
 
-        lbl = QLabel(self.libelle)
-        lbl.setStyleSheet(
+        self._lbl_nom = QLabel(self.libelle)
+        self._lbl_nom.setStyleSheet(
             f"color: {c['text_primary']}; font-size: 12px; font-weight: 600; "
             "border: none; background: transparent;"
         )
 
-        lbl_type = QLabel(self.type_produit)
-        lbl_type.setStyleSheet(
+        self._lbl_type = QLabel(self.type_produit)
+        self._lbl_type.setStyleSheet(
             f"color: {c['text_secondary']}; font-size: 10px; border: none; background: transparent;"
         )
 
-        col.addWidget(lbl)
-        col.addWidget(lbl_type)
+        col.addWidget(self._lbl_nom)
+        col.addWidget(self._lbl_type)
         return container
 
     def _create_quantity_label(self) -> QLabel:
@@ -133,4 +134,17 @@ class LigneStockCard(QFrame):
     def update_quantite(self, nouvelle_quantite: int):
         """Met à jour la quantité affichée."""
         self.quantite = nouvelle_quantite
-        # Pour mise à jour dynamique, recréer la ligne ou garder une ref
+
+    def apply_theme(self):
+        """Met à jour les couleurs selon le thème actif."""
+        c = theme_manager.colors()
+        self.setStyleSheet(StatistiquesStyles.ligne_stock())
+        if hasattr(self, '_lbl_nom'):
+            self._lbl_nom.setStyleSheet(
+                f"color: {c['text_primary']}; font-size: 12px; font-weight: 600; "
+                "border: none; background: transparent;"
+            )
+        if hasattr(self, '_lbl_type'):
+            self._lbl_type.setStyleSheet(
+                f"color: {c['text_secondary']}; font-size: 10px; border: none; background: transparent;"
+            )

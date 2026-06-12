@@ -8,8 +8,6 @@ Analyse consultation:
 import calendar
 from datetime import datetime
 import numpy as np
-from scipy.interpolate import make_interp_spline
-import mplcursors
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.ticker import MaxNLocator, FuncFormatter
@@ -19,7 +17,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QFrame, QGraphicsDropShadowEffect, QGridLayout, QComboBox, QSizePolicy,
     QPushButton, QScrollArea, QTableWidget, QTableWidgetItem, QHeaderView,
-    QAbstractItemView, QDateEdit
+    QAbstractItemView, QDateEdit, QTabWidget
 )
 from PySide6.QtCore import QSize, Qt, QDate, QTimer
 from PySide6.QtGui import QColor
@@ -78,107 +76,102 @@ class BaseGraph(FigureCanvas):
         self.fig = Figure(figsize=(width, height), dpi=dpi, facecolor="none")
         self.axes = self.fig.add_subplot(111)
         self.axes.set_facecolor("none")
+        self.hover_text = self.fig.text(0.5, 0.96, '', ha='center', va='top', fontsize=10, fontweight='bold')
         super().__init__(self.fig)
         self.setParent(parent)
         self.setStyleSheet("background: transparent;")
-        self.cursors = []
-        self._annotations = []
+        self.scatters = []
         self._setup_style()
-        self.mpl_connect("figure_leave_event", self._on_figure_leave)
-
-    def _on_figure_leave(self, event):
-        """Cache toutes les annotations quand le curseur quitte le graphe."""
-        for ann in self._annotations:
-            try:
-                ann.set_visible(False)
-            except Exception:
-                pass
-        self.draw_idle()
+        self.mpl_connect("motion_notify_event", self._on_hover)
+        self.mpl_connect("axes_leave_event", lambda e: self._clear_hover_text())
+        self.mpl_connect("figure_leave_event", lambda e: self._clear_hover_text())
 
     def _setup_style(self):
         for spine in self.axes.spines.values():
             spine.set_visible(False)
         self.axes.grid(
-            True, axis="y", linestyle="-", alpha=0.1,
+            True, axis="y", linestyle="--", alpha=0.3,
             color=self.theme.COLORS["border"], linewidth=0.8,
         )
         self.axes.tick_params(
             colors=self.theme.COLORS["subtext"], labelsize=9, length=0, pad=8
         )
-        self.fig.subplots_adjust(left=0.08, right=0.98, top=0.95, bottom=0.12)
+        if hasattr(self, 'hover_text'):
+            self.hover_text.set_text('')
+        self.fig.subplots_adjust(left=0.1, right=0.9, top=0.85, bottom=0.15)
 
-    def _draw_smooth_curve(self, x, y, color, label, linestyle="-", alpha=0.9):
+    def _draw_linear_curve(self, x, y, color, label, linestyle="-", alpha=0.9, axis=None):
+        target_ax = axis if axis else self.axes
         if len(y) < 2 or float(np.sum(y)) == 0.0:
             return
-        x_s = np.linspace(x.min(), x.max(), 300)
-        y_s = np.maximum(make_interp_spline(x, y, k=min(3, len(y) - 1))(x_s), 0)
-
-        # Limite les pics artificiels du spline quand les donnees sont faibles/sparse.
-        source_max = float(np.max(y)) if len(y) else 0.0
-        if source_max > 0:
-            y_s = np.clip(y_s, 0, source_max * 1.05)
-
-        self.axes.plot(
-            x_s, y_s, color=color, linewidth=2.5,
-            linestyle=linestyle, label=label, alpha=alpha, antialiased=True,
+        target_ax.plot(
+            x, y, color=color, linewidth=2.0,
+            linestyle=linestyle, label=label, alpha=alpha, antialiased=True, zorder=5
         )
-        if linestyle == "-":
-            self.axes.fill_between(x_s, y_s, color=color, alpha=0.08, antialiased=True)
 
-    def _draw_points(self, x, y, color, tooltip_label):
-        sc = self.axes.scatter(
-            x, y,
-            color=self.theme.COLORS["surface"],
-            edgecolor=color,
-            s=50, zorder=10, linewidth=2, alpha=0.9,
-        )
-        cur = mplcursors.cursor(sc, hover=True)
-        cur.connect("add", lambda sel, lbl=tooltip_label: self._on_hover(sel, lbl))
-        self.cursors.append(cur)
-
-    def _on_hover(self, sel, label):
-        idx = int(round(sel.target[0]))
-        val = sel.target[1]
-        month = self.MONTH_LABELS[idx] if 0 <= idx < len(self.MONTH_LABELS) else ""
-        if abs(val - round(val)) < 1e-6:
-            value_txt = f"{int(round(val)):,}".replace(",", " ")
+    def _format_value(self, val: float, fmt: str) -> str:
+        if fmt == "count":
+            return f"{int(round(val))} consult."
+        elif fmt == "money":
+            if val >= 1_000_000:
+                return f"{val / 1_000_000:.2f}M GNF"
+            return f"{int(round(val)):,} GNF".replace(",", " ")
+        elif fmt == "average_count":
+            return f"moy. {val:.1f} / jour"
+        elif fmt == "average_money":
+            if val >= 1_000_000:
+                return f"moy. {val / 1_000_000:.2f}M GNF/j"
+            return f"moy. {int(round(val)):,} GNF/j".replace(",", " ")
         else:
-            value_txt = f"{val:,.2f}".replace(",", " ")
-        sel.annotation.set_text(f"{month}\n{label}: {value_txt}")
-        sel.annotation.get_bbox_patch().set(
-            fc=self.theme.COLORS["surface"],
-            ec=self.theme.COLORS["border"],
-            boxstyle="round,pad=0.5",
-            alpha=0.95, linewidth=1,
+            return f"{int(round(val)):,}".replace(",", " ")
+
+    def _draw_points(self, x, y, color, tooltip_label, fmt="count", axis=None):
+        target_ax = axis if axis else self.axes
+        sc = target_ax.scatter(
+            x, y,
+            color=color,
+            edgecolor=self.theme.COLORS["surface"],
+            s=50, zorder=10, linewidth=1.5, alpha=1.0,
         )
-        sel.annotation.set_color(self.theme.COLORS["text"])
-        sel.annotation.set_fontsize(9)
-        sel.annotation.set_fontweight("500")
-        sel.annotation.arrow_patch.set_visible(False)
-        if sel.annotation not in self._annotations:
-            self._annotations.append(sel.annotation)
+        self.scatters.append({'scatter': sc, 'label': tooltip_label, 'x': x, 'y': y, 'fmt': fmt})
+
+    def _on_hover(self, event):
+        if not event.inaxes:
+            self._clear_hover_text()
+            return
+        found = False
+        for item in self.scatters:
+            cont, ind = item['scatter'].contains(event)
+            if cont:
+                idx = ind["ind"][0]
+                value = item['y'][idx]
+                label = item['label']
+                fmt = item['fmt']
+                month = self.MONTH_LABELS[idx] if 0 <= idx < len(self.MONTH_LABELS) else ""
+                val_txt = self._format_value(value, fmt)
+                txt = f"{label} en {month} : {val_txt}" if month else f"{label} : {val_txt}"
+                if self.hover_text.get_text() != txt:
+                    self.hover_text.set_text(txt)
+                    self.hover_text.set_color(self.theme.COLORS["text"])
+                    self.fig.canvas.draw_idle()
+                found = True
+                break
+        if not found and self.hover_text.get_text() != '':
+            self._clear_hover_text()
+
+    def _clear_hover_text(self):
+        self.hover_text.set_text('')
+        self.fig.canvas.draw_idle()
 
     def _set_x_axis(self, x):
         self.axes.set_xticks(x)
         self.axes.set_xticklabels(self.MONTH_LABELS, rotation=0)
 
-    def _set_ylim(self, *value_lists):
-        all_vals = [v for lst in value_lists for v in lst if v > 0]
-        m = max(all_vals) if all_vals else 10
-        self.axes.set_ylim(0, m * 1.25)
-        self.axes.yaxis.set_major_locator(MaxNLocator(integer=True, nbins=6))
-
     def _nice_upper_bound(self, value: float, min_upper: float) -> float:
-        """
-        Retourne une borne superieure "propre" (1/2/5/10 * 10^n).
-        Donne une echelle lisible pour petites et grandes valeurs.
-        """
         if value <= 0:
             return float(min_upper)
-
         magnitude = 10 ** np.floor(np.log10(value))
         normalized = value / magnitude
-
         if normalized <= 1:
             nice = 1
         elif normalized <= 2:
@@ -187,16 +180,10 @@ class BaseGraph(FigureCanvas):
             nice = 5
         else:
             nice = 10
-
         upper = float(nice * magnitude)
         return max(upper, float(min_upper))
 
     def _set_ylim_counts(self, *value_lists):
-        """
-        Echelle intelligente pour les volumes de consultations:
-        - evite les graphes "gonfles" quand on a 1-2 consultations
-        - reste adapte jusqu'a 1000+.
-        """
         all_vals = [float(v) for lst in value_lists for v in lst if v > 0]
         max_val = max(all_vals) if all_vals else 0.0
         upper = self._nice_upper_bound(max_val * 1.15, min_upper=20.0)
@@ -204,11 +191,6 @@ class BaseGraph(FigureCanvas):
         self.axes.yaxis.set_major_locator(MaxNLocator(integer=True, nbins=6))
 
     def _set_ylim_amounts(self, *value_lists):
-        """
-        Echelle intelligente pour les montants:
-        - lisible sur petits montants
-        - robuste sur montants eleves.
-        """
         all_vals = [float(v) for lst in value_lists for v in lst if v > 0]
         max_val = max(all_vals) if all_vals else 0.0
         upper = self._nice_upper_bound(max_val * 1.15, min_upper=1000.0)
@@ -216,10 +198,10 @@ class BaseGraph(FigureCanvas):
         self.axes.yaxis.set_major_locator(MaxNLocator(integer=True, nbins=6))
 
     def _finalize(self):
+        self.fig.tight_layout()
         self.draw()
 
     def _style_legend(self, ax=None):
-        """Légende compacte, fond transparent, couleurs du thème."""
         target = ax or self.axes
         leg = target.get_legend()
         if leg is None:
@@ -243,16 +225,16 @@ class ConsultationNombreGraph(BaseGraph):
             self.avg_axis = None
 
         self.axes.clear()
+        self.scatters.clear()
         self._setup_style()
 
         x = np.arange(len(self.MONTH_LABELS))
         y_nb = np.array([nombre_par_mois.get(m, 0) for m in self.MONTH_LABELS], dtype=float)
         y_avg = np.array([moyenne_par_mois.get(m, 0) for m in self.MONTH_LABELS], dtype=float)
 
-        self._draw_smooth_curve(x, y_nb, self.theme.COLORS["primary"], "Nombre consultations")
-        self._draw_points(x, y_nb, self.theme.COLORS["primary"], "Nombre consultations")
+        self._draw_linear_curve(x, y_nb, self.theme.COLORS["primary"], "Nombre consultations")
+        self._draw_points(x, y_nb, self.theme.COLORS["primary"], "Consultations", "count")
 
-        # Axe secondaire dedie a la moyenne journaliere pour eviter l'ecrasement visuel.
         self.avg_axis = self.axes.twinx()
         for spine_name, spine in self.avg_axis.spines.items():
             spine.set_visible(spine_name == "right")
@@ -266,34 +248,8 @@ class ConsultationNombreGraph(BaseGraph):
             "Moyenne / jour", color=self.theme.COLORS["blue"], fontsize=9, fontweight="500"
         )
 
-        if len(y_avg) >= 2 and float(np.sum(y_avg)) > 0.0:
-            x_s = np.linspace(x.min(), x.max(), 300)
-            y_s = np.maximum(
-                make_interp_spline(x, y_avg, k=min(3, len(y_avg) - 1))(x_s), 0
-            )
-            src_max = float(np.max(y_avg)) if len(y_avg) else 0.0
-            if src_max > 0:
-                y_s = np.clip(y_s, 0, src_max * 1.05)
-
-            self.avg_axis.plot(
-                x_s, y_s,
-                color=self.theme.COLORS["blue"],
-                linewidth=2.2,
-                linestyle="--",
-                label="Moyenne journaliere",
-                alpha=0.95,
-                antialiased=True,
-            )
-
-            sc_avg = self.avg_axis.scatter(
-                x, y_avg,
-                color=self.theme.COLORS["surface"],
-                edgecolor=self.theme.COLORS["blue"],
-                s=48, zorder=10, linewidth=2, alpha=0.95,
-            )
-            cur_avg = mplcursors.cursor(sc_avg, hover=True)
-            cur_avg.connect("add", lambda sel: self._on_hover(sel, "Moyenne journaliere"))
-            self.cursors.append(cur_avg)
+        self._draw_linear_curve(x, y_avg, self.theme.COLORS["blue"], "Moyenne journaliere", linestyle="--", axis=self.avg_axis)
+        self._draw_points(x, y_avg, self.theme.COLORS["blue"], "Moy. journalière", "average_count", axis=self.avg_axis)
 
         self._set_x_axis(x)
         self._set_ylim_counts(y_nb.tolist())
@@ -317,28 +273,27 @@ class ConsultationNombreGraph(BaseGraph):
 class ConsultationMontantGraph(BaseGraph):
     def update_graph(self, montant_par_mois: dict, moyenne_par_mois: dict):
         self.axes.clear()
+        self.scatters.clear()
         self._setup_style()
 
         x = np.arange(len(self.MONTH_LABELS))
         y_tot = np.array([montant_par_mois.get(m, 0) for m in self.MONTH_LABELS], dtype=float)
         y_avg = np.array([moyenne_par_mois.get(m, 0) for m in self.MONTH_LABELS], dtype=float)
 
-        self._draw_smooth_curve(x, y_tot, self.theme.COLORS["accent"], "Montant total")
-        self._draw_points(x, y_tot, self.theme.COLORS["accent"], "Montant total")
+        self._draw_linear_curve(x, y_tot, self.theme.COLORS["accent"], "Montant total")
+        self._draw_points(x, y_tot, self.theme.COLORS["accent"], "Montant total", "money")
 
-        self._draw_smooth_curve(
-            x, y_avg, self.theme.COLORS["warning"], "Moyenne journaliere", linestyle="--"
+        self._draw_linear_curve(
+            x, y_avg, self.theme.COLORS["warning"], "Moy. journalière", linestyle="--"
         )
-        self._draw_points(x, y_avg, self.theme.COLORS["warning"], "Moyenne journaliere")
+        self._draw_points(x, y_avg, self.theme.COLORS["warning"], "Moy. journalière", "average_money")
 
         self._set_x_axis(x)
         self._set_ylim_amounts(y_tot.tolist(), y_avg.tolist())
         self.axes.set_ylabel(
             "Montant (GNF)", color=self.theme.COLORS["subtext"], fontsize=10, fontweight="500"
         )
-        self.axes.yaxis.set_major_formatter(
-            FuncFormatter(lambda v, _: f"{int(v):,}".replace(",", " "))
-        )
+        self.axes.yaxis.set_visible(False)
         self.axes.legend(loc="upper left", fontsize=7, framealpha=0)
         self._style_legend()
         self._finalize()
@@ -1246,7 +1201,7 @@ class MonthlyRevenueLineGraph(BaseGraph):
         color = "#22A447"
 
         self._draw_smooth_curve(x, y, color, "Montant (GNF)")
-        self._draw_points(x, y, color, "Montant")
+        self._draw_points(x, y, color, "Montant", "money")
         self._set_x_axis(x)
         self._set_ylim_amounts(y.tolist())
         self.axes.set_ylabel("GNF", color=self.theme.COLORS["subtext"], fontsize=9)
@@ -1264,20 +1219,23 @@ class MonthlyAverageDualGraph(BaseGraph):
         self._setup_style()
 
         x = np.arange(len(self.MONTH_LABELS))
-        y_nb = np.array([float(moyenne_nb.get(m, 0) or 0) for m in self.MONTH_LABELS], dtype=float)
-        y_montant = np.array([float(moyenne_montant.get(m, 0) or 0) for m in self.MONTH_LABELS], dtype=float)
+        y_nb      = np.array([float(moyenne_nb.get(m, 0) or 0)      for m in self.MONTH_LABELS], dtype=float)
+        y_montant = np.array([float(moyenne_montant.get(m, 0) or 0)  for m in self.MONTH_LABELS], dtype=float)
 
-        nb_scale = max(np.max(y_nb), 1.0)
-        montant_scale = max(np.max(y_montant), 1.0)
+        nb_scale      = max(float(np.max(y_nb)), 1.0)
+        montant_scale = max(float(np.max(y_montant)), 1.0)
         y_montant_scaled = (y_montant / montant_scale) * nb_scale if montant_scale else y_montant
 
-        color_nb = "#2F7AE5"
+        color_nb      = "#2F7AE5"
         color_montant = "#FF8A00"
 
-        self._draw_smooth_curve(x, y_nb, color_nb, "Moyenne consultations / jour")
-        self._draw_points(x, y_nb, color_nb, "Moy. consultations")
-        self._draw_smooth_curve(x, y_montant_scaled, color_montant, "Moyenne revenus / jour", linestyle="--")
-        self._draw_points(x, y_montant_scaled, color_montant, "Moy. revenus")
+        self._draw_smooth_curve(x, y_nb,             color_nb,      "Moy. consultations / jour")
+        self._draw_points(x, y_nb,             color_nb,      "Moy. consultations", "average_count")
+
+        self._draw_smooth_curve(x, y_montant_scaled, color_montant, "Moy. revenus / jour", linestyle="--")
+        # real_y = valeurs GNF réelles (pas normalisées) affichées dans le tooltip
+        self._draw_points(x, y_montant_scaled, color_montant, "Moy. revenus", "average_money",
+                          real_y=y_montant.tolist())
 
         self._set_x_axis(x)
         self._set_ylim_counts(y_nb.tolist() + y_montant_scaled.tolist())
@@ -1296,6 +1254,7 @@ class DailyConsultationBarGraph(BaseGraph):
             labels = ["--"]
             values = [0]
 
+        self._bar_labels = labels
         x = np.arange(len(labels))
         y = np.array([float(v or 0) for v in values], dtype=float)
         bars = self.axes.bar(x, y, color="#2F7AE5", width=0.6, alpha=0.95, zorder=3)
@@ -1304,9 +1263,7 @@ class DailyConsultationBarGraph(BaseGraph):
         self.axes.set_xticklabels(labels, fontsize=8)
         self._set_ylim_counts(y.tolist())
         self.axes.set_ylabel("Consultations", color=self.theme.COLORS["subtext"], fontsize=9)
-        if len(labels) > 14:
-            for idx, lbl in enumerate(self.axes.get_xticklabels()):
-                lbl.setVisible(idx % 2 == 0)
+        # Tous les labels sont visibles (suppression de la condition if len(labels) > 14)
         for rect, value in zip(bars, y):
             if value <= 0:
                 continue
@@ -1319,7 +1276,38 @@ class DailyConsultationBarGraph(BaseGraph):
                 fontsize=8,
                 color=self.theme.COLORS["text"],
             )
+
+        # Tooltips sur les barres
+        cur = mplcursors.cursor(bars, hover=True)
+        cur.connect("add", self._on_bar_hover)
+        self.cursors.append(cur)
+
         self._finalize()
+
+    def _on_bar_hover(self, sel):
+        try:
+            idx = int(round(sel.target[0]))
+            val = float(sel.target[1])
+            lbl = (self._bar_labels[idx]
+                   if hasattr(self, "_bar_labels") and 0 <= idx < len(self._bar_labels)
+                   else str(idx + 1))
+            txt = f"Jour {lbl}  ·  {int(round(val))} consult."
+            sel.annotation.set_text(txt)
+            sel.annotation.get_bbox_patch().set(
+                fc=self.theme.COLORS["surface"],
+                ec="#2F7AE5",
+                boxstyle="round,pad=0.22",
+                alpha=0.96,
+                linewidth=1.8,
+            )
+            sel.annotation.set_color(self.theme.COLORS["text"])
+            sel.annotation.set_fontsize(8)
+            sel.annotation.set_fontweight("700")
+            sel.annotation.arrow_patch.set_visible(False)
+            if sel.annotation not in self._annotations:
+                self._annotations.append(sel.annotation)
+        except Exception:
+            pass
 
 
 class ServiceDonutGraph(FigureCanvas):
@@ -1491,42 +1479,403 @@ class ServiceMiniCard(QFrame):
         )
 
 
-# Import de la nouvelle vue moderne
-from views.analyses.consultation_analysis import VueAnalyseConsultationModerne
-
-
 class AnalyseConsultationView(QWidget):
-    """Vue d'analyse consultation - Utilise la nouvelle architecture modulaire"""
-    
+    """Vue d'analyse consultation — 2 onglets : Statistiques et Graphes."""
+
+    _BLEU     = _TC('info')
+    _VERT     = _TC('success')
+    _VIOLET   = _TC('accent')
+    _ORANGE   = _TC('warning')
+    _ROUGE    = _TC('danger')
+    _PRIMAIRE = _TC('primary')
+
+    _DIAG_COLORS = [
+        "#2F7AE5", "#20B486", "#FF9800", "#7A44D5", "#14A7A0",
+        "#EF4444", "#F97316", "#84CC16", "#06B6D4", "#8B5CF6",
+    ]
+
     def __init__(self, controleur, code_session: str, parent=None):
         super().__init__(parent)
-        self.controleur = controleur
+        self.controleur   = controleur
         self.code_session = code_session
-        
-        # Utiliser la nouvelle vue moderne
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        
-        self.vue_moderne = VueAnalyseConsultationModerne(controleur, code_session)
-        layout.addWidget(self.vue_moderne)
-        
+        self._loaded: set = set()
+        self._build_ui()
         theme_manager.theme_changed.connect(self.apply_theme)
         self.apply_theme()
-    
-    def rafraichir(self):
-        """Rafraîchit les données"""
-        if hasattr(self, 'vue_moderne'):
-            self.vue_moderne.rafraichir()
-    
-    def charger_donnees(self):
-        """Charge les données"""
-        if hasattr(self, 'vue_moderne'):
-            self.vue_moderne.charger_donnees()
-    
-    def apply_theme(self):
-        """Applique le thème"""
+
+    # ------------------------------------------------------------------
+    # CONSTRUCTION
+    # ------------------------------------------------------------------
+
+    def _build_ui(self):
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        self._main_frame = QFrame()
+        self._main_frame.setObjectName("AnalyseMainFrame")
+        frame_layout = QVBoxLayout(self._main_frame)
+        frame_layout.setContentsMargins(0, 0, 0, 0)
+        frame_layout.setSpacing(0)
+
+        self.tabs = QTabWidget()
+        self.tabs.setTabPosition(QTabWidget.North)
+        self.tabs.setIconSize(QSize(20, 20))
+        self.tabs.currentChanged.connect(self._on_tab_changed)
+        frame_layout.addWidget(self.tabs)
+
+        self.tab_stats   = self._build_tab_stats()
+        self.tab_graphes = self._build_tab_graphes()
+
         c = theme_manager.colors()
-        self.setStyleSheet(f"QWidget {{ background: {c['bg_main']}; }}")
+        self.tabs.addTab(
+            self.tab_stats,
+            qta.icon("fa5s.chart-bar", color=c['primary']),
+            "  Statistiques"
+        )
+        self.tabs.addTab(
+            self.tab_graphes,
+            qta.icon("fa5s.chart-line", color=c['primary']),
+            "  Graphes"
+        )
+
+        main_layout.addWidget(self._main_frame)
+
+    # ── Onglet 1 : Statistiques ─────────────────────────────────────────
+
+    def _build_tab_stats(self) -> QWidget:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setSpacing(8)
+
+        # Ligne 1 de KPI (4 cartes)
+        row1 = QHBoxLayout()
+        row1.setSpacing(10)
+        self.kpi_nb_jour         = KPICard("Consultations du jour",  "0", "fa5s.calendar-day",   self._BLEU,     "consultations")
+        self.kpi_nb_session      = KPICard("Total session",          "0", "fa5s.chart-line",      self._VERT,     "consultations")
+        self.kpi_en_attente      = KPICard("Patients en attente",    "0", "fa5s.hourglass-half",  self._ORANGE,   "patients")
+        self.kpi_revenu_moy      = KPICard("Revenu moyen mensuel",   "0", "fa5s.chart-area",      self._PRIMAIRE, "GNF")
+        for card in (self.kpi_nb_jour, self.kpi_nb_session, self.kpi_en_attente, self.kpi_revenu_moy):
+            row1.addWidget(card)
+        layout.addLayout(row1)
+
+        # Ligne 2 de KPI (4 cartes)
+        row2 = QHBoxLayout()
+        row2.setSpacing(10)
+        self.kpi_montant_jour    = KPICard("Montant du jour",        "0", "fa5s.money-bill-wave", self._VIOLET, "GNF")
+        self.kpi_montant_session = KPICard("Montant session",        "0", "fa5s.wallet",          self._ROUGE,  "GNF")
+        self.kpi_top_diag        = KPICard("Top diagnostic",         "—", "fa5s.stethoscope",     self._VERT,   "")
+        self.kpi_top_personnel   = KPICard("Personnel le + actif",   "—", "fa5s.user-md",         self._BLEU,   "")
+        for card in (self.kpi_montant_jour, self.kpi_montant_session, self.kpi_top_diag, self.kpi_top_personnel):
+            row2.addWidget(card)
+        layout.addLayout(row2)
+
+        # Séparateur
+        sep = QFrame()
+        sep.setFrameShape(QFrame.HLine)
+        sep.setObjectName("AnalyseSep")
+        layout.addWidget(sep)
+
+        # Bas : Top diagnostics (gauche) + Performance personnel (droite)
+        bottom = QHBoxLayout()
+        bottom.setSpacing(14)
+
+        self.frame_diag = GraphFrame("Top 10 diagnostics", "fa5s.stethoscope")
+        self.diag_rows = []
+        for idx, color in enumerate(self._DIAG_COLORS, start=1):
+            dr = DiagnosticProgressRow(idx, color)
+            self.diag_rows.append(dr)
+            self.frame_diag.graph_layout.addWidget(dr)
+        self.frame_diag.graph_layout.addStretch()
+        bottom.addWidget(self.frame_diag, 3)
+
+        self.frame_personnel = GraphFrame("Performance du personnel", "fa5s.user-md")
+        self.table_personnel = QTableWidget(0, 5)
+        self.table_personnel.setHorizontalHeaderLabels(
+            ["#", "Personnel", "Consultations", "Montant total (GNF)", "Moy./consultation"]
+        )
+        self.table_personnel.verticalHeader().setVisible(False)
+        self.table_personnel.setSelectionMode(QAbstractItemView.NoSelection)
+        self.table_personnel.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.table_personnel.setAlternatingRowColors(True)
+        h = self.table_personnel.horizontalHeader()
+        h.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        h.setSectionResizeMode(1, QHeaderView.Stretch)
+        h.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        h.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        h.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        self.frame_personnel.graph_layout.addWidget(self.table_personnel)
+        bottom.addWidget(self.frame_personnel, 4)
+
+        layout.addLayout(bottom, 1)
+        return tab
+
+    # ── Onglet 2 : Graphes ──────────────────────────────────────────────
+
+    def _build_tab_graphes(self) -> QWidget:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setSpacing(8)
+
+        # Rangée 1 : nombre par mois | montant par mois
+        row1 = QHBoxLayout()
+        row1.setSpacing(8)
+
+        self.frame_g_nombre = GraphFrame(
+            "Nombre de consultations par mois + moyenne journalière", "fa5s.chart-bar"
+        )
+        self.graph_nombre = ConsultationNombreGraph(width=6, height=3.2)
+        self.graph_nombre.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.graph_nombre.setMinimumHeight(200)
+        self.frame_g_nombre.graph_layout.addWidget(self.graph_nombre)
+        row1.addWidget(self.frame_g_nombre, 1)
+
+        self.frame_g_montant = GraphFrame(
+            "Montant des consultations par mois + moyenne journalière", "fa5s.chart-area"
+        )
+        self.graph_montant = ConsultationMontantGraph(width=6, height=3.2)
+        self.graph_montant.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.graph_montant.setMinimumHeight(200)
+        self.frame_g_montant.graph_layout.addWidget(self.graph_montant)
+        row1.addWidget(self.frame_g_montant, 1)
+
+        layout.addLayout(row1, 1)
+
+        # Rangée 2 : consultations par jour — pleine largeur
+        self.frame_g_daily = GraphFrame(
+            "Consultations par jour (mois courant)", "fa5s.calendar"
+        )
+        self.graph_daily = DailyConsultationBarGraph(width=10, height=3.2)
+        self.graph_daily.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.graph_daily.setMinimumHeight(200)
+        self.frame_g_daily.graph_layout.addWidget(self.graph_daily)
+        layout.addWidget(self.frame_g_daily, 1)
+
+        return tab
+
+    # ------------------------------------------------------------------
+    # CHARGEMENT DES DONNÉES
+    # ------------------------------------------------------------------
+
+    def _on_tab_changed(self, index: int):
+        if index not in self._loaded:
+            self._charger_onglet(index)
+
+    def _precharger_tout(self):
+        """Précharge les 2 onglets dès l'affichage pour éviter tout délai au clic."""
+        self._charger_onglet(0)
+        QTimer.singleShot(80, lambda: self._charger_onglet(1))
+
+    def _charger_onglet(self, index: int):
+        if not self.code_session or index in self._loaded:
+            return
+        try:
+            if index == 0:
+                self._charger_stats()
+            elif index == 1:
+                self._charger_graphes()
+            self._loaded.add(index)
+        except Exception as e:
+            print(f"[AnalyseConsultationView] Erreur onglet {index}: {e}")
+            import traceback; traceback.print_exc()
+
+    def _call(self, method: str, *args, default=0):
+        fn = getattr(self.controleur, method, None)
+        if callable(fn):
+            try:
+                return fn(self.code_session, *args)
+            except Exception:
+                pass
+        return default
+
+    def _safe_int(self, v) -> int:
+        try: return int(float(v or 0))
+        except: return 0
+
+    def _safe_float(self, v) -> float:
+        try: return float(v or 0)
+        except: return 0.0
+
+    def _fmt_money(self, v) -> str:
+        try: return f"{float(v):,.0f}".replace(",", " ")
+        except: return "0"
+
+    def _charger_stats(self):
+        # KPI ligne 1
+        self.kpi_nb_jour.update_value(str(self._safe_int(self._call("obtenir_consultations_aujourd_hui", default=0))))
+        self.kpi_nb_session.update_value(str(self._safe_int(self._call("obtenir_nombre_total", default=0))))
+        self.kpi_en_attente.update_value(str(self._safe_int(self._call("obtenir_nombre_patients_en_attente", default=0))))
+        avg_data = self._call("obtenir_revenu_moyen_par_mois", default={}) or {}
+        avg_val  = (sum(avg_data.values()) / len(avg_data)) if avg_data else 0.0
+        self.kpi_revenu_moy.update_value(self._fmt_money(avg_val))
+
+        # KPI ligne 2
+        self.kpi_montant_jour.update_value(self._fmt_money(self._call("obtenir_montant_aujourd_hui", default=0.0)))
+        self.kpi_montant_session.update_value(self._fmt_money(self._call("obtenir_montant_session", default=0.0)))
+        diagnostics = (self._call("obtenir_top_diagnostics", 10, default=[]) or [])[:10]
+        if diagnostics:
+            self.kpi_top_diag.update_value(str(diagnostics[0].get("diagnostique", "—") or "—")[:22])
+        else:
+            self.kpi_top_diag.update_value("—")
+        personnel = self._call("obtenir_consultations_par_personnel", default=[]) or []
+        if personnel:
+            p0  = personnel[0]
+            nom = f"{p0.get('nom','') or ''} {p0.get('prenom','') or ''}".strip()
+            self.kpi_top_personnel.update_value(nom[:22] if nom else "—")
+        else:
+            self.kpi_top_personnel.update_value("—")
+
+        # Top diagnostics (barres)
+        max_val = max([self._safe_float(r.get("nombre", 0)) for r in diagnostics], default=0.0)
+        for idx, row_w in enumerate(self.diag_rows):
+            if idx < len(diagnostics):
+                r = diagnostics[idx]
+                row_w.update_row(str(r.get("diagnostique", "--")), self._safe_float(r.get("nombre", 0)), max_val)
+                row_w.show()
+            else:
+                row_w.update_row("--", 0, 1)
+                row_w.hide()
+
+        # Tableau personnel
+        self.table_personnel.setRowCount(len(personnel))
+        for i, r in enumerate(personnel):
+            nom   = f"Dr. {r.get('nom','') or ''} {r.get('prenom','') or ''}".strip()
+            total = self._safe_float(r.get("total_frais", 0))
+            nb    = self._safe_int(r.get("nombre", 0))
+            moy   = total / nb if nb else 0.0
+            for j, val in enumerate([i + 1, nom, nb, self._fmt_money(total), self._fmt_money(moy)]):
+                item = QTableWidgetItem(str(val))
+                item.setFlags(item.flags() ^ Qt.ItemIsEditable)
+                if j in (0, 2):   item.setTextAlignment(Qt.AlignCenter)
+                elif j in (3, 4): item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self.table_personnel.setItem(i, j, item)
+
+    def _charger_graphes(self):
+        from PySide6.QtWidgets import QApplication
+        nb_mois  = self._call("obtenir_nombre_par_mois",  default={}) or {}
+        mnt_mois = self._call("obtenir_montant_par_mois", default={}) or {}
+        moy_nb   = self._call("obtenir_moyenne_nombre_journalier_par_mois",  default={}) or {}
+        moy_mnt  = self._call("obtenir_moyenne_montant_journalier_par_mois", default={}) or {}
+
+        self.graph_nombre.update_graph(nb_mois, moy_nb)
+        QApplication.processEvents()
+
+        self.graph_montant.update_graph(mnt_mois, moy_mnt)
+        QApplication.processEvents()
+
+        now     = datetime.now()
+        nb_jour = self._call("obtenir_nombre_par_jour", now.year, now.month, default={}) or {}
+        ordered = sorted(nb_jour.keys(), key=lambda x: int(x))
+        self.graph_daily.update_graph(ordered, [self._safe_int(nb_jour.get(d, 0)) for d in ordered])
+
+    # ------------------------------------------------------------------
+    # API PUBLIQUE
+    # ------------------------------------------------------------------
+
+    def rafraichir(self):
+        self._loaded.clear()
+        self.charger_donnees()
+
+    def charger_donnees(self):
+        """Charge les 2 onglets synchronement — appelé pendant la barre de progression."""
+        from PySide6.QtWidgets import QApplication
+        self._loaded.clear()
+        try:
+            self._charger_stats()
+            self._loaded.add(0)
+            QApplication.processEvents()
+            self._charger_graphes()
+            self._loaded.add(1)
+        except Exception as e:
+            print(f"[AnalyseConsultationView] Erreur charger_donnees: {e}")
+            import traceback; traceback.print_exc()
+
+    # ------------------------------------------------------------------
+    # THÈME
+    # ------------------------------------------------------------------
+
+    def apply_theme(self):
+        c = theme_manager.colors()
+
+        self._main_frame.setStyleSheet(f"""
+            QFrame#AnalyseMainFrame {{
+                background: white;
+                border: 1px solid {c['border']};
+                border-radius: 16px;
+            }}
+        """)
+
+        self.tabs.setStyleSheet(f"""
+            QTabWidget::pane {{
+                border: none;
+                background: {c['bg_card']};
+                padding: 0px;
+                margin-top: 0px;
+            }}
+            QTabBar {{
+                background: {c['bg_card']};
+                border: none;
+            }}
+            QTabBar::tab {{
+                background: {c['bg_card']};
+                color: {c['text_secondary']};
+                border: none;
+                border-bottom: 3px solid transparent;
+                padding: 10px 20px;
+                margin-right: 0px;
+                font-size: 14px;
+                font-weight: 600;
+                min-width: 130px;
+            }}
+            QTabBar::tab:selected {{
+                background: {c['bg_card']};
+                color: {c['primary']};
+                border-bottom: 3px solid {c['primary']};
+            }}
+            QTabBar::tab:hover:!selected {{
+                color: {c['text_primary']};
+            }}
+        """)
+
+        self.tabs.setTabIcon(0, qta.icon("fa5s.chart-bar",  color=c['primary']))
+        self.tabs.setTabIcon(1, qta.icon("fa5s.chart-line", color=c['primary']))
+
+        for card, key in [
+            (self.kpi_nb_jour,         'info'),
+            (self.kpi_nb_session,      'success'),
+            (self.kpi_en_attente,      'warning'),
+            (self.kpi_revenu_moy,      'primary'),
+            (self.kpi_montant_jour,    'accent'),
+            (self.kpi_montant_session, 'danger'),
+            (self.kpi_top_diag,        'success'),
+            (self.kpi_top_personnel,   'info'),
+        ]:
+            card.apply_theme(theme_manager.color(key))
+
+        for frame in (self.frame_diag, self.frame_personnel,
+                      self.frame_g_nombre, self.frame_g_montant,
+                      self.frame_g_daily):
+            frame.apply_theme()
+
+        for row_w in self.diag_rows:
+            row_w.apply_theme()
+
+        self._style_table(self.table_personnel, c)
+
+        sep = self.tab_stats.findChild(QFrame, "AnalyseSep")
+        if sep:
+            sep.setStyleSheet(f"background:{c['border_light']}; border:none;")
+
+    def _style_table(self, table: QTableWidget, c: dict):
+        table.setStyleSheet(
+            f"QTableWidget {{ background:{c['bg_card']}; alternate-background-color:{c['bg_table_alt']}; "
+            f"border:none; color:{c['text_primary']}; gridline-color:{c['border_light']}; font-size:11px; }}"
+            f"QHeaderView::section {{ background:{c['table_header_bg']}; color:{c['text_primary']}; "
+            f"border:none; border-bottom:1px solid {c['border_light']}; padding:6px; font-size:10px; font-weight:700; }}"
+            f"QTableWidget::item {{ padding:6px; border-bottom:1px solid {c['border_light']}; }}"
+        )
 
 
 # Ancienne classe conservée pour compatibilité

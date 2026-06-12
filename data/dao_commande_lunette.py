@@ -534,6 +534,64 @@ class CommandeLunetteDAO:
             self.db.close()
 
     # =========================================================================
+    # EXPORT / IMPORT
+    # =========================================================================
+
+    def lister_pour_export(self) -> list:
+        """Retourne toutes les commandes de lunettes avec code_consultation pour export CSV/Excel."""
+        conn = self.db.connect()
+        if not conn:
+            return []
+        try:
+            cursor = conn.cursor(DictCursor)
+            cursor.execute("""
+                SELECT cl.code        AS code_lunette,
+                       am.code_consultation,
+                       cl.code_personnel,
+                       cl.numero_cadre,
+                       cl.numero_verre,
+                       cl.prix,
+                       cl.statut_facture,
+                       cl.date_commande,
+                       cl.date_livraison
+                FROM commandeslunettes cl
+                JOIN acte_medical am ON cl.code_acte = am.code_acte
+                ORDER BY cl.code DESC
+            """)
+            return cursor.fetchall() or []
+        except Exception as e:
+            print(f"[CommandeLunetteDAO] Erreur lister_pour_export: {e}")
+            return []
+        finally:
+            self.db.close()
+
+    def _inserer_import(self, cursor, code_acte: str, code_session: str, data: dict) -> bool:
+        """
+        INSERT commande lunette en mode import — reçoit curseur externe.
+        Ne met PAS à jour visite.statut_patient (géré par le service).
+        """
+        code = self._generer_code(cursor)
+        cursor.execute("""
+            INSERT INTO commandeslunettes (
+                code, numero_cadre, numero_verre, date_commande, date_livraison,
+                prix, statut, statut_facture, code_session, code_personnel, code_acte
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        """, (
+            code,
+            data.get('numero_cadre'),
+            data.get('numero_verre'),
+            data.get('date_commande'),
+            data.get('date_livraison') or None,
+            data.get('prix', 0.0),
+            data.get('statut') or 'livree',
+            data.get('statut_facture') or 'attente payement',
+            code_session,
+            data.get('code_personnel') or None,
+            code_acte,
+        ))
+        return cursor.rowcount > 0
+
+    # =========================================================================
     # METHODES PRIVEES
     # =========================================================================
 

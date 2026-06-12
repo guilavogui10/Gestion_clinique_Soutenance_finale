@@ -236,7 +236,7 @@ class PatientCard(QFrame):
             }}
             PatientCard:hover {{
                 border           : 1.5px solid {c['danger']};
-                background-color : {c.get('bg_alt', c['bg_card'])};
+                background-color : {c['hover']};
             }}
         """)
 
@@ -281,20 +281,20 @@ class PatientCard(QFrame):
         # Bouton Procéder
         self._btn.setStyleSheet(ChirurgieStyles.button_primary())
         self._btn.setIcon(
-            qta.icon("fa5s.procedures", color=c.get('text_inverse', '#ffffff'))
+            qta.icon("fa5s.procedures", color=c['text_inverse'])
         )
 
         # Bouton statut (Démarrer / Fin chirurgie)
         if self._statut_patient == "En chirurgie":
-            statut_bg = c.get('warning', '#f59e0b')
+            statut_bg = c['warning']
             statut_icon = "fa5s.stop-circle"
         else:
-            statut_bg = c.get('success', '#10b981')
+            statut_bg = c['success']
             statut_icon = "fa5s.play-circle"
         self._btn_statut.setStyleSheet(f"""
             QPushButton {{
                 background: {statut_bg};
-                color: #ffffff;
+                color: {c['text_inverse']};
                 border: none;
                 border-radius: 6px;
                 font-size: 10px;
@@ -303,7 +303,7 @@ class PatientCard(QFrame):
             QPushButton:hover {{ background: {statut_bg}cc; }}
         """)
         self._btn_statut.setIcon(
-            qta.icon(statut_icon, color='#ffffff')
+            qta.icon(statut_icon, color=c['text_inverse'])
         )
 
 
@@ -490,7 +490,7 @@ class PatientsAttenteChirurgieView(QWidget):
             font-size    : 11px;
             font-weight  : 600;
             color        : {c['text_muted']};
-            background   : {c.get('bg_alt', c['bg_card'])};
+            background   : {c['bg_card']};
             border-radius: 10px;
             padding      : 2px 10px;
             border       : 1px solid {c['border_light']};

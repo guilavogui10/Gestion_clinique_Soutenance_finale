@@ -23,6 +23,9 @@ from typing import Optional
 from data.dao_acte_medicale import (
     ActeMedicalDAO, StatutActe, ChoixPatient, TypeActe, ModeRealisation
 )
+from data.dao_consultation import ConsultationDAO
+from data.dao_visite import Visitedao
+from data.dao_personnel import PersonnelDAO
 from data.dao_rendez_vous import RendezVousDAO
 from models.modele_rendez_vous import RendezVous
 from models.model_acte_medicale import ActeMedical
@@ -34,8 +37,12 @@ class ActeMedicalService:
     Orchestre validation, workflow, files d'attente, facturation et analytics.
     """
 
-    def __init__(self, dao: ActeMedicalDAO = None):
-        self.dao    = dao or ActeMedicalDAO()
+    def __init__(self, dao: ActeMedicalDAO = None, consultation_dao=None,
+                 visite_dao=None, personnel_dao=None):
+        self.dao              = dao or ActeMedicalDAO()
+        self.consultation_dao = consultation_dao or ConsultationDAO()
+        self.visite_dao       = visite_dao or Visitedao()
+        self.personnel_dao    = personnel_dao or PersonnelDAO()
         self.logger = logging.getLogger(__name__)
 
     # =========================================================================
@@ -116,24 +123,28 @@ class ActeMedicalService:
         if not valide:
             return False, msg, None
         self._nettoyer_acte(acte)
-        resultat = self.dao.ajouter(acte)
-        if resultat:
-            self.logger.info(f"Acte {acte.id_acte} ({acte.type_acte}) créé")
-            
-            # Créer automatiquement la liaison acte_visite
-            # Si choix_patient n'est pas défini, on considère que c'est 'maintenant' par défaut
-            if not acte.choix_patient or acte.choix_patient == ChoixPatient.MAINTENANT:
-                self._creer_liaison_acte_visite(acte)
-            elif acte.choix_patient == ChoixPatient.PLUS_TARD:
-                # Mettre le patient en "Attente rendez-vous"
-                self._mettre_patient_attente_rdv(acte)
-            elif acte.choix_patient == ChoixPatient.AILLEURS:
-                # L'acte sera fait ailleurs (externe) : la consultation est terminée,
-                # le patient peut aller en paiement ou prendre un autre acte
-                self._mettre_patient_consultation_terminee(acte)
-            
-            return True, "Acte médical créé avec succès", acte
-        return False, "Erreur lors de la création de l'acte médical", None
+        try:
+            resultat = self.dao.ajouter(acte)
+            if resultat:
+                self.logger.info(f"Acte {acte.id_acte} ({acte.type_acte}) créé")
+                
+                # Créer automatiquement la liaison acte_visite
+                # Si choix_patient n'est pas défini, on considère que c'est 'maintenant' par défaut
+                if not acte.choix_patient or acte.choix_patient == ChoixPatient.MAINTENANT:
+                    self._creer_liaison_acte_visite(acte)
+                elif acte.choix_patient == ChoixPatient.PLUS_TARD:
+                    # Mettre le patient en "Attente rendez-vous"
+                    self._mettre_patient_attente_rdv(acte)
+                elif acte.choix_patient == ChoixPatient.AILLEURS:
+                    # L'acte sera fait ailleurs (externe) : la consultation est terminée,
+                    # le patient peut aller en paiement ou prendre un autre acte
+                    self._mettre_patient_consultation_terminee(acte)
+                
+                return True, "Acte médical créé avec succès", acte
+            return False, "Erreur lors de la création de l'acte médical", None
+        except Exception as e:
+            self.logger.error(f"Erreur lors de la création de l'acte: {str(e)}")
+            return False, str(e), None
     
     def _creer_liaison_acte_visite(self, acte: ActeMedical) -> bool:
         """
@@ -426,23 +437,24 @@ class ActeMedicalService:
     def lister_par_statut(self, statut: str) -> list:
         return self.dao.lister_par_statut(statut)
 
+    def lister_tous(self, limit: int = 1000) -> list:
+        return self.dao.lister_tous(limit)
+
     # =========================================================================
     # SECTION 4 — WORKFLOW / TRANSITIONS D'ÉTATS
     # =========================================================================
 
     def passer_en_cours(self, code_acte: str) -> tuple:
-        """Démarre l'exécution de l'acte."""
-        if self.dao.passer_en_cours(code_acte):
-            self.logger.info(f"Acte {code_acte} démarré")
-            return True, "Acte démarré avec succès"
-        return False, "Impossible de démarrer : transition non autorisée"
+        """Démarre l'exécution de l'acte en passant par le service de file d'attente pour synchroniser avec acte_visite."""
+        from service_metier.file_attente_service import FileAttenteService
+        service_file = FileAttenteService()
+        return service_file.demarrer_passage_par_code_acte(code_acte)
 
     def terminer_acte(self, code_acte: str, raison: str = None) -> tuple:
-        """Clôture un acte en cours."""
-        if self.dao.terminer(code_acte, raison):
-            self.logger.info(f"Acte {code_acte} terminé")
-            return True, "Acte terminé avec succès"
-        return False, "Impossible de terminer : l'acte n'est pas en cours"
+        """Clôture un acte en cours en passant par le service de file d'attente pour synchroniser avec acte_visite."""
+        from service_metier.file_attente_service import FileAttenteService
+        service_file = FileAttenteService()
+        return service_file.terminer_passage_par_code_acte(code_acte, raison)
 
     def refuser_acte(self, code_acte: str, raison: str) -> tuple:
         """Refuse ou annule un acte avec raison obligatoire."""
@@ -628,3 +640,43 @@ class ActeMedicalService:
 
         self.logger.info("RDV planifié pour acte %s le %s", code_acte, date_rdv)
         return rdv, f"Rendez-vous planifié le {date_rdv.strftime('%d/%m/%Y à %H:%M')}"
+
+    # =========================================================================
+    # SECTION — DONNÉES FORMULAIRE (listes déroulantes)
+    # =========================================================================
+
+    def obtenir_code_visite_par_consultation(self, code_consultation: str):
+        """Retourne le code_visite associé à une consultation."""
+        try:
+            return self.consultation_dao.get_code_visite_par_consultation(code_consultation)
+        except Exception as e:
+            self.logger.error("obtenir_code_visite_par_consultation: %s", e)
+            return None
+
+    def lister_consultations_form(self) -> list:
+        """Retourne les consultations actives pour les dropdowns du formulaire."""
+        try:
+            return self.consultation_dao.lister_pour_formulaire_acte()
+        except Exception as e:
+            self.logger.error("lister_consultations_form: %s", e)
+            return []
+
+    def lister_sessions_form(self) -> list:
+        """Retourne les sessions disponibles pour les dropdowns du formulaire."""
+        try:
+            return self.visite_dao.lister_sessions()
+        except Exception as e:
+            self.logger.error("lister_sessions_form: %s", e)
+            return []
+
+    def lister_personnel_form(self, roles: list = None) -> list:
+        """Retourne le personnel pour les dropdowns, filtré par rôles si fournis."""
+        try:
+            if roles:
+                from service_metier.user_service import UserService
+                rows = UserService().lister_personnel_par_roles(roles)
+                return [{'code': r['code'], 'label': f"{r['nom']} {r['prenom']}"} for r in rows]
+            return self.personnel_dao.lister_pour_formulaire()
+        except Exception as e:
+            self.logger.error("lister_personnel_form: %s", e)
+            return []

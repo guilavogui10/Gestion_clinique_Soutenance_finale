@@ -62,10 +62,26 @@ class ExamenFormWidget(QWidget):
         except Exception:
             self._actes_attente = []
         try:
-            if hasattr(self.controleur, 'lister_personnel'):
+            if hasattr(self.controleur, 'lister_personnel_par_roles'):
+                self._personnels = self.controleur.lister_personnel_par_roles(
+                    ['Laborantin']
+                ) or []
+            elif hasattr(self.controleur, 'lister_personnel'):
                 self._personnels = self.controleur.lister_personnel() or []
         except Exception:
             self._personnels = []
+        # Personnels pour "Interprété par" — même filtre de rôle que code_personnel
+        try:
+            if hasattr(self.controleur, 'lister_personnel_par_roles'):
+                self._tous_personnels = self.controleur.lister_personnel_par_roles(
+                    ['Laborantin']
+                ) or []
+            elif hasattr(self.controleur, 'lister_personnel'):
+                self._tous_personnels = self.controleur.lister_personnel() or []
+            else:
+                self._tous_personnels = []
+        except Exception:
+            self._tous_personnels = []
 
     # =========================================================================
     # UI PRINCIPALE
@@ -101,7 +117,8 @@ class ExamenFormWidget(QWidget):
         layout.setContentsMargins(20, 0, 20, 0)
         layout.setSpacing(14)
 
-        icon_box = QFrame()
+        self._icon_box = QFrame()
+        icon_box = self._icon_box
         icon_box.setFixedSize(46, 46)
         icon_box.setStyleSheet(f"""
             background-color: {c['bg_main']};
@@ -110,25 +127,25 @@ class ExamenFormWidget(QWidget):
         """)
         ib_layout = QHBoxLayout(icon_box)
         ib_layout.setContentsMargins(0, 0, 0, 0)
-        ico_lbl = QLabel()
-        ico_lbl.setPixmap(qta.icon("fa5s.microscope", color=c['primary']).pixmap(22, 22))
-        ico_lbl.setAlignment(Qt.AlignCenter)
-        ib_layout.addWidget(ico_lbl, alignment=Qt.AlignCenter)
+        self._ico_header = QLabel()
+        self._ico_header.setPixmap(qta.icon("fa5s.microscope", color=c['primary']).pixmap(22, 22))
+        self._ico_header.setAlignment(Qt.AlignCenter)
+        ib_layout.addWidget(self._ico_header, alignment=Qt.AlignCenter)
 
         title_col = QVBoxLayout()
         title_col.setSpacing(2)
-        lbl_main = QLabel("Enregistrement d'un Examen")
-        lbl_main.setStyleSheet(
+        self._lbl_main = QLabel("Enregistrement d'un Examen")
+        self._lbl_main.setStyleSheet(
             f"font-size: 17px; font-weight: bold; color: {c['text_primary']};"
             " background: transparent; border: none;"
         )
-        lbl_sub = QLabel("Veuillez remplir les informations de l'examen")
-        lbl_sub.setStyleSheet(
+        self._lbl_sub = QLabel("Veuillez remplir les informations de l'examen")
+        self._lbl_sub.setStyleSheet(
             f"font-size: 12px; color: {c['text_muted']};"
             " background: transparent; border: none;"
         )
-        title_col.addWidget(lbl_main)
-        title_col.addWidget(lbl_sub)
+        title_col.addWidget(self._lbl_main)
+        title_col.addWidget(self._lbl_sub)
 
         layout.addWidget(icon_box)
         layout.addLayout(title_col)
@@ -153,7 +170,7 @@ class ExamenFormWidget(QWidget):
 
         label_save = " Enregistrer" if not self.examen_obj else " Mettre à jour"
         self.btn_save = QPushButton(
-            qta.icon("fa5s.save", color="#ffffff"), label_save
+            qta.icon("fa5s.save", color=c['text_inverse']), label_save
         )
         self.btn_save.setFixedSize(150, 40)
         self.btn_save.setEnabled(False)
@@ -177,7 +194,7 @@ class ExamenFormWidget(QWidget):
             }}
             QPushButton:enabled {{
                 background-color: {c['primary']};
-                color: #ffffff;
+                color: {c['text_inverse']};
             }}
             QPushButton:enabled:hover {{ background-color: {c['primary_hover']}; }}
         """)
@@ -186,18 +203,14 @@ class ExamenFormWidget(QWidget):
     # HELPERS — champ badge-icône (même API que consultation)
     # =========================================================================
 
-    def _make_field(self, label_text: str, widget, icon_name: str, icon_color: str,
+    def _make_field(self, label_text: str, widget, icon_name: str, color_key: str,
                     height: int = 42, align_top: bool = False):
-        """Retourne (QVBoxLayout, wrapper_QFrame)."""
+        """Retourne (QVBoxLayout, wrapper_QFrame). Enregistre dans _field_registry."""
         c = theme_manager.colors()
         vbox = QVBoxLayout()
         vbox.setSpacing(4)
 
         lbl = QLabel(label_text)
-        lbl.setStyleSheet(
-            f"font-size: 11px; font-weight: 600; color: {c['text_secondary']};"
-            " background: transparent; border: none;"
-        )
         vbox.addWidget(lbl)
 
         wrapper = QFrame()
@@ -215,13 +228,9 @@ class ExamenFormWidget(QWidget):
 
         badge = QFrame()
         badge.setFixedSize(28, 28)
-        badge.setStyleSheet(
-            f"background-color: {icon_color}20; border-radius: 7px; border: none;"
-        )
         bl = QHBoxLayout(badge)
         bl.setContentsMargins(0, 0, 0, 0)
         ico_lbl = QLabel()
-        ico_lbl.setPixmap(qta.icon(icon_name, color=icon_color).pixmap(14, 14))
         ico_lbl.setAlignment(Qt.AlignCenter)
         ico_lbl.setStyleSheet("border: none; background: transparent;")
         bl.addWidget(ico_lbl, alignment=Qt.AlignCenter)
@@ -230,7 +239,34 @@ class ExamenFormWidget(QWidget):
         hbox.addWidget(badge, 0, v_align)
         hbox.addWidget(widget, 1)
         vbox.addWidget(wrapper)
+
+        if not hasattr(self, '_field_registry'):
+            self._field_registry = []
+        self._field_registry.append({
+            'wrapper':   wrapper,
+            'badge':     badge,
+            'ico_lbl':   ico_lbl,
+            'lbl':       lbl,
+            'icon_name': icon_name,
+            'color_key': color_key,
+        })
+        self._refresh_field(self._field_registry[-1], c)
+
         return vbox, wrapper
+
+    def _refresh_field(self, entry: dict, c: dict):
+        icon_color = c[entry['color_key']]
+        entry['badge'].setStyleSheet(
+            f"background-color: {icon_color}20; border-radius: 7px; border: none;"
+        )
+        entry['ico_lbl'].setPixmap(
+            qta.icon(entry['icon_name'], color=icon_color).pixmap(14, 14)
+        )
+        entry['lbl'].setStyleSheet(
+            f"font-size: 11px; font-weight: 600; color: {c['text_secondary']};"
+            " background: transparent; border: none;"
+        )
+        self._apply_wrapper_style(entry['wrapper'])
 
     def _apply_wrapper_style(self, wrapper: QFrame, border_color: str = None):
         c = theme_manager.colors()
@@ -295,7 +331,8 @@ class ExamenFormWidget(QWidget):
 
     def _section_infos(self, parent_layout):
         c = theme_manager.colors()
-        card = QFrame()
+        self._section_card = QFrame()
+        card = self._section_card
         card.setStyleSheet(f"""
             QFrame {{
                 background-color: {c['bg_card']};
@@ -309,12 +346,14 @@ class ExamenFormWidget(QWidget):
 
         # Titre de section
         hdr = QHBoxLayout()
-        ico = QLabel()
+        self._ico_section = QLabel()
+        ico = self._ico_section
         ico.setPixmap(
             qta.icon("fa5s.clipboard-list", color=c['primary']).pixmap(16, 16)
         )
         ico.setStyleSheet("border: none; background: transparent;")
-        lbl_t = QLabel("Informations de l'examen")
+        self._section_card_lbl = QLabel("Informations de l'examen")
+        lbl_t = self._section_card_lbl
         lbl_t.setStyleSheet(
             f"font-size: 14px; font-weight: bold; color: {c['primary']};"
             " background: transparent; border: none;"
@@ -333,7 +372,7 @@ class ExamenFormWidget(QWidget):
         self.edit_code = QLineEdit()
         self.edit_code.setPlaceholderText("Ex: EXA001")
         self.edit_code.setEnabled(False)
-        vb, _ = self._make_field("Code", self.edit_code, "fa5s.hashtag", "#9b59b6")
+        vb, _ = self._make_field("Code", self.edit_code, "fa5s.hashtag", "accent")
         row1.addWidget(self._field_widget(vb), 1, Qt.AlignTop)
 
         self.edit_libelle = QTextEdit()
@@ -341,7 +380,7 @@ class ExamenFormWidget(QWidget):
         self.edit_libelle.setFixedHeight(72)
         vb_lib, self._wrap_libelle = self._make_field(
             "Libellé de l'examen *", self.edit_libelle,
-            "fa5s.align-left", "#6c5ce7", height=76, align_top=True
+            "fa5s.align-left", "accent", height=76, align_top=True
         )
         self._err_libelle = self._err_label()
         vb_lib.addWidget(self._err_libelle)
@@ -350,7 +389,7 @@ class ExamenFormWidget(QWidget):
         self.edit_frais = QLineEdit()
         self.edit_frais.setPlaceholderText("Ex: 80000")
         vb_frais, self._wrap_frais = self._make_field(
-            "Frais de l'examen *", self.edit_frais, "fa5s.dollar-sign", "#27ae60"
+            "Frais de l'examen *", self.edit_frais, "fa5s.dollar-sign", "success"
         )
         self._err_frais = self._err_label()
         vb_frais.addWidget(self._err_frais)
@@ -360,7 +399,7 @@ class ExamenFormWidget(QWidget):
         self.combo_statut.setEnabled(False)
         self.combo_statut.addItem("Sélectionner le statut")
         vb_stat, _ = self._make_field(
-            "Statut Facture", self.combo_statut, "fa5s.file-invoice", "#e67e22"
+            "Statut Facture", self.combo_statut, "fa5s.file-invoice", "warning"
         )
         row1.addWidget(self._field_widget(vb_stat), 1, Qt.AlignTop)
 
@@ -375,7 +414,7 @@ class ExamenFormWidget(QWidget):
         self.edit_date.setDateTime(QDateTime.currentDateTime())
         self.edit_date.setDisplayFormat("dd/MM/yyyy")
         vb_date, _ = self._make_field(
-            "Date de l'examen *", self.edit_date, "fa5s.calendar-alt", "#3498db"
+            "Date de l'examen *", self.edit_date, "fa5s.calendar-alt", "info"
         )
         row2.addWidget(self._field_widget(vb_date), 1, Qt.AlignTop)
 
@@ -383,7 +422,7 @@ class ExamenFormWidget(QWidget):
         self.edit_session.setPlaceholderText("Ex: SES001")
         self.edit_session.setEnabled(False)
         vb_sess, _ = self._make_field(
-            "Code Session", self.edit_session, "fa5s.graduation-cap", "#9b59b6"
+            "Code Session", self.edit_session, "fa5s.graduation-cap", "accent"
         )
         row2.addWidget(self._field_widget(vb_sess), 1, Qt.AlignTop)
 
@@ -395,7 +434,7 @@ class ExamenFormWidget(QWidget):
             prenom = p.get('prenom', "")
             self.combo_personnel.addItem(f"{code} — {nom} {prenom}", code)
         vb_perso, self._wrap_personnel = self._make_field(
-            "Code Personnel *", self.combo_personnel, "fa5s.user-md", "#1abc9c"
+            "Code Personnel *", self.combo_personnel, "fa5s.user-md", "primary"
         )
         self._err_personnel = self._err_label()
         vb_perso.addWidget(self._err_personnel)
@@ -412,7 +451,7 @@ class ExamenFormWidget(QWidget):
                 f"{code_acte} — {nom} {prenom} [{code_c}]", code_acte
             )
         vb_acte, self._wrap_acte = self._make_field(
-            "Code Acte *", self.combo_acte, "fa5s.file-medical", "#e74c3c"
+            "Code Acte *", self.combo_acte, "fa5s.file-medical", "danger"
         )
         self._err_acte = self._err_label()
         vb_acte.addWidget(self._err_acte)
@@ -425,10 +464,15 @@ class ExamenFormWidget(QWidget):
         row3.setSpacing(14)
         row3.setAlignment(Qt.AlignTop)
 
-        self.edit_interpreter_par = QLineEdit()
-        self.edit_interpreter_par.setPlaceholderText("Nom du praticien...")
+        self.combo_interpreter_par = QComboBox()
+        self.combo_interpreter_par.addItem("— Sélectionner un praticien —", "")
+        for p in self._tous_personnels:
+            code   = p.get('code', "")
+            nom    = p.get('nom', "")
+            prenom = p.get('prenom', "")
+            self.combo_interpreter_par.addItem(f"{code} — {nom} {prenom}", code)
         vb_int, _ = self._make_field(
-            "Interprété par", self.edit_interpreter_par, "fa5s.user", "#e67e22"
+            "Interprété par", self.combo_interpreter_par, "fa5s.user", "warning"
         )
         row3.addWidget(self._field_widget(vb_int), 1, Qt.AlignTop)
 
@@ -438,7 +482,7 @@ class ExamenFormWidget(QWidget):
         self.edit_date_interpretation.setDisplayFormat("dd/MM/yyyy")
         vb_dint, _ = self._make_field(
             "Date d'interprétation", self.edit_date_interpretation,
-            "fa5s.calendar-check", "#3498db"
+            "fa5s.calendar-check", "info"
         )
         row3.addWidget(self._field_widget(vb_dint), 1, Qt.AlignTop)
 
@@ -447,7 +491,7 @@ class ExamenFormWidget(QWidget):
         self.edit_conclusion.setFixedHeight(72)
         vb_con, self._wrap_conclusion = self._make_field(
             "Conclusion médicale", self.edit_conclusion,
-            "fa5s.notes-medical", "#27ae60", height=76, align_top=True
+            "fa5s.notes-medical", "success", height=76, align_top=True
         )
         row3.addWidget(self._field_widget(vb_con), 2, Qt.AlignTop)
 
@@ -460,7 +504,8 @@ class ExamenFormWidget(QWidget):
 
     def _section_info_bas(self, parent_layout):
         c = theme_manager.colors()
-        card = QFrame()
+        self._info_bas_card = QFrame()
+        card = self._info_bas_card
         card.setFixedHeight(70)
         card.setStyleSheet(f"""
             QFrame {{
@@ -473,28 +518,32 @@ class ExamenFormWidget(QWidget):
         hbox.setContentsMargins(20, 0, 20, 0)
         hbox.setSpacing(14)
 
-        ico_frame = QFrame()
+        self._ico_bas_frame = QFrame()
+        ico_frame = self._ico_bas_frame
         ico_frame.setFixedSize(36, 36)
         ico_frame.setStyleSheet(
             f"background-color: {c['primary']}; border-radius: 18px;"
         )
         ifi = QHBoxLayout(ico_frame)
         ifi.setContentsMargins(0, 0, 0, 0)
-        il = QLabel()
-        il.setPixmap(qta.icon("fa5s.info", color="#ffffff").pixmap(14, 14))
+        self._ico_bas_lbl = QLabel()
+        il = self._ico_bas_lbl
+        il.setPixmap(qta.icon("fa5s.info", color=c['text_inverse']).pixmap(14, 14))
         il.setAlignment(Qt.AlignCenter)
         ifi.addWidget(il, alignment=Qt.AlignCenter)
 
         txt = QVBoxLayout()
         txt.setSpacing(2)
-        t1 = QLabel("Informations")
+        self._info_bas_t1 = QLabel("Informations")
+        t1 = self._info_bas_t1
         t1.setStyleSheet(
             f"font-size: 13px; font-weight: bold; color: {c['primary']};"
             " background: transparent;"
         )
-        t2 = QLabel(
+        self._info_bas_t2 = QLabel(
             "Veuillez remplir tous les champs obligatoires avant d'enregistrer l'examen."
         )
+        t2 = self._info_bas_t2
         t2.setStyleSheet(
             f"font-size: 11px; color: {c['text_secondary']}; background: transparent;"
         )
@@ -680,7 +729,7 @@ class ExamenFormWidget(QWidget):
         self.edit_frais.setText(str(obj.frais_examen or ""))
         self.combo_statut.clear()
         self.combo_statut.addItem(obj.statut_facture or "attente payement")
-        self.edit_interpreter_par.setText(obj.interpreter_par or "")
+        self._preselectionner_interpreter(obj.interpreter_par or "")
         if obj.date_interpretation and hasattr(obj.date_interpretation, 'year'):
             d = obj.date_interpretation
             self.edit_date_interpretation.setDateTime(QDateTime(d.year, d.month, d.day, 0, 0))
@@ -721,10 +770,18 @@ class ExamenFormWidget(QWidget):
     # ACTIONS BOUTONS
     # =========================================================================
 
+    def _preselectionner_interpreter(self, code_personnel: str):
+        """Présélectionne le praticien interprétant dans le combo."""
+        for i in range(self.combo_interpreter_par.count()):
+            if self.combo_interpreter_par.itemData(i) == code_personnel:
+                self.combo_interpreter_par.setCurrentIndex(i)
+                return
+        self.combo_interpreter_par.setCurrentIndex(0)
+
     def _on_cancel(self):
         self.edit_libelle.clear()
         self.edit_frais.clear()
-        self.edit_interpreter_par.clear()
+        self.combo_interpreter_par.setCurrentIndex(0)
         self.edit_conclusion.clear()
         self.combo_acte.setEnabled(True)
         self.combo_acte.setCurrentIndex(0)
@@ -748,7 +805,7 @@ class ExamenFormWidget(QWidget):
                 code_session        = self.code_session,
                 code_personnel      = code_personnel,
                 code_acte           = code_acte,
-                interpreter_par     = self.edit_interpreter_par.text().strip() or None,
+                interpreter_par     = self.combo_interpreter_par.currentData() or None,
                 date_interpretation = self.edit_date_interpretation.dateTime().toPython(),
                 conclusion_medicale = self.edit_conclusion.toPlainText().strip() or None,
             )
@@ -815,21 +872,103 @@ class ExamenFormWidget(QWidget):
 
     def apply_theme(self):
         c = theme_manager.colors()
-        self.setStyleSheet(f"QWidget {{ background: {c['bg_main']}; }}")
-        self.header_frame.setStyleSheet(f"""
-            background-color: {c['bg_card']};
-            border-radius: 14px;
-            border: none;
-        """)
-        self._apply_save_btn_style()
-        self.btn_cancel.setStyleSheet(f"""
-            QPushButton {{
+        self.setStyleSheet(f"QWidget {{ background: {c['bg_main']}; color: {c['text_primary']}; }}")
+
+        # ── Header ──────────────────────────────────────────────────────────
+        if hasattr(self, 'header_frame'):
+            self.header_frame.setStyleSheet(f"""
+                background-color: {c['bg_card']};
+                border-radius: 14px; border: none;
+            """)
+        if hasattr(self, '_icon_box'):
+            self._icon_box.setStyleSheet(f"""
                 background-color: {c['bg_main']};
-                color: {c['text_secondary']};
-                border: 1.5px solid {c['border']};
                 border-radius: 10px;
-                font-size: 13px;
-                font-weight: 500;
-            }}
-            QPushButton:hover {{ background-color: {c['hover']}; }}
-        """)
+                border: 1px solid {c['border_light']};
+            """)
+        if hasattr(self, '_ico_header'):
+            self._ico_header.setPixmap(
+                qta.icon("fa5s.microscope", color=c['primary']).pixmap(22, 22)
+            )
+        if hasattr(self, '_lbl_main'):
+            self._lbl_main.setStyleSheet(
+                f"font-size: 17px; font-weight: bold; color: {c['text_primary']};"
+                " background: transparent; border: none;"
+            )
+        if hasattr(self, '_lbl_sub'):
+            self._lbl_sub.setStyleSheet(
+                f"font-size: 12px; color: {c['text_muted']}; background: transparent; border: none;"
+            )
+
+        # ── Card infos section ───────────────────────────────────────────────
+        if hasattr(self, '_section_card'):
+            self._section_card.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {c['bg_card']};
+                    border: 1.5px solid {c['border_light']};
+                    border-radius: 14px;
+                }}
+            """)
+        if hasattr(self, '_ico_section'):
+            self._ico_section.setPixmap(
+                qta.icon("fa5s.clipboard-list", color=c['primary']).pixmap(16, 16)
+            )
+        if hasattr(self, '_section_card_lbl'):
+            self._section_card_lbl.setStyleSheet(
+                f"font-size: 14px; font-weight: bold; color: {c['primary']};"
+                " background: transparent; border: none;"
+            )
+
+        # ── Card bas ─────────────────────────────────────────────────────────
+        if hasattr(self, '_info_bas_card'):
+            self._info_bas_card.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {c['primary_light']};
+                    border: 1.5px solid {c['border_light']};
+                    border-radius: 14px;
+                }}
+            """)
+        if hasattr(self, '_ico_bas_frame'):
+            self._ico_bas_frame.setStyleSheet(
+                f"background-color: {c['primary']}; border-radius: 18px;"
+            )
+        if hasattr(self, '_ico_bas_lbl'):
+            self._ico_bas_lbl.setPixmap(
+                qta.icon("fa5s.info", color=c['text_inverse']).pixmap(14, 14)
+            )
+        if hasattr(self, '_info_bas_t1'):
+            self._info_bas_t1.setStyleSheet(
+                f"font-size: 13px; font-weight: bold; color: {c['primary']}; background: transparent;"
+            )
+        if hasattr(self, '_info_bas_t2'):
+            self._info_bas_t2.setStyleSheet(
+                f"font-size: 11px; color: {c['text_secondary']}; background: transparent;"
+            )
+
+        # ── Registre champs (badge + icône + label + wrapper) ────────────────
+        if hasattr(self, '_field_registry'):
+            for entry in self._field_registry:
+                self._refresh_field(entry, c)
+
+        # ── Widgets internes ─────────────────────────────────────────────────
+        if hasattr(self, 'edit_libelle'):
+            for w in (self.edit_libelle, self.edit_frais, self.combo_acte,
+                      self.combo_personnel, self.edit_code, self.edit_session,
+                      self.edit_date, self.combo_statut, self.combo_interpreter_par,
+                      self.edit_date_interpretation, self.edit_conclusion):
+                self._clear_widget_style(w, c)
+
+        # ── Boutons ──────────────────────────────────────────────────────────
+        self._apply_save_btn_style()
+        if hasattr(self, 'btn_cancel'):
+            self.btn_cancel.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {c['bg_main']};
+                    color: {c['text_secondary']};
+                    border: 1.5px solid {c['border']};
+                    border-radius: 10px;
+                    font-size: 13px;
+                    font-weight: 500;
+                }}
+                QPushButton:hover {{ background-color: {c['hover']}; }}
+            """)

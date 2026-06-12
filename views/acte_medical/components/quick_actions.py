@@ -31,7 +31,6 @@ class QuickActions(QWidget):
             ("fa5s.list-ol",          "File d'attente",       "warning",        self.file_attente_clicked),
             ("fa5s.calendar-check",   "Actes planifiés",      "info",           self.planifies_clicked),
             ("fa5s.route",            "Parcours patient",     "accent",         self.parcours_clicked),
-            ("fa5s.file-export",      "Exporter",             "success",        self.export_clicked),
         ]
 
         for icon_name, text, color_key, signal in actions:
@@ -44,6 +43,17 @@ class QuickActions(QWidget):
             btn.clicked.connect(signal.emit)
             self.buttons.append(btn)
             layout.addWidget(btn)
+
+        # Bouton export/import — référence nommée pour le positionnement du menu
+        self.btn_export = QPushButton("  Exporter")
+        self.btn_export.setCursor(Qt.PointingHandCursor)
+        self.btn_export.setFixedHeight(40)
+        self.btn_export.setObjectName("QuickActionButton")
+        self.btn_export.setProperty("color_key", "success")
+        self.btn_export.setProperty("icon_name", "fa5s.file-export")
+        self.btn_export.clicked.connect(self.export_clicked.emit)
+        self.buttons.append(self.btn_export)
+        layout.addWidget(self.btn_export)
 
     def apply_theme(self):
         c = theme_manager.colors()

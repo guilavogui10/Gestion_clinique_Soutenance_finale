@@ -419,6 +419,18 @@ class PrescriptionService:
         """Graphique barres : nombre de prescriptions par mois."""
         return self.dao.nombre_par_mois(code_session)
 
+    def obtenir_montant_par_mois(self, code_session: str) -> Dict[str, float]:
+        """Montant total des prescriptions par mois."""
+        return self.dao.montant_par_mois(code_session)
+
+    def obtenir_moyenne_nombre_journalier_par_mois(self, code_session: str) -> Dict[str, float]:
+        """Moyenne journalière du nombre de prescriptions par mois."""
+        return self.dao.moyenne_nombre_journalier_par_mois(code_session)
+
+    def obtenir_nombre_par_jour(self, code_session: str, annee: int = None, mois: int = None) -> Dict[str, int]:
+        """Nombre de prescriptions par jour pour un mois donné."""
+        return self.dao.nombre_par_jour(code_session, annee, mois)
+
     def obtenir_revenu_total(self, code_session: str,
                               date_debut: str = None,
                               date_fin: str = None) -> float:

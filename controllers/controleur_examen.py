@@ -74,6 +74,9 @@ class ExamenControleur:
         return self.service.obtenir_historique_patient(code_patient)
 
     # --------- PATIENTS ---------
+    def obtenir_codes_patients_session(self, code_session: str) -> list:
+        return self.service.obtenir_codes_patients_session(code_session)
+
     def obtenir_patients_attente_examen(self, code_session: str) -> list:
         return self.service.obtenir_patients_attente_examen(code_session)
 
@@ -161,6 +164,9 @@ class ExamenControleur:
     def lister_personnel(self) -> list:
         return self.service.lister_personnel()
 
+    def lister_personnel_par_roles(self, roles: list) -> list:
+        return self.service.lister_personnel_par_roles(roles)
+
     def rechercher_entre_dates(self, code_session: str, date_debut, date_fin) -> list:
         return self.service.rechercher_entre_dates(code_session, date_debut, date_fin)
 
@@ -183,6 +189,26 @@ class ExamenControleur:
         return RapportExamenPDF.generer_pdf_examens_par_date(
             details_list, info_cabinet
         )
+
+    # =========================================================================
+    # EXPORT / IMPORT EXAMENS
+    # =========================================================================
+
+    def obtenir_donnees_export(self) -> list:
+        from service_metier.acte_import_export_service import obtenir_donnees_export
+        return obtenir_donnees_export("examen")
+
+    def export_to_excel(self, chemin: str) -> tuple:
+        from service_metier.acte_import_export_service import export_examens_excel
+        return export_examens_excel(chemin)
+
+    def export_to_csv(self, chemin: str) -> tuple:
+        from service_metier.acte_import_export_service import export_examens_csv
+        return export_examens_csv(chemin)
+
+    def import_examens(self, chemin: str, format_fichier: str) -> tuple:
+        from service_metier.acte_import_export_service import import_examens
+        return import_examens(chemin, format_fichier)
 
     def generer_pdf_rapport_date_precise_examens(self, code_session, date_cible):
         """

@@ -73,6 +73,20 @@ class ActeVisiteDAO:
         finally:
             self.db.close()
 
+    def _inserer_liaison_import(self, cursor, code_acte: str, code_visite: str,
+                                role: str = 'execution') -> None:
+        """
+        INSERT acte_visite en mode import — reçoit curseur externe.
+        Pas de gestion de connexion ni de commit.
+        """
+        now = datetime.now()
+        cursor.execute("""
+            INSERT INTO acte_visite (
+                code_acte, code_visite, role_visite,
+                date_liaison, date_entre
+            ) VALUES (%s, %s, %s, %s, %s)
+        """, (code_acte, code_visite, role, now, now))
+
     def enregistrer_entree_file(self, id_acte_visite: int) -> bool:
         """
         Enregistre l'entree du patient dans la file d'attente physique.
@@ -102,14 +116,14 @@ class ActeVisiteDAO:
     # SECTION 2 — CHRONOMETRAGE DES PASSAGES
     # =========================================================================
 
-    def demarrer_passage(self, code_acte: str, code_visite: str = None) -> bool:
+    def demarrer_passage(self, code_acte: str, code_visite: str = None, ext_conn=None) -> bool:
         """
         Démarre l'exécution de l'acte pour ce passage.
         Positionne date_debut_execution = maintenant.
         Si code_visite n'est pas fourni, utilise le passage actif (en attente).
         Idempotent : ne met à jour que si date_debut_execution est NULL.
         """
-        conn = self.db.connect()
+        conn = ext_conn if ext_conn else self.db.connect()
         if not conn:
             return False
         try:
@@ -132,23 +146,27 @@ class ActeVisiteDAO:
                     ORDER BY date_entre ASC
                     LIMIT 1
                 """, (datetime.now(), code_acte))
-            conn.commit()
+            
+            if not ext_conn:
+                conn.commit()
             return cursor.rowcount > 0
         except Exception as e:
             print(f"[ActeVisiteDAO] Erreur demarrer_passage: {e}")
-            conn.rollback()
+            if not ext_conn:
+                conn.rollback()
             return False
         finally:
-            self.db.close()
+            if not ext_conn:
+                self.db.close()
 
-    def terminer_passage(self, code_acte: str, code_visite: str = None) -> bool:
+    def terminer_passage(self, code_acte: str, code_visite: str = None, ext_conn=None) -> bool:
         """
         Termine l'exécution d'un passage.
         Positionne date_sortie = maintenant.
         Si code_visite n'est pas fourni, utilise le passage en cours.
         Idempotent : ne met à jour que si date_sortie est NULL.
         """
-        conn = self.db.connect()
+        conn = ext_conn if ext_conn else self.db.connect()
         if not conn:
             return False
         try:
@@ -171,14 +189,18 @@ class ActeVisiteDAO:
                     ORDER BY date_debut_execution ASC
                     LIMIT 1
                 """, (datetime.now(), code_acte))
-            conn.commit()
+            
+            if not ext_conn:
+                conn.commit()
             return cursor.rowcount > 0
         except Exception as e:
             print(f"[ActeVisiteDAO] Erreur terminer_passage: {e}")
-            conn.rollback()
+            if not ext_conn:
+                conn.rollback()
             return False
         finally:
-            self.db.close()
+            if not ext_conn:
+                self.db.close()
 
     # =========================================================================
     # SECTION 3 — LECTURE / FILE D'ATTENTE
@@ -511,6 +533,23 @@ class ActeVisiteDAO:
                       'payé', 'paye'
                   )
                   AND LOWER(v.statut_patient) NOT LIKE 'attente rendez-vous%'
+                  AND NOT (
+                      NOT EXISTS (
+                          SELECT 1 FROM acte_visite av_act
+                          WHERE av_act.code_visite = v.code_visite
+                            AND av_act.role_visite = 'execution'
+                            AND av_act.date_sortie IS NULL
+                      )
+                      AND EXISTS (
+                          SELECT 1 FROM acte_visite av_o
+                          INNER JOIN acte_visite av_e
+                              ON av_e.code_acte = av_o.code_acte
+                             AND av_e.role_visite = 'execution'
+                             AND av_e.code_visite != v.code_visite
+                          WHERE av_o.code_visite = v.code_visite
+                            AND av_o.role_visite = 'origine'
+                      )
+                  )
                 ORDER BY v.urgent DESC, v.date_visite ASC
             """)
             return cursor.fetchall()

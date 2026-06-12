@@ -91,6 +91,10 @@ class ExamenView(QWidget):
         self.quick_actions.patient_history_clicked.connect(self.on_patient_history)
         self.quick_actions.imprimer_tous_rapports_clicked.connect(self._on_imprimer_tous_rapports)
         self.quick_actions.imprimer_rapport_date_clicked.connect(self._on_imprimer_rapport_par_date)
+        self.quick_actions.export_excel_clicked.connect(lambda: self._on_export_import("export", "excel"))
+        self.quick_actions.export_csv_clicked.connect(  lambda: self._on_export_import("export", "csv"))
+        self.quick_actions.import_excel_clicked.connect(lambda: self._on_export_import("import", "excel"))
+        self.quick_actions.import_csv_clicked.connect(  lambda: self._on_export_import("import", "csv"))
         main_frame_layout.addWidget(self.quick_actions)
         
         # Ajouter le frame principal au layout
@@ -130,12 +134,27 @@ class ExamenView(QWidget):
         DetailsExamenModal(self, examen.code, self.ctrl).exec()
     
     def on_delete_examen(self, examen):
-        """Supprime un examen après confirmation (déjà faite dans la table)"""
-        ok, msg = self.ctrl.supprimer_examen(examen.code)
+        """Supprime un examen — nécessite OTP du DG via permission_helper."""
         from views.shared.message_box import CustomMessageBox
-        CustomMessageBox("Succès" if ok else "Erreur", msg, ok, self).exec()
-        if ok:
-            self.charger_donnees()
+
+        if not self.permission_helper:
+            ok, msg = self.ctrl.supprimer_examen(examen.code)
+            CustomMessageBox("Succès" if ok else "Erreur", msg, ok, self).exec()
+            if ok:
+                self.charger_donnees()
+            return
+
+        def executer_suppression():
+            ok, msg = self.ctrl.supprimer_examen(examen.code)
+            CustomMessageBox("Succès" if ok else "Erreur", msg, ok, self).exec()
+            if ok:
+                self.charger_donnees()
+
+        self.permission_helper.verifier_et_executer(
+            action=self.permission_ctrl.ACTION_SUPPRESSION,
+            contexte=f"Examen {examen.code}",
+            callback_success=executer_suppression
+        )
 
     def on_edit_examen(self, examen):
         """Modifier un examen - Vérification des permissions"""
@@ -190,16 +209,54 @@ class ExamenView(QWidget):
             self.table.load_examens(resultats, self.code_session)
 
     def on_reports(self):
-        """Affiche le résumé/rapport de la session courante."""
-        if not self.code_session:
-            return
-        dialog = _ResumeSessionDialog(self.ctrl, self.code_session, parent=self)
-        dialog.exec()
+        """Affiche le menu export/import au-dessus du bouton Rapports & exports."""
+        from PySide6.QtWidgets import QMenu
+        from PySide6.QtGui import QCursor
+        from views.acte_medical.export_import_acte import ApercuActeModal
+        import qtawesome as qta
+        c = __import__('views.shared.theme_manager', fromlist=['theme_manager']).theme_manager.colors()
+
+        menu = QMenu(self)
+        menu.setStyleSheet(f"""
+            QMenu {{
+                background: {c['bg_card']}; border: 1px solid {c['border']};
+                border-radius: 10px; padding: 6px 4px;
+            }}
+            QMenu::item {{
+                padding: 9px 20px 9px 12px; border-radius: 6px;
+                font-size: 13px; color: {c['text_primary']}; min-width: 220px;
+            }}
+            QMenu::item:selected {{ background: {c['primary_light']}; color: {c['primary']}; }}
+            QMenu::separator {{ height: 1px; background: {c['border']}; margin: 4px 10px; }}
+        """)
+        act_exp_xl = menu.addAction(qta.icon("fa5s.file-excel", color="#217346"), "  Exporter Excel (.xlsx)")
+        act_exp_cs = menu.addAction(qta.icon("fa5s.file-csv",   color="#0070c0"), "  Exporter CSV (.csv)")
+        menu.addSeparator()
+        act_imp_xl = menu.addAction(qta.icon("fa5s.upload", color="#217346"),     "  Importer Excel (.xlsx)")
+        act_imp_cs = menu.addAction(qta.icon("fa5s.upload", color="#0070c0"),     "  Importer CSV (.csv)")
+
+        act_exp_xl.triggered.connect(lambda: ApercuActeModal.ouvrir_export(self, self.ctrl, "examen", "excel"))
+        act_exp_cs.triggered.connect(lambda: ApercuActeModal.ouvrir_export(self, self.ctrl, "examen", "csv"))
+        act_imp_xl.triggered.connect(lambda: ApercuActeModal.ouvrir_import(self, self.ctrl, "examen", "excel"))
+        act_imp_cs.triggered.connect(lambda: ApercuActeModal.ouvrir_import(self, self.ctrl, "examen", "csv"))
+
+        from PySide6.QtGui import QCursor
+        from PySide6.QtCore import QPoint
+        menu.adjustSize()
+        cursor_pos = QCursor.pos()
+        menu.exec(QPoint(cursor_pos.x(), cursor_pos.y() - menu.sizeHint().height() - 6))
 
     def on_patient_history(self):
         """Bascule vers l'onglet Historique patient."""
         self.tabs.setCurrentIndex(4)
     
+    def _on_export_import(self, mode: str, format_fichier: str):
+        from views.acte_medical.export_import_acte import ApercuActeModal
+        if mode == "export":
+            ApercuActeModal.ouvrir_export(self, self.ctrl, "examen", format_fichier)
+        else:
+            ApercuActeModal.ouvrir_import(self, self.ctrl, "examen", format_fichier)
+
     def _on_imprimer_tous_rapports(self):
         """Génère un PDF de tous les examens de la session groupés par date."""
         from views.shared.message_box import CustomMessageBox
@@ -233,16 +290,41 @@ class ExamenView(QWidget):
 
     def apply_theme(self):
         c = theme_manager.colors()
-        self.setStyleSheet(f"""
-            QWidget {{
-                background: {c['bg_main']};
-            }}
-        """)
+        self.setStyleSheet(f"background: {c['bg_main']};")
         self._apply_tab_styles()
+
         if hasattr(self, 'tabs'):
+            for tab, bg in (
+                (getattr(self, 'tab_stats',      None), c['bg_card']),
+                (getattr(self, 'tab_nouveau',    None), c['bg_main']),
+                (getattr(self, 'tab_liste',      None), c['bg_card']),
+                (getattr(self, 'tab_statut',     None), c['bg_card']),
+                (getattr(self, 'tab_historique', None), c['bg_card']),
+            ):
+                if tab:
+                    tab.setStyleSheet(f"QWidget {{ background: {bg}; }}")
+
             main_frame = self.findChild(QFrame, "MainWhiteFrame")
             if main_frame:
                 self._apply_main_frame_style(main_frame)
+
+        # Propagation aux composants enfants
+        for widget in (
+            getattr(self, 'kpi_cards',       None),
+            getattr(self, 'charts',          None),
+            getattr(self, 'table',           None),
+            getattr(self, 'quick_actions',   None),
+            getattr(self, 'form_widget',     None),
+            getattr(self, 'vue_attente',     None),
+            getattr(self, 'vue_historique',  None),
+        ):
+            if widget:
+                fn = getattr(widget, 'apply_theme', None) or getattr(widget, '_apply_theme', None)
+                if fn:
+                    try:
+                        fn()
+                    except Exception:
+                        pass
     
     def _get_icon(self, icon_name):
         """Récupère une icône Font Awesome ou standard"""
@@ -270,7 +352,6 @@ class ExamenView(QWidget):
         from .examen_form_widget import ExamenFormWidget
         
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -299,7 +380,6 @@ class ExamenView(QWidget):
     def _create_stats_tab(self):
         """Crée l'onglet Statistiques"""
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(12, 8, 12, 12)
         layout.setSpacing(8)
@@ -318,7 +398,6 @@ class ExamenView(QWidget):
     def _create_liste_tab(self):
         """Crée l'onglet Liste des examens"""
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(12, 8, 12, 12)
 
@@ -338,7 +417,6 @@ class ExamenView(QWidget):
         """Crée l'onglet Patients en attente"""
         import qtawesome as qta
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(12, 8, 12, 12)
         layout.setSpacing(8)
@@ -348,21 +426,22 @@ class ExamenView(QWidget):
         toolbar.setSpacing(8)
         toolbar.addStretch()
 
-        btn_acte = QPushButton(qta.icon("fa5s.arrow-right", color="#ffffff"), "  Aller sur acte médical")
+        _c = theme_manager.colors()
+        btn_acte = QPushButton(qta.icon("fa5s.arrow-right", color=_c['text_inverse']), "  Aller sur acte médical")
         btn_acte.setFixedHeight(32)
         btn_acte.setCursor(Qt.PointingHandCursor)
-        btn_acte.setStyleSheet("""
-            QPushButton {
-                background: #2563EB;
-                color: #ffffff;
+        btn_acte.setStyleSheet(f"""
+            QPushButton {{
+                background: {_c['primary']};
+                color: {_c['text_inverse']};
                 border: none;
                 border-radius: 6px;
                 padding: 0 14px;
                 font-size: 13px;
                 font-weight: 600;
-            }
-            QPushButton:hover  { background: #1D4ED8; }
-            QPushButton:pressed{ background: #1E40AF; }
+            }}
+            QPushButton:hover   {{ background: {_c['primary_hover']}; }}
+            QPushButton:pressed {{ background: {_c['primary_hover']}; }}
         """)
         btn_acte.clicked.connect(self._aller_sur_acte_medical)
         toolbar.addWidget(btn_acte)
@@ -582,7 +661,6 @@ class ExamenView(QWidget):
     def _create_historique_tab(self):
         """Crée l'onglet Historique patient (5ème onglet)."""
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -600,7 +678,7 @@ class ExamenView(QWidget):
         c = theme_manager.colors()
         frame.setStyleSheet(f"""
             QFrame#MainWhiteFrame {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 16px;
             }}
@@ -641,7 +719,7 @@ class _RechercheEntresDatesDialog(QDialog):
             }}
             QDateEdit:focus {{ border-color: {c['primary']}; }}
             QPushButton#PrimaryBtn {{
-                background: {c['primary']}; color: white; border: none;
+                background: {c['primary']}; color: {c['text_inverse']}; border: none;
                 border-radius: 8px; padding: 8px 24px; font-weight: 700; font-size: 13px;
             }}
             QPushButton#PrimaryBtn:hover {{ background: {c['primary_hover']}; }}
@@ -839,7 +917,7 @@ class _DateSelectDialog(QDialog):
             }}
             QDateEdit:focus {{ border-color: {c['primary']}; }}
             QDialogButtonBox QPushButton {{
-                background: {c['primary']}; color: white; border: none;
+                background: {c['primary']}; color: {c['text_inverse']}; border: none;
                 border-radius: 8px; padding: 8px 20px; font-weight: 700; font-size: 13px;
                 min-width: 80px;
             }}

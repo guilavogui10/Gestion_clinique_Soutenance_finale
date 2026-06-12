@@ -19,9 +19,10 @@ class ModernPriceInput(QWidget):
     # Signal émis quand le texte change
     textChanged = Signal(str)
     
-    def __init__(self, vert_principal: str = "#003f20", parent=None):
+    def __init__(self, vert_principal: str = None, parent=None):
         super().__init__(parent)
-        self.vert_principal = vert_principal
+        from views.shared.theme_manager import theme_manager
+        self.vert_principal = vert_principal or theme_manager.colors()['primary']
         self._raw_value = ""
         
         self._init_ui()
@@ -217,7 +218,7 @@ class ModernPriceInput(QWidget):
     
     def setStyleSheet(self, style: str):
         """Override pour gérer les styles de validation."""
-        if "border: 2px solid #27ae60" in style or f"border: 2px solid {MC.SUCCESS}" in style:
+        if f"border: 2px solid {MC.SUCCESS}" in style:
             super().setStyleSheet(f"""
                 QWidget {{
                     background: {MC.SUCCESS_BG};
@@ -225,7 +226,7 @@ class ModernPriceInput(QWidget):
                     border-radius: 10px;
                 }}
             """)
-        elif "border: 2px solid #e74c3c" in style or f"border: 2px solid {MC.DANGER}" in style:
+        elif f"border: 2px solid {MC.DANGER}" in style:
             super().setStyleSheet(f"""
                 QWidget {{
                     background: {MC.DANGER_BG};

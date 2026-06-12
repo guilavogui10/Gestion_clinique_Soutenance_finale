@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt, QSize
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame
 
 from ..styles.facture_styles import FactureStyles
+from views.shared.theme_manager import theme_manager
 
 
 def _lbl_vide(texte):
@@ -19,19 +20,22 @@ def _lbl_vide(texte):
     return lbl
 
 
-def _row_ic_val(icone_name, valeur, couleur_ic=FactureStyles.GRIS_TEXTE,
-                couleur_val=FactureStyles.GRIS_TEXTE, gras=False):
+def _row_ic_val(icone_name, valeur, couleur_ic=None,
+                couleur_val=None, gras=False):
     """Crée une ligne icône + valeur."""
+    _c = theme_manager.colors()
+    couleur_ic = couleur_ic or _c['text_muted']
+    couleur_val = couleur_val or _c['text_muted']
     w = QWidget()
     w.setStyleSheet("background:transparent;")
     lay = QHBoxLayout(w)
     lay.setContentsMargins(0, 0, 0, 0)
     lay.setSpacing(5)
-    
+
     ic = QLabel()
     ic.setPixmap(qta.icon(icone_name, color=couleur_ic).pixmap(QSize(11, 11)))
     ic.setStyleSheet(FactureStyles.icone_base())
-    
+
     lbl = QLabel(str(valeur) if valeur else "—")
     poids = "700" if gras else "400"
     lbl.setStyleSheet(
@@ -101,10 +105,11 @@ class VueStockFaible(QWidget):
     
     def _carte_produit(self, produit) -> QFrame:
         """Crée une carte pour un produit en stock faible."""
+        _c = theme_manager.colors()
         frame = QFrame()
         frame.setStyleSheet(
-            f"QFrame{{background:{FactureStyles.BLANC}; border-radius:12px;"
-            f"border:1px solid {FactureStyles.GRIS_CLAIR};}}"
+            f"QFrame{{background:{_c['bg_card']}; border-radius:12px;"
+            f"border:1px solid {_c['border']};}}"
         )
         lay = QVBoxLayout(frame)
         lay.setContentsMargins(14, 12, 14, 12)
@@ -131,10 +136,11 @@ class VueStockFaible(QWidget):
         lay.addLayout(l1)
         
         # Ligne 2 : Libellé
+        _ct = theme_manager.colors()
         libelle = produit.get('libelle', 'Produit inconnu')
         lay.addWidget(_row_ic_val(
             "fa5s.box", libelle,
-            FactureStyles.GRIS_TEXTE, "#1F2937", gras=True
+            _ct['text_muted'], _ct['text_primary'], gras=True
         ))
         
         # Ligne 3 : Stock actuel

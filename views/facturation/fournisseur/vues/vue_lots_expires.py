@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame
 
 from ..components.ligne_lot_card import LigneLotCard
 from ..styles.facture_styles import FactureStyles
+from views.shared.theme_manager import theme_manager
 
 
 def _lbl_vide(texte):
@@ -75,21 +76,21 @@ class VueLotsExpires(QWidget):
     
     def _carte_lot(self, lot) -> QFrame:
         """Crée une carte pour un lot expiré."""
+        _c = theme_manager.colors()
         frame = QFrame()
         frame.setStyleSheet(
-            f"QFrame{{background:{FactureStyles.BLANC}; border-radius:12px;"
-            f"border:1px solid {FactureStyles.GRIS_CLAIR};}}"
+            f"QFrame{{background:{_c['bg_card']}; border-radius:12px;"
+            f"border:1px solid {_c['border']};}}"
         )
         lay = QVBoxLayout(frame)
         lay.setContentsMargins(14, 12, 14, 12)
         lay.setSpacing(6)
-        
+
         # Ligne 1 : Produit
-        # ✅ CORRECTION : lot est un dictionnaire
         libelle = lot.get('libelle', 'Produit inconnu')
         nom_lbl = QLabel(libelle)
         nom_lbl.setStyleSheet(
-            f"color:#1F2937; font-size:12px; font-weight:700;"
+            f"color:{_c['text_primary']}; font-size:12px; font-weight:700;"
             f"background:transparent; border:none;"
         )
         lay.addWidget(nom_lbl)

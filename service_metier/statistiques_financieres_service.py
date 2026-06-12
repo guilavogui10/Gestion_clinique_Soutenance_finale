@@ -372,8 +372,8 @@ class StatistiquesFinancieresService:
             # Grouper par type de produit et calculer les valeurs
             types_stock = {}
             for item in stock_detaille:
-                type_produit = item.get('type_produit', 'Autre')
-                quantite = item.get('quantite_stock', 0)
+                type_produit = item.get('type', 'Autre')
+                quantite = item.get('quantite', 0)
                 prix_unitaire = item.get('prix_unitaire', 0)
                 valeur = quantite * prix_unitaire
                 

@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QFrame
 
 from .animated_frame import AnimatedFrame
 from ..styles.statistiques_styles import StatistiquesStyles
+from views.shared.theme_manager import theme_manager
 
 
 class StatCard(AnimatedFrame):
@@ -46,6 +47,7 @@ class StatCard(AnimatedFrame):
         self._icone_name = icone
         self.compact = compact
         self._setup_ui(titre, valeur, icone)
+        theme_manager.theme_changed.connect(self.apply_theme)
     
     def _setup_ui(self, titre: str, valeur: str, icone: str):
         """Configure l'interface de la card - Style consultation avec icône encerclée."""
@@ -67,7 +69,7 @@ class StatCard(AnimatedFrame):
         self._icon_lbl = QLabel()
         self._icon_lbl.setAlignment(Qt.AlignCenter)
         self._icon_lbl.setFixedSize(22, 22)
-        self._icon_lbl.setPixmap(qta.icon(icone, color="white").pixmap(QSize(22, 22)))
+        self._icon_lbl.setPixmap(qta.icon(icone, color=theme_manager.colors()['text_inverse']).pixmap(QSize(22, 22)))
         icon_layout.addWidget(self._icon_lbl)
         
         # Style du cercle
@@ -80,13 +82,14 @@ class StatCard(AnimatedFrame):
         text_layout.setSpacing(2)
         
         # Titre
+        c = theme_manager.colors()
         self._title_lbl = QLabel(titre)
         self._title_lbl.setObjectName("KpiTitle")
         self._title_lbl.setStyleSheet(
-            "color: #6c757d; font-size: 11px; font-weight: 500; "
+            f"color: {c['text_secondary']}; font-size: 11px; font-weight: 500; "
             "background: transparent; border: none;"
         )
-        
+
         # Valeur
         self.value_label = QLabel(valeur)
         self.value_label.setObjectName("KpiValue")
@@ -96,14 +99,14 @@ class StatCard(AnimatedFrame):
         font_value.setBold(True)
         self.value_label.setFont(font_value)
         self.value_label.setStyleSheet(
-            "color: #2c3e50; background: transparent; border: none;"
+            f"color: {c['text_primary']}; background: transparent; border: none;"
         )
-        
+
         # Sous-titre (optionnel)
         self.subtitle_label = QLabel("")
         self.subtitle_label.setObjectName("KpiSubtitle")
         self.subtitle_label.setStyleSheet(
-            "color: #6c757d; font-size: 10px; background: transparent; border: none;"
+            f"color: {c['text_muted']}; font-size: 10px; background: transparent; border: none;"
         )
         
         text_layout.addWidget(self._title_lbl)
@@ -139,13 +142,31 @@ class StatCard(AnimatedFrame):
             f"background: {self.couleur}; border: none; border-radius: 21px;"
         )
         self._icon_lbl.setPixmap(
-            qta.icon(self._icone_name, color="white").pixmap(QSize(22, 22))
+            qta.icon(self._icone_name, color=theme_manager.colors()['text_inverse']).pixmap(QSize(22, 22))
         )
     
+    def apply_theme(self):
+        """Met à jour les couleurs selon le thème actif."""
+        c = theme_manager.colors()
+        self.setStyleSheet(StatistiquesStyles.card_stat())
+        if hasattr(self, '_title_lbl'):
+            self._title_lbl.setStyleSheet(
+                f"color: {c['text_secondary']}; font-size: 11px; font-weight: 500; "
+                "background: transparent; border: none;"
+            )
+        if hasattr(self, 'value_label'):
+            self.value_label.setStyleSheet(
+                f"color: {c['text_primary']}; background: transparent; border: none;"
+            )
+        if hasattr(self, 'subtitle_label'):
+            self.subtitle_label.setStyleSheet(
+                f"color: {c['text_muted']}; font-size: 10px; background: transparent; border: none;"
+            )
+
     def get_value(self) -> str:
         """
         Récupère la valeur actuelle.
-        
+
         Returns:
             str: Valeur actuelle
         """

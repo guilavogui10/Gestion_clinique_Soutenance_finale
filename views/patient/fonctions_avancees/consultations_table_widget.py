@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                                 QTableWidgetItem, QPushButton, QLabel, QHeaderView,
                                 QFrame, QLineEdit)
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor
 import qtawesome as qta
 from views.shared.theme_manager import theme_manager
 
@@ -21,7 +22,8 @@ class ConsultationsTableWidget(QWidget):
         self.controleur = controleur_consultation
         self.consultations = []
         self._init_ui()
-    
+        theme_manager.theme_changed.connect(self.apply_theme)
+
     def _init_ui(self):
         """Initialise l'interface"""
         layout = QVBoxLayout(self)
@@ -169,10 +171,11 @@ class ConsultationsTableWidget(QWidget):
             # Statut facture
             statut = consultation.get('statut_facture', 'N/A')
             item_statut = QTableWidgetItem(statut)
+            _c = theme_manager.colors()
             if statut == 'payee':
-                item_statut.setForeground(Qt.darkGreen)
+                item_statut.setForeground(QColor(_c['success']))
             elif statut == 'impayee':
-                item_statut.setForeground(Qt.red)
+                item_statut.setForeground(QColor(_c['danger']))
             self.table.setItem(row, 4, item_statut)
             
             # Bouton Voir Actes - Utiliser setCellWidget comme dans le tableau patients
@@ -209,7 +212,7 @@ class ConsultationsTableWidget(QWidget):
         # Style du menu
         menu.setStyleSheet(f"""
             QMenu {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 8px;
                 padding: 8px 0;
@@ -429,7 +432,10 @@ class ConsultationsTableWidget(QWidget):
     def apply_theme(self):
         """Applique le thème (identique au tableau patients)"""
         c = theme_manager.colors()
-        
+
+        if self.consultations:
+            self._populate_table()
+
         self.setStyleSheet(f"""
             QFrame#TopBar {{
                 background: {c['bg_card']};
@@ -446,7 +452,7 @@ class ConsultationsTableWidget(QWidget):
             }}
             
             QPushButton#BtnRetour {{
-                background: white;
+                background: {c['bg_card']};
                 color: {c['primary']};
                 border: 1.5px solid {c['primary']};
                 border-radius: 8px;
@@ -474,7 +480,7 @@ class ConsultationsTableWidget(QWidget):
             }}
             
             QTableWidget {{
-                background: white;
+                background: {c['bg_table']};
                 border: 1.5px solid {c['border_light']};
                 border-radius: 10px;
                 gridline-color: transparent;

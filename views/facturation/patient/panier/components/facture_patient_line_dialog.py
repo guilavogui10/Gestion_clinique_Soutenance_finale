@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..styles.facture_patient_styles import FacturePatientStyles
+from views.shared.theme_manager import theme_manager
 
 
 class FacturePatientLineDialog(QDialog):
@@ -30,13 +31,15 @@ class FacturePatientLineDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
 
+        _c = theme_manager.colors()
         frame = QFrame()
         frame.setStyleSheet(f"""
             QFrame {{
-                background: white;
-                border: 2px solid {FacturePatientStyles.BLEU_PRINCIPAL};
+                background: {_c['bg_card']};
+                border: 2px solid {_c['primary']};
                 border-radius: 14px;
             }}
+            QLabel {{ background: transparent; color: {_c['text_primary']}; border: none; }}
         """)
         frame_layout = QVBoxLayout(frame)
         frame_layout.setContentsMargins(20, 20, 20, 20)
@@ -46,12 +49,11 @@ class FacturePatientLineDialog(QDialog):
         header = QHBoxLayout()
         icon = QLabel()
         icon.setPixmap(
-            qta.icon("fa5s.clipboard-list",
-                     color=FacturePatientStyles.BLEU_PRINCIPAL).pixmap(22, 22)
+            qta.icon("fa5s.clipboard-list", color=_c['primary']).pixmap(22, 22)
         )
         title = QLabel(titre)
         title.setStyleSheet(
-            f"font-size: 14px; font-weight: bold; color: {FacturePatientStyles.BLEU_PRINCIPAL};"
+            f"font-size: 14px; font-weight: bold; color: {_c['primary']};"
         )
         header.addWidget(icon)
         header.addWidget(title)
@@ -76,7 +78,7 @@ class FacturePatientLineDialog(QDialog):
         self.input_quantite.setRange(1, 9999)
         self.input_quantite.setFixedHeight(34)
         self.input_quantite.setStyleSheet(
-            "border: 1px solid #e2e8f0; border-radius: 8px; padding-left: 8px;"
+            f"border: 1px solid {_c['border']}; border-radius: 8px; padding-left: 8px; background: {_c['bg_input']}; color: {_c['text_primary']};"
         )
 
         self.input_prix = QLineEdit()
@@ -96,14 +98,14 @@ class FacturePatientLineDialog(QDialog):
         btn_cancel = QPushButton("Annuler")
         btn_cancel.setFixedSize(110, 34)
         btn_cancel.setStyleSheet(
-            "background:#e5e7eb; border-radius:8px; font-weight:bold; font-size:12px;"
+            f"background:{_c['border']}; color:{_c['text_primary']}; border-radius:8px; font-weight:bold; font-size:12px;"
         )
         btn_cancel.clicked.connect(self.reject)
 
         btn_ok = QPushButton("Valider")
         btn_ok.setFixedSize(110, 34)
         btn_ok.setStyleSheet(
-            f"background:{FacturePatientStyles.BLEU_PRINCIPAL}; color:white; "
+            f"background:{_c['primary']}; color:{_c['text_inverse']}; "
             "border-radius:8px; font-weight:bold; font-size:12px;"
         )
         btn_ok.clicked.connect(self.accept)
@@ -122,17 +124,20 @@ class FacturePatientLineDialog(QDialog):
             self.input_prix.setText(str(self._data.get("prix", "")))
 
     def _wrap_field(self, label: str, widget) -> QVBoxLayout:
+        c = theme_manager.colors()
         layout = QVBoxLayout()
         lbl = QLabel(label)
-        lbl.setStyleSheet("font-size:10px; font-weight:bold; color:#64748b;")
+        lbl.setStyleSheet(f"font-size:10px; font-weight:bold; color:{c['text_secondary']};")
         layout.addWidget(lbl)
         layout.addWidget(widget)
         return layout
 
     def _apply_input_style(self, widget) -> None:
+        c = theme_manager.colors()
         widget.setFixedHeight(34)
         widget.setStyleSheet(
-            "border: 1px solid #e2e8f0; border-radius: 8px; padding-left: 8px;"
+            f"border: 1px solid {c['border']}; border-radius: 8px; "
+            f"padding-left: 8px; background: {c['bg_input']}; color: {c['text_primary']};"
         )
 
     def get_data(self) -> Dict:

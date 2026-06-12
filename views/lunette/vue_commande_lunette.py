@@ -94,6 +94,10 @@ class CommandeLunetteView(QWidget):
         self.quick_actions.historique_clicked.connect(self._on_historique)
         self.quick_actions.imprimer_tous_rapports_clicked.connect(self._on_imprimer_tous_rapports)
         self.quick_actions.imprimer_rapport_date_clicked.connect(self._on_imprimer_rapport_par_date)
+        self.quick_actions.export_excel_clicked.connect(lambda: self._on_export_import("export", "excel"))
+        self.quick_actions.export_csv_clicked.connect(  lambda: self._on_export_import("export", "csv"))
+        self.quick_actions.import_excel_clicked.connect(lambda: self._on_export_import("import", "excel"))
+        self.quick_actions.import_csv_clicked.connect(  lambda: self._on_export_import("import", "csv"))
         mf_lay.addWidget(self.quick_actions)
 
         main_layout.addWidget(main_frame)
@@ -109,7 +113,7 @@ class CommandeLunetteView(QWidget):
         }
         c = theme_manager.colors()
         return qta.icon(mapping.get(name, "fa5s.circle"),
-                        color=c.get("primary", "#2ecc71"))
+                        color=c['primary'])
 
     # ── Header ────────────────────────────────────────────────────────────
 
@@ -125,14 +129,14 @@ class CommandeLunetteView(QWidget):
         icon_box = QFrame()
         icon_box.setFixedSize(40, 40)
         icon_box.setStyleSheet(
-            f"background:{c.get('primary','#2ecc71')}22; border-radius:10px; border:none;"
+            f"background:{c['primary']}22; border-radius:10px; border:none;"
         )
         ib_lay = QVBoxLayout(icon_box)
         ib_lay.setContentsMargins(0, 0, 0, 0)
         ic = QLabel()
         ic.setAlignment(Qt.AlignCenter)
         ic.setPixmap(
-            qta.icon("fa5s.glasses", color=c.get("primary", "#2ecc71")).pixmap(QSize(22, 22))
+            qta.icon("fa5s.glasses", color=c['primary']).pixmap(QSize(22, 22))
         )
         ib_lay.addWidget(ic)
 
@@ -149,7 +153,7 @@ class CommandeLunetteView(QWidget):
 
     def _create_stats_tab(self) -> QWidget:
         tab = QWidget()
-        tab.setStyleSheet("background:white;")
+        tab.setStyleSheet(f"background:{theme_manager.colors()['bg_main']};")
         lay = QVBoxLayout(tab)
         lay.setContentsMargins(12, 8, 12, 12)
         lay.setSpacing(8)
@@ -166,7 +170,7 @@ class CommandeLunetteView(QWidget):
     def _make_kpi(self, title: str, value: str,
                   icon_name: str, accent: str) -> QFrame:
         c = theme_manager.colors()
-        color = c.get(accent, '#2ecc71')
+        color = c.get(accent, c['primary'])
         card = QFrame()
         card.setFixedHeight(110)
         card.setStyleSheet(
@@ -180,7 +184,7 @@ class CommandeLunetteView(QWidget):
         hdr = QHBoxLayout()
         ic_lbl = QLabel()
         ic_lbl.setPixmap(qta.icon(icon_name, color=color).pixmap(QSize(18, 18)))
-        ic_lbl.setStyleSheet("border:none; background:transparent;")
+        ic_lbl.setStyleSheet(f"border:none; background:{c['bg_card']};")
         ttl = QLabel(title)
         ttl.setStyleSheet(
             f"font-size:11px; font-weight:700; color:{c['text_secondary']}; border:none;"
@@ -206,7 +210,7 @@ class CommandeLunetteView(QWidget):
 
     def _create_form_tab(self) -> QWidget:
         tab = QWidget()
-        tab.setStyleSheet("background:white;")
+        tab.setStyleSheet(f"background:{theme_manager.colors()['bg_main']};")
         lay = QVBoxLayout(tab)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
@@ -221,7 +225,7 @@ class CommandeLunetteView(QWidget):
 
     def _create_liste_tab(self) -> QWidget:
         tab = QWidget()
-        tab.setStyleSheet("background:white;")
+        tab.setStyleSheet(f"background:{theme_manager.colors()['bg_main']};")
         lay = QVBoxLayout(tab)
         lay.setContentsMargins(12, 8, 12, 12)
 
@@ -238,7 +242,7 @@ class CommandeLunetteView(QWidget):
     def _create_attente_tab(self) -> QWidget:
         from PySide6.QtWidgets import QHBoxLayout
         tab = QWidget()
-        tab.setStyleSheet("background:white;")
+        tab.setStyleSheet(f"background:{theme_manager.colors()['bg_main']};")
         lay = QVBoxLayout(tab)
         lay.setContentsMargins(12, 8, 12, 12)
         lay.setSpacing(8)
@@ -248,23 +252,26 @@ class CommandeLunetteView(QWidget):
         toolbar.setSpacing(8)
         toolbar.addStretch()
 
-        btn_acte = qta.icon("fa5s.arrow-right", color="#ffffff")
+        _ca = theme_manager.colors()
         from PySide6.QtWidgets import QPushButton as _QPB
-        self._btn_aller_acte = _QPB(btn_acte, "  Aller sur acte médical")
+        self._btn_aller_acte = _QPB(
+            qta.icon("fa5s.arrow-right", color=_ca['text_inverse']),
+            "  Aller sur acte médical"
+        )
         self._btn_aller_acte.setFixedHeight(32)
         self._btn_aller_acte.setCursor(Qt.PointingHandCursor)
-        self._btn_aller_acte.setStyleSheet("""
-            QPushButton {
-                background: #2563EB;
-                color: #ffffff;
+        self._btn_aller_acte.setStyleSheet(f"""
+            QPushButton {{
+                background: {_ca['primary']};
+                color: {_ca['text_inverse']};
                 border: none;
                 border-radius: 6px;
                 padding: 0 14px;
                 font-size: 13px;
                 font-weight: 600;
-            }
-            QPushButton:hover  { background: #1D4ED8; }
-            QPushButton:pressed{ background: #1E40AF; }
+            }}
+            QPushButton:hover  {{ background: {_ca['primary_hover']}; }}
+            QPushButton:pressed{{ background: {_ca['primary_hover']}; }}
         """)
         self._btn_aller_acte.clicked.connect(self._aller_sur_acte_medical)
         toolbar.addWidget(self._btn_aller_acte)
@@ -282,7 +289,7 @@ class CommandeLunetteView(QWidget):
 
     def _create_historique_tab(self) -> QWidget:
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
+        tab.setStyleSheet(f"background:{theme_manager.colors()['bg_main']};")
         lay = QVBoxLayout(tab)
         lay.setContentsMargins(0, 0, 0, 0)
         self.vue_historique = HistoriqueCommandeLunetteView(
@@ -368,12 +375,47 @@ class CommandeLunetteView(QWidget):
             self.tabs.setCurrentIndex(2)
 
     def _on_rapports(self):
-        if not self.code_session:
-            return
-        _ResumeSessionDialog(self, self.ctrl, self.code_session).exec()
+        """Affiche le menu export/import au-dessus du bouton Rapports."""
+        from PySide6.QtWidgets import QMenu
+        from PySide6.QtCore import QPoint
+        from views.acte_medical.export_import_acte import ApercuActeModal
+        import qtawesome as qta
+        from views.shared.theme_manager import theme_manager
+        c = theme_manager.colors()
+
+        menu = QMenu(self)
+        menu.setStyleSheet(f"""
+            QMenu {{ background: {c['bg_card']}; border: 1px solid {c['border']};
+                     border-radius: 10px; padding: 6px 4px; }}
+            QMenu::item {{ padding: 9px 20px 9px 12px; border-radius: 6px;
+                           font-size: 13px; color: {c['text_primary']}; min-width: 220px; }}
+            QMenu::item:selected {{ background: {c['primary_light']}; color: {c['primary']}; }}
+            QMenu::separator {{ height: 1px; background: {c['border']}; margin: 4px 10px; }}
+        """)
+        act_exp_xl = menu.addAction(qta.icon("fa5s.file-excel", color="#217346"), "  Exporter Excel (.xlsx)")
+        act_exp_cs = menu.addAction(qta.icon("fa5s.file-csv",   color="#0070c0"), "  Exporter CSV (.csv)")
+        menu.addSeparator()
+        act_imp_xl = menu.addAction(qta.icon("fa5s.upload", color="#217346"),     "  Importer Excel (.xlsx)")
+        act_imp_cs = menu.addAction(qta.icon("fa5s.upload", color="#0070c0"),     "  Importer CSV (.csv)")
+        act_exp_xl.triggered.connect(lambda: ApercuActeModal.ouvrir_export(self, self.ctrl, "lunette", "excel"))
+        act_exp_cs.triggered.connect(lambda: ApercuActeModal.ouvrir_export(self, self.ctrl, "lunette", "csv"))
+        act_imp_xl.triggered.connect(lambda: ApercuActeModal.ouvrir_import(self, self.ctrl, "lunette", "excel"))
+        act_imp_cs.triggered.connect(lambda: ApercuActeModal.ouvrir_import(self, self.ctrl, "lunette", "csv"))
+
+        from PySide6.QtGui import QCursor
+        menu.adjustSize()
+        cursor_pos = QCursor.pos()
+        menu.exec(QPoint(cursor_pos.x(), cursor_pos.y() - menu.sizeHint().height() - 6))
 
     def _on_historique(self):
         self.tabs.setCurrentIndex(4)
+
+    def _on_export_import(self, mode: str, format_fichier: str):
+        from views.acte_medical.export_import_acte import ApercuActeModal
+        if mode == "export":
+            ApercuActeModal.ouvrir_export(self, self.ctrl, "lunette", format_fichier)
+        else:
+            ApercuActeModal.ouvrir_import(self, self.ctrl, "lunette", format_fichier)
 
     def _on_imprimer_tous_rapports(self):
         from views.shared.message_box import CustomMessageBox
@@ -412,8 +454,22 @@ class CommandeLunetteView(QWidget):
             )
 
     def _on_commande_saved(self):
+        """Appelé après l'enregistrement d'une commande."""
+        # Recharger toutes les données
         self.charger_donnees()
+        # Basculer sur l'onglet liste pour voir la commande créée
         self.tabs.setCurrentIndex(2)
+
+    def _on_fin_lunette_apres_saisie(self):
+        """Appelé après soumission du formulaire quand on termine une commande lunette."""
+        try:
+            self.form_widget.commande_saved.disconnect(self._on_fin_lunette_apres_saisie)
+        except Exception:
+            pass
+        code_visite = getattr(self, "_code_visite_fin_lunette", None)
+        if code_visite:
+            self.ctrl.terminer_lunette(code_visite)
+        self.charger_donnees()
 
     # =========================================================================
     # HELPERS
@@ -438,8 +494,10 @@ class CommandeLunetteView(QWidget):
     # =========================================================================
 
     def _on_changer_statut_patient_lunette(self, patient):
+        """Gère le changement de statut patient pour le service lunettes."""
         from views.shared.message_box import CustomMessageBox
         from PySide6.QtWidgets import QDialog
+        
         if isinstance(patient, dict):
             code_visite    = patient.get("code_visite", "")
             statut_patient = (patient.get("statut_patient", "") or "").strip()
@@ -456,6 +514,7 @@ class CommandeLunetteView(QWidget):
         nom_complet = f"{nom} {prenom}".strip() or "ce patient"
 
         if statut_patient != "En lunette":
+            # Patient pas encore en lunette -> Démarrer le service lunette
             reponse = CustomMessageBox(
                 "Démarrer optique",
                 f"Confirmer la prise en charge de {nom_complet} au service optique ?",
@@ -466,19 +525,19 @@ class CommandeLunetteView(QWidget):
             ok, msg = self.ctrl.demarrer_lunette(code_visite)
             if ok:
                 CustomMessageBox("Succès", msg, "success", parent=self).exec()
-                self.vue_attente.charger_patients()
                 self.charger_donnees()
             else:
                 CustomMessageBox("Erreur", msg, "error", parent=self).exec()
         else:
-            reponse = CustomMessageBox(
-                "Fin optique",
-                f"Enregistrer la commande de lunettes pour {nom_complet} ?",
-                "info", show_cancel=True, parent=self
-            ).exec()
-            if reponse != QDialog.Accepted:
-                return
+            # Patient déjà en lunette -> "Fin" ouvre le formulaire puis termine après saisie
+            self._code_visite_fin_lunette = code_visite
             self._ouvrir_nouveau_avec_acte(code_acte)
+            # Connecter le signal pour terminer après l'enregistrement
+            try:
+                self.form_widget.commande_saved.disconnect(self._on_fin_lunette_apres_saisie)
+            except Exception:
+                pass
+            self.form_widget.commande_saved.connect(self._on_fin_lunette_apres_saisie)
 
     # =========================================================================
     # PDF HANDLERS
@@ -595,7 +654,7 @@ class CommandeLunetteView(QWidget):
         c = theme_manager.colors()
         frame.setStyleSheet(f"""
             QFrame#MainWhiteFrame {{
-                background   : white;
+                background   : {c['bg_card']};
                 border       : 1px solid {c['border']};
                 border-radius: 16px;
             }}
@@ -608,6 +667,26 @@ class CommandeLunetteView(QWidget):
         c = theme_manager.colors()
         self.setStyleSheet(f"background:{c['bg_main']};")
         self._apply_tab_styles()
+
+        # ── Onglets ──────────────────────────────────────────────────────────
+        for tab in (self.tab_stats, self.tab_form, self.tab_liste,
+                    self.tab_attente, self.tab_historique):
+            tab.setStyleSheet(f"background:{c['bg_main']};")
+
+        # ── Bouton acte médical ───────────────────────────────────────────────
+        if hasattr(self, '_btn_aller_acte'):
+            self._btn_aller_acte.setIcon(
+                qta.icon("fa5s.arrow-right", color=c['text_inverse'])
+            )
+            self._btn_aller_acte.setStyleSheet(f"""
+                QPushButton {{
+                    background: {c['primary']}; color: {c['text_inverse']};
+                    border: none; border-radius: 6px;
+                    padding: 0 14px; font-size: 13px; font-weight: 600;
+                }}
+                QPushButton:hover   {{ background: {c['primary_hover']}; }}
+                QPushButton:pressed {{ background: {c['primary_hover']}; }}
+            """)
 
 
 # =============================================================================

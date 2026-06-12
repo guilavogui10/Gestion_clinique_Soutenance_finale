@@ -979,11 +979,12 @@ class PanierFactureFourniDAO:
         try:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT 
+                SELECT
                     s.code_produit,
                     p.libelle as designation,
                     p.type,
-                    s.quantite_actuelle as quantite_totale
+                    s.quantite_actuelle as quantite_totale,
+                    COALESCE(p.prix_achat_unitaire, 0) as prix_unitaire
                 FROM stocks s
                 INNER JOIN produits p ON s.code_produit = p.code_produit
                 WHERE s.code_session = %s
@@ -991,19 +992,21 @@ class PanierFactureFourniDAO:
                 LIMIT %s
             """, (code_session, limite))
             resultats = cursor.fetchall()
-            
+
             stock_detaille = []
             for row in resultats:
                 code_produit = row.get('code_produit', '')
                 designation = row.get('designation') or row.get('Designation') or 'Produit inconnu'
                 type_produit = (row.get('type') or row.get('Type') or 'Comprime').strip().capitalize()
                 quantite = int(row.get('quantite_totale') or 0)
-                
+                prix_unitaire = float(row.get('prix_unitaire') or 0)
+
                 stock_detaille.append({
                     'code_produit': code_produit,
                     'designation': designation,
                     'type': type_produit,
-                    'quantite': quantite
+                    'quantite': quantite,
+                    'prix_unitaire': prix_unitaire
                 })
             
             return stock_detaille

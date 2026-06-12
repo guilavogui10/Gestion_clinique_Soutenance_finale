@@ -82,12 +82,12 @@ class VaultService:
     # TOTP - gestion des cles
     # ------------------------------------------------------------------
 
-    def creer_cle_totp(self, identifiant: str, account_name: str | None = None) -> bool:
+    def creer_cle_totp(self, identifiant: str, account_name: str | None = None, period: int = 300) -> bool:
         """
         Cree une cle TOTP dans Vault pour un identifiant donne.
         Retourne True si la cle existe deja ou si elle a ete creee.
         
-        Duree de validite : 5 minutes (300 secondes)
+        Duree de validite : par défaut 5 minutes (300 secondes)
         """
         try:
             # Vérifier d'abord si la clé existe déjà
@@ -105,12 +105,12 @@ class VaultService:
                 "generate": True,
                 "issuer": "CliniqueMFA",
                 "account_name": account_name or identifiant,
-                "period": 300,  # 5 minutes (300 secondes)
+                "period": period,
                 "algorithm": "SHA256",
                 "digits": 6,
             }
             self.client.write(path, **payload)
-            self.logger.info("[Vault] Cle TOTP creee pour %s (validite: 5 minutes)", identifiant)
+            self.logger.info("[Vault] Cle TOTP creee pour %s (validite: %s secondes)", identifiant, period)
             return True
         except Exception as e:
             self.logger.error("[Vault] creer_cle_totp(%s): %s", identifiant, e)
@@ -193,6 +193,76 @@ class VaultService:
             return True
         except Exception as e:
             self.logger.error("[Vault] envoyer_otp_par_email(%s): %s", destinataire, e)
+            return False
+
+    def envoyer_email_reset_mdp(self, destinataire: str, code: str, info_demandeur: dict) -> bool:
+        """Envoie le code d'autorisation de réinitialisation au Directeur Général."""
+        nom_demandeur = f"{info_demandeur.get('prenom', '')} {info_demandeur.get('nom', '')}".strip()
+        email_demandeur = info_demandeur.get("mail", "Non renseigné")
+        
+        corps = (
+            "Bonjour Directeur General,\n\n"
+            f"L'utilisateur {nom_demandeur} ({email_demandeur}) a demande une reinitialisation de son mot de passe.\n\n"
+            "Pour autoriser cette reinitialisation, veuillez lui transmettre le code de validation suivant :\n\n"
+            f"        {code}\n\n"
+            "Ce code est valable 24 heures. Si vous n'autorisez pas cette demande, ignorez cet e-mail.\n\n"
+            "Cordialement,\n"
+            "Le systeme de gestion de la clinique"
+        )
+        try:
+            if not self._email_user or not self._email_pass:
+                raise ValueError("Configuration EMAIL_USER/EMAIL_PASS manquante")
+
+            msg = MIMEMultipart()
+            msg["From"] = self._email_user
+            msg["To"] = destinataire
+            msg["Subject"] = "Demande d'autorisation de reinitialisation de mot de passe"
+            msg.attach(MIMEText(corps, "plain", "utf-8"))
+
+            with smtplib.SMTP(self._email_host, self._email_port) as serveur:
+                serveur.ehlo()
+                serveur.starttls()
+                serveur.login(self._email_user, self._email_pass)
+                serveur.sendmail(self._email_user, destinataire, msg.as_string())
+
+            self.logger.info("[Vault] Email d'autorisation de reset envoyé au DG %s", destinataire)
+            return True
+        except Exception as e:
+            self.logger.error("[Vault] envoyer_email_reset_mdp(%s): %s", destinataire, e)
+            return False
+
+    def envoyer_nouveau_mdp(self, destinataire: str, nouveau_mdp: str, prenom: str = "") -> bool:
+        """Envoie le nouveau mot de passe généré à l'utilisateur."""
+        salutation = f"Bonjour {prenom.strip()}," if prenom.strip() else "Bonjour,"
+        corps = (
+            f"{salutation}\n\n"
+            "Votre mot de passe a ete reinitialise avec succes suite a la validation du Directeur General.\n\n"
+            "Voici votre nouveau mot de passe temporaire :\n\n"
+            f"        {nouveau_mdp}\n\n"
+            "Nous vous conseillons de le changer des votre prochaine connexion.\n\n"
+            "Cordialement,\n"
+            "Le systeme de gestion de la clinique"
+        )
+        try:
+            if not self._email_user or not self._email_pass:
+                raise ValueError("Configuration EMAIL_USER/EMAIL_PASS manquante")
+
+            msg = MIMEMultipart()
+            msg["From"] = self._email_user
+            msg["To"] = destinataire
+            msg["Subject"] = "Votre nouveau mot de passe - Clinique"
+            msg.attach(MIMEText(corps, "plain", "utf-8"))
+
+            with smtplib.SMTP(self._email_host, self._email_port) as serveur:
+                serveur.ehlo()
+                serveur.starttls()
+                serveur.login(self._email_user, self._email_pass)
+                serveur.sendmail(self._email_user, destinataire, msg.as_string())
+
+            self.logger.info("[Vault] Nouveau mot de passe envoye a %s", destinataire)
+            return True
+        except Exception as e:
+            self.logger.error("[Vault] envoyer_nouveau_mdp(%s): %s", destinataire, e)
             return False
 
     # ------------------------------------------------------------------

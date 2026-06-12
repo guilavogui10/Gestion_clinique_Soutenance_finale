@@ -98,10 +98,10 @@ class DetailsCommandeLunetteModal(QDialog):
         nom = QLabel(self.info_cabinet.get("nom_cabinet", "Cabinet Medical").upper())
         nom.setStyleSheet(
             f"font-weight: 900; font-size: 16px; color: {MC.PRIMARY};"
-            "border: none; background: transparent;"
+            f"border: none; background: {MC.BG_CARD};"
         )
         adr = QLabel(self.info_cabinet.get("adresse_cabinet", ""))
-        adr.setStyleSheet(f"color: {MC.TEXT_SECONDARY}; font-size: 10px; border: none; background: transparent;")
+        adr.setStyleSheet(f"color: {MC.TEXT_SECONDARY}; font-size: 10px; border: none; background: {MC.BG_CARD};")
         adr.setWordWrap(True)
         cab.addWidget(nom)
         cab.addWidget(adr)
@@ -127,7 +127,7 @@ class DetailsCommandeLunetteModal(QDialog):
             ll = QLabel()
             ll.setPixmap(QPixmap(logo_path).scaled(
                 55, 55, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-            ll.setStyleSheet("border: none; background: transparent;")
+            ll.setStyleSheet(f"border: none; background: {MC.BG_CARD};")
             h.addWidget(ll, 0, Qt.AlignRight)
 
         layout.addWidget(header)
@@ -351,11 +351,11 @@ class DetailsCommandeLunetteModal(QDialog):
         head = QHBoxLayout()
         ic = QLabel()
         ic.setPixmap(qta.icon(icone, color=couleur_t).pixmap(14, 14))
-        ic.setStyleSheet("border: none; background: transparent;")
+        ic.setStyleSheet(f"border: none; background: {MC.BG_CARD};")
         tl = QLabel(titre.upper())
         tl.setStyleSheet(
             f"font-weight: bold; color: {couleur_t}; font-size: 10px;"
-            "letter-spacing: 0.5px; border: none; background: transparent;"
+            f"letter-spacing: 0.5px; border: none; background: {MC.BG_CARD};"
         )
         head.addWidget(ic)
         head.addSpacing(5)
@@ -373,7 +373,7 @@ class DetailsCommandeLunetteModal(QDialog):
         lbl.setWordWrap(True)
         lbl.setStyleSheet(
             f"color: {MC.TEXT_PRIMARY}; font-size: 12px; line-height: 1.5;"
-            "border: none; background: transparent;"
+            f"border: none; background: {MC.BG_CARD};"
         )
         if grand:
             lbl.setMinimumHeight(100)
@@ -396,11 +396,11 @@ class DetailsCommandeLunetteModal(QDialog):
         head = QHBoxLayout()
         ic = QLabel()
         ic.setPixmap(qta.icon(icone, color=couleur).pixmap(13, 13))
-        ic.setStyleSheet("border: none; background: transparent;")
+        ic.setStyleSheet(f"border: none; background: {MC.BG_CARD};")
         tl = QLabel(titre.upper())
         tl.setStyleSheet(
             f"font-weight: bold; color: {couleur}; font-size: 10px;"
-            "letter-spacing: 0.5px; border: none; background: transparent;"
+            f"letter-spacing: 0.5px; border: none; background: {MC.BG_CARD};"
         )
         head.addWidget(ic)
         head.addSpacing(5)
@@ -421,13 +421,13 @@ class DetailsCommandeLunetteModal(QDialog):
             lbl_k.setFixedWidth(120)
             lbl_k.setStyleSheet(
                 f"color: {MC.TEXT_SECONDARY}; font-size: 11px; font-weight: 600;"
-                "border: none; background: transparent;"
+                f"border: none; background: {MC.BG_CARD};"
             )
             lbl_v = QLabel(str(valeur) if valeur else "—")
             lbl_v.setWordWrap(True)
             lbl_v.setStyleSheet(
                 f"color: {MC.TEXT_PRIMARY}; font-size: 11px;"
-                "border: none; background: transparent;"
+                f"border: none; background: {MC.BG_CARD};"
             )
             row.addWidget(lbl_k)
             row.addWidget(lbl_v, 1)
@@ -456,11 +456,11 @@ class DetailsCommandeLunetteModal(QDialog):
         ic = QLabel()
         ic.setPixmap(
             qta.icon("fa5s.file-invoice-dollar", color=MC.PRIMARY).pixmap(13, 13))
-        ic.setStyleSheet("border: none; background: transparent;")
+        ic.setStyleSheet(f"border: none; background: {MC.BG_CARD};")
         tl = QLabel("FACTURATION")
         tl.setStyleSheet(
             f"font-weight: bold; color: {MC.PRIMARY}; font-size: 10px;"
-            "letter-spacing: 0.5px; border: none; background: transparent;"
+            f"letter-spacing: 0.5px; border: none; background: {MC.BG_CARD};"
         )
         head.addWidget(ic)
         head.addSpacing(5)
@@ -478,12 +478,12 @@ class DetailsCommandeLunetteModal(QDialog):
         lbl_pk = QLabel("Prix :")
         lbl_pk.setStyleSheet(
             f"color: {MC.TEXT_SECONDARY}; font-size: 11px; font-weight: 600;"
-            "border: none; background: transparent;"
+            f"border: none; background: {MC.BG_CARD};"
         )
         lbl_pv = QLabel(f"{prix:,} GNF".replace(",", " ") if prix else "— GNF")
         lbl_pv.setStyleSheet(
             f"color: {MC.TEXT_PRIMARY}; font-size: 13px; font-weight: bold;"
-            "border: none; background: transparent;"
+            f"border: none; background: {MC.BG_CARD};"
         )
         row_prix.addWidget(lbl_pk)
         row_prix.addStretch()
@@ -494,11 +494,11 @@ class DetailsCommandeLunetteModal(QDialog):
         row_s = QHBoxLayout()
         ic_s = QLabel()
         ic_s.setPixmap(qta.icon(c_icon, color=c_stat).pixmap(13, 13))
-        ic_s.setStyleSheet("border: none; background: transparent;")
+        ic_s.setStyleSheet(f"border: none; background: {MC.BG_CARD};")
         lbl_s = QLabel(str(statut))
         lbl_s.setStyleSheet(
             f"color: {c_stat}; font-size: 11px; font-weight: bold;"
-            "border: none; background: transparent;"
+            f"border: none; background: {MC.BG_CARD};"
         )
         row_s.addWidget(ic_s)
         row_s.addSpacing(5)

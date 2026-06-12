@@ -36,7 +36,7 @@ class FacturationView(QWidget):
         main_layout.setContentsMargins(12, 12, 12, 12)
         main_layout.setSpacing(0)
         
-        # Frame principal blanc
+        # Frame principal
         main_frame = QFrame()
         main_frame.setObjectName("MainWhiteFrame")
         main_frame_layout = QVBoxLayout(main_frame)
@@ -101,9 +101,9 @@ class FacturationView(QWidget):
     def _create_stats_tab(self):
         """Onglet Statistiques Financières"""
         from .statistiques_financieres_widget import StatistiquesFinancieresWidget
-        
+
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
+        tab.setObjectName("tab_stats")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -117,9 +117,9 @@ class FacturationView(QWidget):
     def _create_compta_journaliere_tab(self):
         """Onglet Comptabilité journalière"""
         from .comptabilite_journaliere_widget import ComptabiliteJournaliereWidget
-        
+
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
+        tab.setObjectName("tab_compta")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -133,7 +133,7 @@ class FacturationView(QWidget):
     def _create_facture_patient_tab(self):
         """Onglet Facture Patient - Interface existante"""
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
+        tab.setObjectName("tab_patient")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -156,10 +156,10 @@ class FacturationView(QWidget):
         from controllers.controleur_factureFournisseur import FactureFournisseurControleur
         
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
+        tab.setObjectName("tab_fournisseur")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(20, 20, 20, 20)
-        
+
         # Widget de paiement
         fournisseur_ctrl = FournisseurControleur()
         facture_four_ctrl = FactureFournisseurControleur()
@@ -185,8 +185,8 @@ class FacturationView(QWidget):
         """Charge une facture dans l'onglet paiement et active l'onglet"""
         if hasattr(self, 'payment_widget'):
             self.payment_widget.charger_facture(code_facture_four)
-            # Activer l'onglet Facture Fournisseur (index 2)
-            self.tabs.setCurrentIndex(2)
+            # Activer l'onglet Facture Fournisseur (index 3 : Statistiques=0, Compta=1, Patient=2, Fournisseur=3)
+            self.tabs.setCurrentIndex(3)
 
     def _get_icon(self, icon_name):
         """Récupère une icône Font Awesome"""
@@ -207,7 +207,7 @@ class FacturationView(QWidget):
         c = theme_manager.colors()
         frame.setStyleSheet(f"""
             QFrame#MainWhiteFrame {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 16px;
             }}
@@ -219,11 +219,14 @@ class FacturationView(QWidget):
         self.tabs.setStyleSheet(f"""
             QTabWidget::pane {{
                 border: none;
-                background: white;
+                background: {c['bg_card']};
                 border-radius: 12px;
             }}
+            QTabBar {{
+                background: {c['bg_card']};
+            }}
             QTabBar::tab {{
-                background: transparent;
+                background: {c['bg_card']};
                 color: {c['text_secondary']};
                 padding: 10px 20px;
                 margin-right: 4px;
@@ -246,13 +249,24 @@ class FacturationView(QWidget):
     def apply_theme(self):
         """Applique le thème actif"""
         c = theme_manager.colors()
-        self.setStyleSheet(f"background-color: {c['bg_main']};")
-        
+        self.setStyleSheet(f"FacturationView {{ background-color: {c['bg_main']}; }}")
+
         if hasattr(self, 'tabs'):
             self._apply_tab_styles()
             main_frame = self.findChild(QFrame, "MainWhiteFrame")
             if main_frame:
                 self._apply_main_frame_style(main_frame)
+
+        for attr in ('tab_stats', 'tab_compta_jour', 'tab_facture_patient', 'tab_facture_fournisseur'):
+            tab = getattr(self, attr, None)
+            if tab and tab.objectName():
+                tab.setStyleSheet(f"QWidget#{tab.objectName()} {{ background-color: {c['bg_card']}; }}")
+
+        for attr in ('stats_widget', 'compta_jour_widget',
+                     'facture_patient_widget', 'payment_widget'):
+            w = getattr(self, attr, None)
+            if w and hasattr(w, 'apply_theme'):
+                w.apply_theme()
 
     # =========================================================================
     # API PUBLIQUE
@@ -274,7 +288,7 @@ class FacturationView(QWidget):
         # Charger la comptabilité journalière
         if hasattr(self, 'compta_jour_widget'):
             self.compta_jour_widget.charger_donnees(code_session)
-        
-        # Charger la comptabilité journalière
-        if hasattr(self, 'compta_jour_widget'):
-            self.compta_jour_widget.charger_donnees(code_session)
+            
+        # Charger les données de la facture fournisseur
+        if hasattr(self, 'payment_widget') and hasattr(self.payment_widget, 'charger_donnees'):
+            self.payment_widget.charger_donnees(code_session)

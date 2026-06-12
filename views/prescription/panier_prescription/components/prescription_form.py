@@ -29,8 +29,7 @@ class PrescriptionForm:
     Pattern : Facade — même disposition que CommandeLunetteFormDialog.
     """
 
-    def __init__(self, bleu_principal: str):
-        self.bleu_principal = bleu_principal
+    def __init__(self):
 
         # ── Widgets exposés au widget principal ──────────────────────────────
         self.combo_consultation = None   # sélection consultation 'Attente pharmacie'
@@ -65,11 +64,11 @@ class PrescriptionForm:
         body_scroll = QScrollArea()
         body_scroll.setWidgetResizable(True)
         body_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        body_scroll.setStyleSheet("QScrollArea { border: none; background: white; }")
+        body_scroll.setStyleSheet(f"QScrollArea {{ border: none; background: {theme_manager.colors()['bg_main']}; }}")
         appliquer_style_scrollbar_callback(body_scroll)
 
         body = QWidget()
-        body.setStyleSheet("background: white;")
+        body.setStyleSheet(f"background: {theme_manager.colors()['bg_main']};")
         body_layout = QVBoxLayout(body)
         body_layout.setContentsMargins(14, 12, 14, 12)
         body_layout.setSpacing(10)
@@ -145,12 +144,12 @@ class PrescriptionForm:
         self.combo_consultation = QComboBox()
         self.combo_consultation.setFixedHeight(40)
         self.combo_consultation.addItem(
-            qta.icon("fa5s.file-medical", color=self.bleu_principal),
+            qta.icon("fa5s.file-medical", color=theme_manager.colors()['primary']),
             "  — Sélectionner un acte médical —",
             None
         )
         self.combo_consultation.setStyleSheet(
-            PrescriptionStyles.combo_produit(self.bleu_principal)
+            PrescriptionStyles.combo_produit()
         )
         self.combo_consultation.setToolTip(
             "Actes médicaux avec statut 'Attente pharmacie' sans prescription enregistrée"
@@ -193,7 +192,7 @@ class PrescriptionForm:
     def _create_patient_card(self, layout):
         """Carte patient readonly — auto-remplie depuis le combo."""
         card = QFrame()
-        card.setStyleSheet(PrescriptionStyles.patient_card(self.bleu_principal))
+        card.setStyleSheet(PrescriptionStyles.patient_card())
         card_layout = QVBoxLayout(card)
         card_layout.setContentsMargins(12, 10, 12, 10)
         card_layout.setSpacing(4)
@@ -201,13 +200,13 @@ class PrescriptionForm:
         titre_row = QHBoxLayout()
         icon_patient = QLabel()
         icon_patient.setPixmap(
-            qta.icon("fa5s.user-injured", color=self.bleu_principal).pixmap(14, 14)
+            qta.icon("fa5s.user-injured", color=theme_manager.colors()['primary']).pixmap(14, 14)
         )
         icon_patient.setStyleSheet("border: none; background: transparent;")
 
         lbl_titre = QLabel("Patient")
         lbl_titre.setStyleSheet(
-            f"font-size: 10px; font-weight: bold; color: {self.bleu_principal};"
+            f"font-size: 10px; font-weight: bold; color: {theme_manager.colors()['primary']};"
             "text-transform: uppercase; border: none; background: transparent;"
         )
         titre_row.addWidget(icon_patient)
@@ -242,12 +241,12 @@ class PrescriptionForm:
         )
         self.combo_produit = QComboBox()
         self.combo_produit.addItem(
-            qta.icon("fa5s.pills", color=self.bleu_principal),
+            qta.icon("fa5s.pills", color=theme_manager.colors()['primary']),
             "  Choisir un produit..."
         )
         self.combo_produit.setFixedHeight(38)
         self.combo_produit.setStyleSheet(
-            PrescriptionStyles.combo_produit(self.bleu_principal)
+            PrescriptionStyles.combo_produit()
         )
         vbox.addWidget(lbl)
         vbox.addWidget(self.combo_produit)
@@ -284,7 +283,7 @@ class PrescriptionForm:
             f"font-size: 10px; font-weight: bold; color: {theme_manager.colors()['text_muted']};"
             "border: none; background: transparent;"
         )
-        self.input_quantite = ModernQuantitySpinner(self.bleu_principal)
+        self.input_quantite = ModernQuantitySpinner()
         self.input_quantite.setMinimum(1)
         self.input_quantite.setMaximum(9999)
         col_qte.addWidget(lbl_qte)
@@ -297,7 +296,7 @@ class PrescriptionForm:
             f"font-size: 10px; font-weight: bold; color: {theme_manager.colors()['text_muted']};"
             "border: none; background: transparent;"
         )
-        self.input_prix = ModernPriceInput(self.bleu_principal)
+        self.input_prix = ModernPriceInput()
         self.input_prix.setPlaceholderText("0")
         self.input_prix.setEnabled(False)
         col_prix.addWidget(lbl_prix)
@@ -314,13 +313,13 @@ class PrescriptionForm:
 
         icon_info = QLabel()
         icon_info.setPixmap(
-            qta.icon("fa5s.info-circle", color="#3b82f6").pixmap(12, 12)
+            qta.icon("fa5s.info-circle", color=theme_manager.colors()['info']).pixmap(12, 12)
         )
         icon_info.setStyleSheet("border: none; background: transparent;")
 
         lbl = QLabel("Date d'expiration attribuée automatiquement (méthode FEFO).")
         lbl.setStyleSheet(
-            "font-size: 10px; color: #3b82f6; font-style: italic;"
+            f"font-size: 10px; color: {theme_manager.colors()['info']}; font-style: italic;"
             "border: none; background: transparent;"
         )
         lbl.setWordWrap(True)
@@ -338,7 +337,7 @@ class PrescriptionForm:
         self.btn_prescrire.setFixedHeight(48)
         self.btn_prescrire.setCursor(Qt.PointingHandCursor)
         self.btn_prescrire.setStyleSheet(
-            PrescriptionStyles.btn_prescrire_modern(self.bleu_principal)
+            PrescriptionStyles.btn_prescrire_modern()
         )
         self.btn_prescrire.setEnabled(False)
         layout.addWidget(self.btn_prescrire)

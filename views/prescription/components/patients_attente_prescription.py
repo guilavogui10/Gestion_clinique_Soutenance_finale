@@ -194,7 +194,7 @@ class PatientCard(QFrame):
             }}
             PatientCard:hover {{
                 border: 1.5px solid {c['primary']};
-                background-color: {c.get('bg_alt', c['bg_card'])};
+                background-color: {c['hover']};
             }}
             """
         )
@@ -226,21 +226,19 @@ class PatientCard(QFrame):
             )
 
         self._btn.setStyleSheet(PrescriptionStyles.button_primary())
-        self._btn.setIcon(qta.icon("fa5s.prescription", color=c.get("text_inverse", "#ffffff")))
+        self._btn.setIcon(qta.icon("fa5s.prescription", color=c['text_inverse']))
 
         statut = self._statut_patient.strip()
         if statut == "En pharmacie":
-            statut_bg = "#e67e22"
-            statut_hover = "#d35400"
+            statut_bg = c['warning']
             statut_icon = "fa5s.check-circle"
         else:
-            statut_bg = "#27ae60"
-            statut_hover = "#219a52"
+            statut_bg = c['success']
             statut_icon = "fa5s.play-circle"
         self._btn_statut.setStyleSheet(f"""
             QPushButton {{
                 background: {statut_bg};
-                color: white;
+                color: {c['text_inverse']};
                 border: none;
                 border-radius: 6px;
                 font-size: 8px;
@@ -248,10 +246,10 @@ class PatientCard(QFrame):
                 padding: 0 4px;
             }}
             QPushButton:hover {{
-                background: {statut_hover};
+                background: {statut_bg}cc;
             }}
         """)
-        self._btn_statut.setIcon(qta.icon(statut_icon, color="white"))
+        self._btn_statut.setIcon(qta.icon(statut_icon, color=c['text_inverse']))
 
 
 class PatientsAttentePrescriptionView(QWidget):
@@ -368,13 +366,16 @@ class PatientsAttentePrescriptionView(QWidget):
 
     def _apply_theme(self):
         c = theme_manager.colors()
-        self.setStyleSheet(f"background: {c['bg_main']};")
-        self._cards_container.setStyleSheet("background: transparent;")
+        self.setStyleSheet(f"background: {c['bg_card']};")
+        self._cards_container.setStyleSheet(f"background: {c['bg_card']};")
         self._scroll.setStyleSheet(
             f"""
             QScrollArea {{
-                background: transparent;
+                background: {c['bg_card']};
                 border: none;
+            }}
+            QScrollArea > QWidget {{
+                background: {c['bg_card']};
             }}
             """
         )
@@ -388,7 +389,7 @@ class PatientsAttentePrescriptionView(QWidget):
             font-size: 11px;
             font-weight: 600;
             color: {c['text_muted']};
-            background: {c.get('bg_alt', c['bg_card'])};
+            background: {c['bg_card']};
             border-radius: 10px;
             padding: 2px 10px;
             border: 1px solid {c['border_light']};

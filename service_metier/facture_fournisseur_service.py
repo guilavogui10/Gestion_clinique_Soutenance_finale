@@ -265,3 +265,21 @@ class FactureFournisseurService:
                 "adresse_cabinet": "",
                 "logo_url": None
             }
+
+    # =========================================================================
+    # RAPPORTS PDF LISTE FACTURES
+    # =========================================================================
+
+    def generer_rapport_pdf_par_date(self, code_session: str) -> str:
+        """Génère un PDF de toutes les factures fournisseur de la session groupées par date."""
+        from services.pdf_rapports.rapport_facture_fournisseur import RapportFactureFournisseurPDF
+        factures = self.dao.lister_par_session(code_session) or []
+        info_cabinet = self.get_cabinet_info()
+        return RapportFactureFournisseurPDF.generer_pdf_par_date(factures, info_cabinet)
+
+    def generer_rapport_pdf_date_precise(self, code_session: str, date_cible) -> str:
+        """Génère un PDF des factures fournisseur de la session pour une date précise."""
+        from services.pdf_rapports.rapport_facture_fournisseur import RapportFactureFournisseurPDF
+        factures = self.dao.lister_par_session(code_session) or []
+        info_cabinet = self.get_cabinet_info()
+        return RapportFactureFournisseurPDF.generer_pdf_date_precise(factures, date_cible, info_cabinet)

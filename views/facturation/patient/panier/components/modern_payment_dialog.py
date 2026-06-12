@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame,
     QComboBox, QLineEdit
 )
+from views.shared.theme_manager import theme_manager
 
 
 class ModernPaymentDialog(QDialog):
@@ -18,10 +19,10 @@ class ModernPaymentDialog(QDialog):
     Design inspiré de CustomMessageBox.
     """
     
-    def __init__(self, parent=None, vert_principal="#003f20"):
+    def __init__(self, parent=None, vert_principal=None):
         super().__init__(parent)
-        
-        self.vert_principal = vert_principal
+
+        self.vert_principal = vert_principal or theme_manager.colors()['primary']
         self.mode_paiement = None
         self.telephone = None
         
@@ -41,12 +42,15 @@ class ModernPaymentDialog(QDialog):
         
         # Le cadre arrondi (Container)
         self.frame = QFrame()
+        _c = theme_manager.colors()
+        self.vert_principal = _c['primary']
         self.frame.setStyleSheet(f"""
             QFrame {{
-                background-color: white;
-                border: 2px solid {self.vert_principal};
+                background-color: {_c['bg_card']};
+                border: 2px solid {_c['primary']};
                 border-radius: 15px;
             }}
+            QLabel {{ background: transparent; color: {_c['text_primary']}; border: none; }}
         """)
         
         frame_layout = QVBoxLayout(self.frame)
@@ -71,14 +75,14 @@ class ModernPaymentDialog(QDialog):
         
         # Sous-titre
         subtitle_label = QLabel("Veuillez compléter les informations")
-        subtitle_label.setStyleSheet("font-size: 12px; color: #666;")
+        subtitle_label.setStyleSheet(f"font-size: 12px; color: {_c['text_secondary']};")
         subtitle_label.setAlignment(Qt.AlignCenter)
         frame_layout.addWidget(subtitle_label)
-        
+
         # Séparateur
         line = QFrame()
         line.setFrameShape(QFrame.HLine)
-        line.setStyleSheet("background: #e0e0e0; border: none;")
+        line.setStyleSheet(f"background: {_c['border']}; border: none;")
         line.setFixedHeight(1)
         frame_layout.addWidget(line)
         
@@ -95,116 +99,95 @@ class ModernPaymentDialog(QDialog):
     
     def _create_payment_mode_section(self, layout):
         """Crée la section mode de paiement."""
-        # Label avec icône
+        _c = theme_manager.colors()
         label_layout = QHBoxLayout()
         label_layout.setSpacing(8)
-        
+
         icon_label = QLabel()
         icon_label.setPixmap(
-            qta.icon("fa5s.credit-card", color="#333").pixmap(16, 16)
+            qta.icon("fa5s.credit-card", color=_c['text_secondary']).pixmap(16, 16)
         )
-        
+
         label = QLabel("Mode de paiement")
-        label.setStyleSheet(
-            "font-size: 13px; font-weight: bold; color: #333;"
-        )
-        
+        label.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {_c['text_primary']};")
+
         label_layout.addWidget(icon_label)
         label_layout.addWidget(label)
         label_layout.addStretch()
-        
         layout.addLayout(label_layout)
-        
-        # Combo
+
         self.combo_mode = QComboBox()
         self.combo_mode.addItems(["Espèces", "Chèque", "Virement", "Mobile Money"])
         self.combo_mode.setFixedHeight(40)
         self.combo_mode.setStyleSheet(f"""
             QComboBox {{
-                border: 2px solid #e0e0e0;
+                border: 2px solid {_c['border']};
                 border-radius: 8px;
                 padding-left: 12px;
-                background: white;
+                background: {_c['bg_input']};
                 font-size: 13px;
-                color: #333;
+                color: {_c['text_primary']};
             }}
-            QComboBox:focus {{
-                border: 2px solid {self.vert_principal};
-            }}
-            QComboBox::drop-down {{
-                border: none;
-                width: 30px;
-            }}
+            QComboBox:focus {{ border: 2px solid {_c['border_focus']}; }}
+            QComboBox::drop-down {{ border: none; width: 30px; }}
             QComboBox QAbstractItemView {{
-                border: 1px solid #e0e0e0;
+                border: 1px solid {_c['border']};
                 border-radius: 8px;
-                background: white;
-                selection-background-color: {self.vert_principal};
-                selection-color: white;
+                background: {_c['bg_card']};
+                selection-background-color: {_c['primary']};
+                selection-color: {_c['text_inverse']};
             }}
         """)
         layout.addWidget(self.combo_mode)
     
     def _create_phone_section(self, layout):
         """Crée la section téléphone."""
-        # Label avec icône
+        _c = theme_manager.colors()
         label_layout = QHBoxLayout()
         label_layout.setSpacing(8)
-        
+
         icon_label = QLabel()
         icon_label.setPixmap(
-            qta.icon("fa5s.phone", color="#333").pixmap(16, 16)
+            qta.icon("fa5s.phone", color=_c['text_secondary']).pixmap(16, 16)
         )
-        
+
         label = QLabel("Numéro de téléphone")
-        label.setStyleSheet(
-            "font-size: 13px; font-weight: bold; color: #333;"
-        )
-        
+        label.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {_c['text_primary']};")
+
         label_layout.addWidget(icon_label)
         label_layout.addWidget(label)
         label_layout.addStretch()
-        
         layout.addLayout(label_layout)
-        
-        # Input
+
         self.input_tel = QLineEdit()
         self.input_tel.setPlaceholderText("Ex: 628123456")
         self.input_tel.setFixedHeight(40)
         self.input_tel.setStyleSheet(f"""
             QLineEdit {{
-                border: 2px solid #e0e0e0;
+                border: 2px solid {_c['border']};
                 border-radius: 8px;
                 padding-left: 12px;
-                background: white;
+                background: {_c['bg_input']};
                 font-size: 13px;
-                color: #333;
+                color: {_c['text_primary']};
             }}
-            QLineEdit:focus {{
-                border: 2px solid {self.vert_principal};
-            }}
-            QLineEdit::placeholder {{
-                color: #999;
-            }}
+            QLineEdit:focus {{ border: 2px solid {_c['border_focus']}; }}
         """)
-        
-        # Validation en temps réel
+
         self.input_tel.textChanged.connect(self._validate_phone)
-        
         layout.addWidget(self.input_tel)
-        
-        # Message d'aide avec icône
+
         help_layout = QHBoxLayout()
         help_layout.setSpacing(6)
-        
+
         help_icon = QLabel()
         help_icon.setPixmap(
-            qta.icon("fa5s.info-circle", color="#999").pixmap(12, 12)
+            qta.icon("fa5s.info-circle", color=_c['text_muted']).pixmap(12, 12)
         )
-        
+
         help_label = QLabel("Entrez 9 chiffres sans indicatif")
         help_label.setStyleSheet(
-            "font-size: 11px; color: #999; font-style: italic;"
+            f"font-size: 11px; color: {_c['text_muted']}; font-style: italic;"
         )
         
         help_layout.addWidget(help_icon)
@@ -228,35 +211,36 @@ class ModernPaymentDialog(QDialog):
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(10)
         
+        _c = theme_manager.colors()
         # Bouton Annuler
         btn_cancel = QPushButton("Annuler")
         btn_cancel.setFixedSize(110, 38)
         btn_cancel.setCursor(Qt.PointingHandCursor)
-        btn_cancel.setStyleSheet("""
-            QPushButton {
-                background-color: #95a5a6;
-                color: white;
+        btn_cancel.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {_c['border']};
+                color: {_c['text_primary']};
                 border-radius: 8px;
                 font-weight: bold;
                 font-size: 13px;
-            }
-            QPushButton:hover { background-color: #7f8c8d; }
+            }}
+            QPushButton:hover {{ background-color: {_c['hover']}; }}
         """)
         btn_cancel.clicked.connect(self.reject)
-        
+
         # Bouton Valider
         btn_validate = QPushButton("Valider")
         btn_validate.setFixedSize(110, 38)
         btn_validate.setCursor(Qt.PointingHandCursor)
         btn_validate.setStyleSheet(f"""
             QPushButton {{
-                background-color: {self.vert_principal};
-                color: white;
+                background-color: {_c['primary']};
+                color: {_c['text_inverse']};
                 border-radius: 8px;
                 font-weight: bold;
                 font-size: 13px;
             }}
-            QPushButton:hover {{ background-color: #005a2e; }}
+            QPushButton:hover {{ background-color: {_c['primary_hover']}; }}
         """)
         btn_validate.clicked.connect(self._on_validate)
         

@@ -26,19 +26,19 @@ class PersonnelDAO:
         return [self._row_to_modele(row) for row in rows]
 
     def generer_nouveau_code(self) -> str:
-        """Génère un code unique pour le personnel comme U0001, U0002..."""
+        """Génère un code unique pour le personnel comme P0001, P0002..."""
         conn = self.db_connection.connect()
         try:
             with conn.cursor(pymysql.cursors.DictCursor) as cursor:
                 # Récupère le max numérique du code existant
-                cursor.execute("SELECT MAX(CAST(SUBSTRING(code, 2) AS UNSIGNED)) AS max_id FROM personnel WHERE code LIKE 'U%'")
+                cursor.execute("SELECT MAX(CAST(SUBSTRING(code, 2) AS UNSIGNED)) AS max_id FROM personnel WHERE code LIKE 'P%'")
                 result = cursor.fetchone()
                 max_id = result['max_id'] if result and result['max_id'] is not None else 0
                 new_id = max_id + 1
-                return f"U{new_id:04d}"
+                return f"P{new_id:04d}"
         except pymysql.MySQLError as e:
             print(f"Erreur DAO Personnel: Impossible de générer le code : {e}")
-            return "U0001"
+            return "P0001"
         finally:
             if conn:
                 conn.close()
@@ -184,10 +184,14 @@ class PersonnelDAO:
         conn = self.db_connection.connect()
         try:
             with conn.cursor() as cursor:
-                sql = "SELECT COUNT(*) FROM personnel"
+                sql = "SELECT COUNT(*) as total FROM personnel"
                 cursor.execute(sql)
                 result = cursor.fetchone()
-                return result[0] if result else 0
+                if not result:
+                    return 0
+                if isinstance(result, dict):
+                    return result.get('total', 0)
+                return result[0]
         except Exception as e:
             print("Erreur nombre total :", e)
             return 0
@@ -258,6 +262,33 @@ class PersonnelDAO:
         except Exception as e:
             print("Erreur compter_par_fonction :", e)
             return {}
+        finally:
+            if conn:
+                conn.close()
+
+    def lister_pour_formulaire(self, roles: list = None) -> list:
+        """Retourne le personnel formaté pour les dropdowns (code + label)."""
+        conn = self.db_connection.connect()
+        try:
+            with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+                if roles:
+                    placeholders = ','.join(['%s'] * len(roles))
+                    cursor.execute(f"""
+                        SELECT code, CONCAT(nom, ' ', prenom) AS label
+                        FROM personnel
+                        WHERE fonction IN ({placeholders})
+                        ORDER BY nom ASC LIMIT 200
+                    """, roles)
+                else:
+                    cursor.execute("""
+                        SELECT code, CONCAT(nom, ' ', prenom) AS label
+                        FROM personnel
+                        ORDER BY nom ASC LIMIT 200
+                    """)
+                return cursor.fetchall() or []
+        except Exception as e:
+            print("Erreur lister_pour_formulaire :", e)
+            return []
         finally:
             if conn:
                 conn.close()

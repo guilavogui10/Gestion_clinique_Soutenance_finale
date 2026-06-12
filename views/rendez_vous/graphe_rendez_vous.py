@@ -1,6 +1,4 @@
 import numpy as np
-from scipy.interpolate import make_interp_spline
-import mplcursors
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.ticker import MaxNLocator
@@ -55,10 +53,15 @@ class BaseGraph(FigureCanvas):
         self.fig = Figure(figsize=(width, height), dpi=dpi, facecolor="none")
         self.axes = self.fig.add_subplot(111)
         self.axes.set_facecolor("none")
+        
+        # Texte fixe pour le hover en haut
+        self.hover_text = self.fig.text(0.5, 0.96, '', ha='center', va='top', fontsize=10, fontweight='bold')
+        
         super().__init__(self.fig)
         self.setParent(parent)
-        self.cursors = []
-        self._setup_style()
+        self.fig.canvas.mpl_connect('motion_notify_event', self._on_hover)
+        self.fig.canvas.mpl_connect('axes_leave_event', lambda event: self._clear_hover_text())
+        self.fig.canvas.mpl_connect('figure_leave_event', lambda event: self._clear_hover_text())
 
     def _setup_style(self):
         for spine in self.axes.spines.values():
@@ -66,58 +69,75 @@ class BaseGraph(FigureCanvas):
 
         self.axes.grid(
             True,
-            axis="y",
-            linestyle="-",
-            alpha=0.1,
+            axis="both",
+            linestyle="--",
+            alpha=0.3,
             color=self.theme.COLORS["border"],
             linewidth=0.8,
         )
         self.axes.tick_params(colors=self.theme.COLORS["subtext"], labelsize=9, length=0, pad=8)
-        self.fig.subplots_adjust(left=0.1, right=0.95, top=0.9, bottom=0.15)
+        
+        if hasattr(self, 'hover_text'):
+            self.hover_text.set_text('')
+            
+        self.fig.subplots_adjust(left=0.1, right=0.95, top=0.85, bottom=0.15)
 
-    def _create_smooth_curve(self, x, y, color):
+    def _create_linear_curve(self, x, y, color, alpha=0.9):
+        """Crée une courbe linéaire (lignes droites entre les points)"""
         if len(y) < 2 or float(np.sum(y)) == 0.0:
             return
-        x_smooth = np.linspace(x.min(), x.max(), 200)
-        spline = make_interp_spline(x, y, k=min(3, len(y) - 1))
-        y_smooth = np.maximum(spline(x_smooth), 0)
-        source_max = float(np.max(y)) if len(y) else 0.0
-        if source_max > 0:
-            y_smooth = np.clip(y_smooth, 0, source_max * 1.05)
-        self.axes.plot(x_smooth, y_smooth, color=color, linewidth=2.5, alpha=0.9, antialiased=True)
-        self.axes.fill_between(x_smooth, y_smooth, color=color, alpha=0.1, antialiased=True)
+            
+        self.axes.plot(x, y, color=color, linewidth=2.0, alpha=alpha, antialiased=True, zorder=5)
 
     def _create_data_points(self, x, y, color, label):
         scatter = self.axes.scatter(
             x,
             y,
-            color=self.theme.COLORS["surface"],
-            edgecolor=color,
+            color=color,
+            edgecolor=self.theme.COLORS["surface"],
             s=50,
             zorder=10,
-            linewidth=2,
-            alpha=0.9,
+            linewidth=1.5,
+            alpha=1.0,
         )
-        cursor = mplcursors.cursor(scatter, hover=True)
-        cursor.connect("add", lambda sel: self._style_tooltip(sel, label))
-        self.cursors.append(cursor)
+        
+        if not hasattr(self, 'scatters'):
+            self.scatters = []
+        self.scatters.append({'scatter': scatter, 'label': label, 'x': x, 'y': y})
 
-    def _style_tooltip(self, sel, label):
-        idx = int(round(sel.target[0]))
-        value = int(sel.target[1])
-        month = self.month_labels[idx] if 0 <= idx < len(self.month_labels) else ""
-        sel.annotation.set_text(f"{month}\n{label}: {value}")
-        sel.annotation.get_bbox_patch().set(
-            fc=self.theme.COLORS["surface"],
-            ec=self.theme.COLORS["border"],
-            boxstyle="round,pad=0.5",
-            alpha=0.95,
-            linewidth=1,
-        )
-        sel.annotation.set_color(self.theme.COLORS["text"])
-        sel.annotation.set_fontsize(9)
-        sel.annotation.set_fontweight("500")
-        sel.annotation.arrow_patch.set_visible(False)
+    def _on_hover(self, event):
+        if not event.inaxes:
+            self._clear_hover_text()
+            return
+
+        if not hasattr(self, 'scatters'):
+            return
+
+        found = False
+        for item in self.scatters:
+            cont, ind = item['scatter'].contains(event)
+            if cont:
+                idx = ind["ind"][0]
+                value = item['y'][idx]
+                label = item['label']
+                
+                month = self.month_labels[idx] if hasattr(self, 'month_labels') and 0 <= idx < len(self.month_labels) else ""
+                text = f"{label} en {month} : {int(value)}" if month else f"{label} : {int(value)}"
+
+                if self.hover_text.get_text() != text:
+                    self.hover_text.set_text(text)
+                    self.hover_text.set_color(self.theme.COLORS["text"])
+                    self.fig.canvas.draw_idle()
+                
+                found = True
+                break
+                
+        if not found and self.hover_text.get_text() != '':
+            self._clear_hover_text()
+
+    def _clear_hover_text(self):
+        self.hover_text.set_text('')
+        self.fig.canvas.draw_idle()
 
     def _set_ylim(self, values):
         max_val = max(values) if values else 0
@@ -140,6 +160,8 @@ class RendezVousAnalyseGraph(BaseGraph):
 
     def update_graph(self, stats_mensuelles: dict):
         self.axes.clear()
+        if hasattr(self, 'scatters'):
+            self.scatters.clear()
         self._setup_style()
 
         if not stats_mensuelles:
@@ -151,7 +173,7 @@ class RendezVousAnalyseGraph(BaseGraph):
         y = np.array(values, dtype=float)
         color = self.theme.COLORS["accent"]
 
-        self._create_smooth_curve(x, y, color)
+        self._create_linear_curve(x, y, color)
         self._create_data_points(x, y, color, "Rendez-vous")
 
         self.axes.set_xticks(x)

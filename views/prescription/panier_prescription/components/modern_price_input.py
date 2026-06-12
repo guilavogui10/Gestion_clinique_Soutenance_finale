@@ -7,6 +7,7 @@ import qtawesome as qta
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QLineEdit, QLabel
 from PySide6.QtGui import QIntValidator
+from views.shared.theme_manager import theme_manager
 
 
 class ModernPriceInput(QWidget):
@@ -18,11 +19,10 @@ class ModernPriceInput(QWidget):
     # Signal émis quand le texte change
     textChanged = Signal(str)
     
-    def __init__(self, vert_principal: str = "#003f20", parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.vert_principal = vert_principal
         self._raw_value = ""
-        
+
         self._init_ui()
     
     def _init_ui(self):
@@ -32,19 +32,20 @@ class ModernPriceInput(QWidget):
         layout.setSpacing(0)
         
         # Container avec bordure arrondie
-        self.setStyleSheet("""
-            QWidget {
-                background: white;
-                border: 2px solid #e0e0e0;
+        _c = theme_manager.colors()
+        self.setStyleSheet(f"""
+            QWidget {{
+                background: {_c['bg_input']};
+                border: 2px solid {_c['border']};
                 border-radius: 10px;
-            }
+            }}
         """)
         self.setFixedHeight(44)
         
         # Icône monnaie
         icon_label = QLabel()
         icon_label.setPixmap(
-            qta.icon("fa5s.coins", color=self.vert_principal).pixmap(20, 20)
+            qta.icon("fa5s.coins", color=theme_manager.colors()['primary']).pixmap(20, 20)
         )
         icon_label.setStyleSheet("""
             QLabel {
@@ -58,18 +59,19 @@ class ModernPriceInput(QWidget):
         self.input_field = QLineEdit()
         self.input_field.setPlaceholderText("0")
         self.input_field.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        self.input_field.setStyleSheet("""
-            QLineEdit {
+        _c = theme_manager.colors()
+        self.input_field.setStyleSheet(f"""
+            QLineEdit {{
                 font-size: 15px;
                 font-weight: bold;
-                color: #2c3e50;
+                color: {_c['text_primary']};
                 background: transparent;
                 border: none;
                 padding: 0px 10px;
-            }
-            QLineEdit::placeholder {
-                color: #bdc3c7;
-            }
+            }}
+            QLineEdit::placeholder {{
+                color: {_c['text_muted']};
+            }}
         """)
         
         # Validation : seulement des chiffres
@@ -81,7 +83,7 @@ class ModernPriceInput(QWidget):
             QLabel {{
                 font-size: 12px;
                 font-weight: bold;
-                color: {self.vert_principal};
+                color: {theme_manager.colors()['primary']};
                 background: transparent;
                 border: none;
                 padding-right: 12px;
@@ -174,69 +176,67 @@ class ModernPriceInput(QWidget):
         self.input_field.setEnabled(enabled)
         
         # Style visuel pour l'état désactivé
+        _c = theme_manager.colors()
         if not enabled:
-            self.setStyleSheet("""
-                QWidget {
-                    background: #f5f5f5;
-                    border: 2px solid #e0e0e0;
+            super().setStyleSheet(f"""
+                QWidget {{
+                    background: {_c['bg_input']};
+                    border: 2px solid {_c['border']};
                     border-radius: 10px;
-                }
+                }}
             """)
-            self.input_field.setStyleSheet("""
-                QLineEdit {
+            self.input_field.setStyleSheet(f"""
+                QLineEdit {{
                     font-size: 15px;
                     font-weight: bold;
-                    color: #bdc3c7;
+                    color: {_c['text_muted']};
                     background: transparent;
                     border: none;
                     padding: 0px 10px;
-                }
+                }}
             """)
         else:
-            self.setStyleSheet("""
-                QWidget {
-                    background: white;
-                    border: 2px solid #e0e0e0;
+            super().setStyleSheet(f"""
+                QWidget {{
+                    background: {_c['bg_input']};
+                    border: 2px solid {_c['border']};
                     border-radius: 10px;
-                }
+                }}
             """)
-            self.input_field.setStyleSheet("""
-                QLineEdit {
+            self.input_field.setStyleSheet(f"""
+                QLineEdit {{
                     font-size: 15px;
                     font-weight: bold;
-                    color: #2c3e50;
+                    color: {_c['text_primary']};
                     background: transparent;
                     border: none;
                     padding: 0px 10px;
-                }
-                QLineEdit::placeholder {
-                    color: #bdc3c7;
-                }
+                }}
+                QLineEdit::placeholder {{
+                    color: {_c['text_muted']};
+                }}
             """)
     
     def setStyleSheet(self, style: str):
         """Override pour gérer les styles de validation."""
-        # Extraire la couleur de bordure du style
-        if "border: 2px solid #27ae60" in style:
-            # Style valide (vert)
-            super().setStyleSheet("""
-                QWidget {
-                    background: #f0f8f5;
-                    border: 2px solid #27ae60;
+        _c = theme_manager.colors()
+        if f"border: 2px solid {_c['success']}" in style:
+            super().setStyleSheet(f"""
+                QWidget {{
+                    background: {_c['success_bg']};
+                    border: 2px solid {_c['success']};
                     border-radius: 10px;
-                }
+                }}
             """)
-        elif "border: 2px solid #e74c3c" in style:
-            # Style invalide (rouge)
-            super().setStyleSheet("""
-                QWidget {
-                    background: #fdf2f2;
-                    border: 2px solid #e74c3c;
+        elif f"border: 2px solid {_c['danger']}" in style:
+            super().setStyleSheet(f"""
+                QWidget {{
+                    background: {_c['danger_bg']};
+                    border: 2px solid {_c['danger']};
                     border-radius: 10px;
-                }
+                }}
             """)
         else:
-            # Style normal
             super().setStyleSheet(style)
     
     def setFocus(self):

@@ -40,8 +40,9 @@ class ProductStockCard(AnimatedFrame):
         self.libelle = libelle
         self.type_produit = type_produit
         self.quantite = quantite
-        
+
         self._setup_ui()
+        theme_manager.theme_changed.connect(self.apply_theme)
     
     def _setup_ui(self):
         """Configure l'interface de la card."""
@@ -67,49 +68,49 @@ class ProductStockCard(AnimatedFrame):
         layout.addWidget(icon_container, alignment=Qt.AlignCenter)
         
         # Nom du produit
-        lbl_nom = QLabel(self.libelle)
-        lbl_nom.setStyleSheet(f"""
+        self._lbl_nom = QLabel(self.libelle)
+        self._lbl_nom.setStyleSheet(f"""
             color: {c['text_primary']};
             font-size: 13px;
             font-weight: bold;
             background: transparent;
             border: none;
         """)
-        lbl_nom.setAlignment(Qt.AlignCenter)
-        lbl_nom.setWordWrap(True)
-        lbl_nom.setMaximumHeight(40)
-        layout.addWidget(lbl_nom)
-        
+        self._lbl_nom.setAlignment(Qt.AlignCenter)
+        self._lbl_nom.setWordWrap(True)
+        self._lbl_nom.setMaximumHeight(40)
+        layout.addWidget(self._lbl_nom)
+
         # Type du produit
-        lbl_type = QLabel(self.type_produit)
-        lbl_type.setStyleSheet(f"""
+        self._lbl_type = QLabel(self.type_produit)
+        self._lbl_type.setStyleSheet(f"""
             color: {c['text_secondary']};
             font-size: 11px;
             background: transparent;
             border: none;
         """)
-        lbl_type.setAlignment(Qt.AlignCenter)
-        layout.addWidget(lbl_type)
-        
+        self._lbl_type.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self._lbl_type)
+
         # Quantité en stock
-        lbl_qte = QLabel(f"Stock: {self.quantite}")
+        self._lbl_qte = QLabel(f"Stock: {self.quantite}")
         couleur_qte = self._get_couleur_type()
-        lbl_qte.setStyleSheet(f"""
+        self._lbl_qte.setStyleSheet(f"""
             color: {couleur_qte};
             font-size: 14px;
             font-weight: bold;
             background: transparent;
             border: none;
         """)
-        lbl_qte.setAlignment(Qt.AlignCenter)
-        layout.addWidget(lbl_qte)
-        
+        self._lbl_qte.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self._lbl_qte)
+
         layout.addStretch()
-        
+
         # Bouton Ajouter en bas
-        btn_ajouter = QPushButton(qta.icon("fa5s.plus", color=c['text_inverse']), " Ajouter")
-        btn_ajouter.setFixedHeight(32)
-        btn_ajouter.setStyleSheet(f"""
+        self._btn_ajouter = QPushButton(qta.icon("fa5s.plus", color=c['text_inverse']), " Ajouter")
+        self._btn_ajouter.setFixedHeight(32)
+        self._btn_ajouter.setStyleSheet(f"""
             QPushButton {{
                 background-color: {c['primary']};
                 color: {c['text_inverse']};
@@ -122,8 +123,8 @@ class ProductStockCard(AnimatedFrame):
                 background-color: {c['hover']};
             }}
         """)
-        btn_ajouter.setCursor(Qt.PointingHandCursor)
-        layout.addWidget(btn_ajouter)
+        self._btn_ajouter.setCursor(Qt.PointingHandCursor)
+        layout.addWidget(self._btn_ajouter)
     
     def _create_icon(self) -> QLabel:
         """Crée l'icône circulaire du type de produit."""
@@ -167,3 +168,44 @@ class ProductStockCard(AnimatedFrame):
         if "pommade" in type_lower:
             return c['accent']
         return c['warning']
+
+    def apply_theme(self):
+        """Met à jour les couleurs selon le thème actif."""
+        c = theme_manager.colors()
+        self.setStyleSheet(f"""
+            QFrame {{
+                background-color: {c['bg_card']};
+                border-radius: 14px;
+                border: 1px solid {c['border']};
+            }}
+        """)
+        if hasattr(self, '_lbl_nom'):
+            self._lbl_nom.setStyleSheet(
+                f"color: {c['text_primary']}; font-size: 13px; font-weight: bold; "
+                "background: transparent; border: none;"
+            )
+        if hasattr(self, '_lbl_type'):
+            self._lbl_type.setStyleSheet(
+                f"color: {c['text_secondary']}; font-size: 11px; background: transparent; border: none;"
+            )
+        if hasattr(self, '_lbl_qte'):
+            couleur_qte = self._get_couleur_type()
+            self._lbl_qte.setStyleSheet(
+                f"color: {couleur_qte}; font-size: 14px; font-weight: bold; "
+                "background: transparent; border: none;"
+            )
+        if hasattr(self, '_btn_ajouter'):
+            self._btn_ajouter.setIcon(qta.icon("fa5s.plus", color=c['text_inverse']))
+            self._btn_ajouter.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {c['primary']};
+                    color: {c['text_inverse']};
+                    border-radius: 8px;
+                    font-weight: bold;
+                    font-size: 11px;
+                    border: none;
+                }}
+                QPushButton:hover {{
+                    background-color: {c['hover']};
+                }}
+            """)

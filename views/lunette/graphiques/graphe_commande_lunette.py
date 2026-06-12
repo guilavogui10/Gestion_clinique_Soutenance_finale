@@ -1,13 +1,11 @@
-﻿"""
+"""
 Graphiques statistiques pour les commandes de lunettes.
 3 graphiques matplotlib organisés en ligne horizontale :
-  1. Nombre de commandes par mois (barres verticales)
-  2. Montant des commandes par mois (courbe lissée)
-  3. Revenu moyen journalier par mois (courbe lissée)
+  1. Nombre de commandes par mois (courbe linéaire)
+  2. Montant des commandes par mois (courbe linéaire)
+  3. Revenu moyen journalier par mois (courbe linéaire)
 """
 import numpy as np
-from scipy.interpolate import make_interp_spline
-import mplcursors
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.ticker import MaxNLocator
@@ -76,69 +74,117 @@ class BaseGraph(FigureCanvas):
 
     def __init__(self, parent=None, width=5, height=4, dpi=100):
         self.theme = ModernTheme()
-        self.fig   = Figure(figsize=(width, height), dpi=dpi, facecolor="none")
+        _bg = theme_manager.colors()['bg_card']
+        self.fig   = Figure(figsize=(width, height), dpi=dpi, facecolor=_bg)
         self.axes  = self.fig.add_subplot(111)
-        self.axes.set_facecolor("none")
+        self.axes.set_facecolor(_bg)
+
+        self.hover_text = self.fig.text(0.5, 0.96, '', ha='center', va='top', fontsize=10, fontweight='bold')
+
         super().__init__(self.fig)
         self.setParent(parent)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.cursors     = []
         self._last_stats = {}
+        self.setStyleSheet(f"background-color: {_bg};")
+
+        self.fig.canvas.mpl_connect('motion_notify_event', self._on_hover)
+        self.fig.canvas.mpl_connect('axes_leave_event', lambda event: self._clear_hover_text())
+        self.fig.canvas.mpl_connect('figure_leave_event', lambda event: self._clear_hover_text())
+
         self._setup_modern_style()
         theme_manager.theme_changed.connect(self._on_theme_change)
+        theme_manager.theme_changed.connect(self._on_canvas_theme_change)
 
     def _on_theme_change(self):
         if self._last_stats:
             self.update_graph(self._last_stats)
 
+    def _on_canvas_theme_change(self):
+        bg = theme_manager.colors()['bg_card']
+        self.setStyleSheet(f"background-color: {bg};")
+        self.fig.patch.set_facecolor(bg)
+        self.axes.set_facecolor(bg)
+        self.draw_idle()
+
     def _setup_modern_style(self):
+        bg = theme_manager.colors()['bg_card']
+        self.fig.patch.set_facecolor(bg)
+        self.axes.set_facecolor(bg)
+
         for spine in self.axes.spines.values():
             spine.set_visible(False)
         self.axes.grid(
-            True, axis="y", linestyle="-", alpha=0.1,
+            True, axis="both", linestyle="--", alpha=0.3,
             color=self.theme.COLORS["border"], linewidth=0.8
         )
         self.axes.tick_params(
             colors=self.theme.COLORS["subtext"], labelsize=9, length=0, pad=8
         )
-        self.fig.subplots_adjust(left=0.12, right=0.95, top=0.9, bottom=0.18)
+        if hasattr(self, 'hover_text'):
+            self.hover_text.set_text('')
+        self.fig.subplots_adjust(left=0.1, right=0.95, top=0.85, bottom=0.15)
 
-    def _create_smooth_curve(self, x, y, color, label=None, alpha=0.85):
+    def _create_linear_curve(self, x, y, color, label=None, alpha=0.9):
         if len(y) < 2 or sum(y) == 0:
             return None, None
-        x_smooth = np.linspace(x.min(), x.max(), 200)
-        spline   = make_interp_spline(x, y, k=min(3, len(y) - 1))
-        y_smooth = np.maximum(spline(x_smooth), 0)
-        self.axes.plot(
-            x_smooth, y_smooth,
-            color=color, linewidth=2.5, alpha=alpha,
-            label=label, antialiased=True
-        )
-        self.axes.fill_between(x_smooth, y_smooth, color=color, alpha=0.1)
-        return x_smooth, y_smooth
+
+        line = self.axes.plot(
+            x, y,
+            color=color, linewidth=2.0, alpha=alpha,
+            label=label, antialiased=True, zorder=5
+        )[0]
+
+        return line, (x, y)
 
     def _create_data_points(self, x, y, color, category_name):
         scatter = self.axes.scatter(
             x, y,
-            color=self.theme.COLORS["surface"],
-            edgecolor=color, s=50, zorder=10, linewidth=2, alpha=0.9
+            color=color,
+            edgecolor=self.theme.COLORS["surface"],
+            s=50, zorder=10, linewidth=1.5, alpha=1.0
         )
-        cursor = mplcursors.cursor(scatter, hover=True)
-        cursor.connect("add", lambda sel: self._style_tooltip(sel, category_name))
-        self.cursors.append(cursor)
 
-    def _style_tooltip(self, sel, category_name):
-        idx   = int(round(sel.target[0]))
-        value = sel.target[1]
-        lbl   = self.MONTH_LABELS[idx] if idx < len(self.MONTH_LABELS) else str(idx)
-        sel.annotation.set_text(f"{lbl}\n{category_name}: {int(value):,}")
-        sel.annotation.get_bbox_patch().set(
-            fc=self.theme.COLORS["surface"], ec=self.theme.COLORS["border"],
-            boxstyle="round,pad=0.5", alpha=0.95, linewidth=1
-        )
-        sel.annotation.set_color(self.theme.COLORS["text"])
-        sel.annotation.set_fontsize(9)
-        sel.annotation.arrow_patch.set_visible(False)
+        if not hasattr(self, 'scatters'):
+            self.scatters = []
+        self.scatters.append({'scatter': scatter, 'label': category_name, 'x': x, 'y': y})
+
+        return scatter
+
+    def _on_hover(self, event):
+        if not event.inaxes:
+            self._clear_hover_text()
+            return
+
+        if not hasattr(self, 'scatters'):
+            return
+
+        found = False
+        for item in self.scatters:
+            cont, ind = item['scatter'].contains(event)
+            if cont:
+                idx = ind["ind"][0]
+                value = item['y'][idx]
+                category_name = item['label']
+                
+                if 0 <= idx < len(self.MONTH_LABELS):
+                    text = f"{category_name} en {self.MONTH_LABELS[idx]} : {int(value):,}"
+                else:
+                    text = f"{category_name} : {int(value):,}"
+
+                if self.hover_text.get_text() != text:
+                    self.hover_text.set_text(text)
+                    self.hover_text.set_color(self.theme.COLORS["text"])
+                    self.fig.canvas.draw_idle()
+                
+                found = True
+                break
+                
+        if not found and self.hover_text.get_text() != '':
+            self._clear_hover_text()
+
+    def _clear_hover_text(self):
+        self.hover_text.set_text('')
+        self.fig.canvas.draw_idle()
 
     def _set_intelligent_ylim(self, values):
         max_val = max(values) if values else 0
@@ -156,15 +202,17 @@ class BaseGraph(FigureCanvas):
 
 
 # =============================================================================
-# GRAPHIQUE 1 — Nombre de commandes par mois (barres verticales)
+# GRAPHIQUE 1 — Nombre de commandes par mois
 # =============================================================================
 
 class CommandeNombreParMoisGraph(BaseGraph):
-    """Barres verticales : nombre de commandes par mois."""
+    """Courbe linéaire : nombre de commandes par mois."""
 
     def update_graph(self, stats: dict):
         self._last_stats = stats or {}
         self.axes.clear()
+        if hasattr(self, 'scatters'):
+            self.scatters.clear()
         self._setup_modern_style()
 
         if not stats:
@@ -173,23 +221,14 @@ class CommandeNombreParMoisGraph(BaseGraph):
 
         values = [stats.get(m, 0) for m in self.MONTH_LABELS]
         x      = np.arange(len(self.MONTH_LABELS))
+        y      = np.array(values, dtype=float)
         color  = self.theme.COLORS["primary"]
 
-        bars = self.axes.bar(x, values, width=0.6, color=color,
-                             edgecolor='none', alpha=0.8)
-        for bar, val in zip(bars, values):
-            if val > 0:
-                self.axes.text(
-                    bar.get_x() + bar.get_width() / 2,
-                    bar.get_height() + 0.3,
-                    str(int(val)),
-                    ha='center', va='bottom', fontsize=8, fontweight='600',
-                    color=self.theme.COLORS["text"]
-                )
+        self._create_linear_curve(x, y, color)
+        self._create_data_points(x, y, color, "Commandes")
 
         self.axes.set_xticks(x)
         self.axes.set_xticklabels(self.MONTH_LABELS, rotation=0, fontsize=8)
-        self.axes.set_xlim(-0.8, len(self.MONTH_LABELS) - 0.2)
         self._set_intelligent_ylim(values)
         self.axes.set_ylabel(
             "Nb commandes",
@@ -199,15 +238,17 @@ class CommandeNombreParMoisGraph(BaseGraph):
 
 
 # =============================================================================
-# GRAPHIQUE 2 — Montant des commandes par mois (courbe lissée)
+# GRAPHIQUE 2 — Montant des commandes par mois
 # =============================================================================
 
 class CommandeMontantParMoisGraph(BaseGraph):
-    """Courbe lissée : montant total des commandes par mois (GNF)."""
+    """Courbe linéaire : montant total des commandes par mois (GNF)."""
 
     def update_graph(self, stats: dict):
         self._last_stats = stats or {}
         self.axes.clear()
+        if hasattr(self, 'scatters'):
+            self.scatters.clear()
         self._setup_modern_style()
 
         if not stats:
@@ -219,30 +260,28 @@ class CommandeMontantParMoisGraph(BaseGraph):
         y      = np.array(values, dtype=float)
         color  = self.theme.COLORS["success"]
 
-        self._create_smooth_curve(x, y, color)
+        self._create_linear_curve(x, y, color)
         self._create_data_points(x, y, color, "Montant (GNF)")
 
         self.axes.set_xticks(x)
         self.axes.set_xticklabels(self.MONTH_LABELS, rotation=0, fontsize=8)
-        self.axes.set_xlim(-0.8, len(self.MONTH_LABELS) - 0.2)
+        self.axes.yaxis.set_visible(False)
         self._set_intelligent_ylim(values)
-        self.axes.set_ylabel(
-            "Montant (GNF)",
-            color=self.theme.COLORS["subtext"], fontsize=9, fontweight="500"
-        )
         self._finalize()
 
 
 # =============================================================================
-# GRAPHIQUE 3 — Revenu moyen journalier par mois (courbe lissée)
+# GRAPHIQUE 3 — Revenu moyen journalier par mois
 # =============================================================================
 
 class CommandeRevenuMoyenGraph(BaseGraph):
-    """Courbe lissée : revenu moyen journalier des commandes par mois."""
+    """Courbe linéaire : revenu moyen journalier des commandes par mois."""
 
     def update_graph(self, stats: dict):
         self._last_stats = stats or {}
         self.axes.clear()
+        if hasattr(self, 'scatters'):
+            self.scatters.clear()
         self._setup_modern_style()
 
         if not stats:
@@ -254,15 +293,14 @@ class CommandeRevenuMoyenGraph(BaseGraph):
         y      = np.array(values, dtype=float)
         color  = self.theme.COLORS["warning"]
 
-        self._create_smooth_curve(x, y, color)
-        self._create_data_points(x, y, color, "Moy. GNF/jour")
+        self._create_linear_curve(x, y, color)
+        self._create_data_points(x, y, color, "Revenu moyen")
 
         self.axes.set_xticks(x)
         self.axes.set_xticklabels(self.MONTH_LABELS, rotation=0, fontsize=8)
-        self.axes.set_xlim(-0.8, len(self.MONTH_LABELS) - 0.2)
         self._set_intelligent_ylim(values)
         self.axes.set_ylabel(
-            "Moy. GNF/jour",
+            "Revenu moyen (GNF)",
             color=self.theme.COLORS["subtext"], fontsize=9, fontweight="500"
         )
         self._finalize()
@@ -298,7 +336,7 @@ class CommandeLunetteChartsSection(QWidget):
         self.frame2.layout().addWidget(self.graph2)
 
         # Graphique 3 — Revenu moyen journalier
-        self.frame3 = self._create_chart_frame("Revenu moyen journalier par mois (GNF)")
+        self.frame3 = self._create_chart_frame("Revenu moyen journalier (GNF)")
         self.graph3 = CommandeRevenuMoyenGraph(self.frame3, width=6, height=4, dpi=100)
         self.frame3.layout().addWidget(self.graph3)
 
@@ -328,7 +366,7 @@ class CommandeLunetteChartsSection(QWidget):
         f.setBold(True)
         lbl.setFont(f)
         lbl.setStyleSheet(
-            f"color: {c['text_primary']}; border: none; background: transparent;"
+            f"color: {c['text_primary']}; border: none; background: {c['bg_card']};"
         )
         lay.addWidget(lbl)
         return frame
@@ -364,14 +402,15 @@ class CommandeLunetteChartsSection(QWidget):
 
     def apply_theme(self):
         c = theme_manager.colors()
+        bg = c['bg_card']
         for frame, title in [
             (self.frame1, "Nombre de commandes par mois"),
             (self.frame2, "Montant des commandes par mois (GNF)"),
-            (self.frame3, "Revenu moyen journalier par mois (GNF)"),
+            (self.frame3, "Revenu moyen journalier (GNF)"),
         ]:
             frame.setStyleSheet(f"""
                 QFrame#ChartFrame {{
-                    background: {c['bg_card']};
+                    background: {bg};
                     border: 1px solid {c['border_light']};
                     border-radius: 12px;
                 }}
@@ -379,8 +418,14 @@ class CommandeLunetteChartsSection(QWidget):
             lbl = frame.findChild(QLabel, "ChartTitle")
             if lbl:
                 lbl.setStyleSheet(
-                    f"color: {c['text_primary']}; border: none; background: transparent;"
+                    f"color: {c['text_primary']}; border: none; background: {c['bg_card']};"
                 )
+
+        for graph in (self.graph1, self.graph2, self.graph3):
+            graph.setStyleSheet(f"background-color: {bg};")
+            graph.fig.patch.set_facecolor(bg)
+            graph.axes.set_facecolor(bg)
+            graph.draw_idle()
 
 
 # Alias de compatibilité (ancienne API utilisée dans vue_commande_lunette)

@@ -270,7 +270,7 @@ class ActeFormDialog(QDialog):
             }}
             QPushButton#BtnSave {{
                 background: {c['primary']};
-                color: white;
+                color: {c['text_inverse']};
                 border-radius: 8px;
                 font-weight: bold;
                 font-size: 14px;

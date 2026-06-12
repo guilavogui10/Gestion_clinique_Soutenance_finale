@@ -5,7 +5,7 @@ import qtawesome as qta
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
-    QTableWidget, QTableWidgetItem, QHeaderView, QComboBox, QLineEdit
+    QTableWidget, QTableWidgetItem, QHeaderView, QComboBox, QLineEdit, QPushButton
 )
 from views.shared.theme_manager import theme_manager
 
@@ -72,6 +72,15 @@ class ActivitesFournisseurView(QWidget):
         self.combo_fournisseur.addItem("-- Sélectionner un fournisseur --", None)
         self.combo_fournisseur.currentIndexChanged.connect(self._on_fournisseur_changed)
         header_layout.addWidget(self.combo_fournisseur)
+
+        # Bouton Imprimer
+        self.btn_imprimer = QPushButton("  Imprimer Activités")
+        self.btn_imprimer.setObjectName("BtnImprimerActivites")
+        self.btn_imprimer.setFixedHeight(40)
+        self.btn_imprimer.setCursor(Qt.PointingHandCursor)
+        self.btn_imprimer.setVisible(False)
+        self.btn_imprimer.clicked.connect(self._imprimer_activites)
+        header_layout.addWidget(self.btn_imprimer)
 
         parent_layout.addWidget(header_frame)
 
@@ -207,8 +216,10 @@ class ActivitesFournisseurView(QWidget):
         fournisseur = self.combo_fournisseur.currentData()
         if fournisseur:
             self.afficher_activites(fournisseur)
+            self.btn_imprimer.setVisible(True)
         else:
             self._clear_display()
+            self.btn_imprimer.setVisible(False)
 
     def afficher_activites(self, fournisseur):
         """Affiche les activités d'un fournisseur"""
@@ -246,8 +257,25 @@ class ActivitesFournisseurView(QWidget):
             )
         else:
             text = "Aucun mouvement enregistré pour ce fournisseur."
-        
         self.info_label.setText(text)
+
+    def _imprimer_activites(self):
+        """Imprime le rapport des activités pour le fournisseur sélectionné."""
+        if not self.fournisseur_actuel:
+            return
+            
+        from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+        from views.shared.message_box import CustomMessageBox
+        
+        email = self.fournisseur_actuel.get("email_fournisseur", "")
+        nom = self.fournisseur_actuel.get("nom_entreprise", email)
+        
+        try:
+            pdf_path = self.ctrl.generer_rapport_activites_un_fournisseur(email, self.code_session)
+            ApercuPDFDialog(pdf_path, f"Rapport — Activités de {nom}", self).exec()
+        except Exception as e:
+            CustomMessageBox("Erreur", f"Impossible de générer le rapport :\n{e}",
+                             msg_type="error", parent=self).exec()
 
     def _clear_display(self):
         """Réinitialise l'affichage"""
@@ -296,6 +324,19 @@ class ActivitesFournisseurView(QWidget):
                 selection-color: {c['primary']};
                 color: {c['text_primary']};
             }}
+            QPushButton#BtnImprimerActivites {{
+                background: {c['primary_light']};
+                color: {c['primary']};
+                border: 1px solid {c['primary']};
+                border-radius: 10px;
+                padding: 0 16px;
+                font-weight: 600;
+                font-size: 13px;
+            }}
+            QPushButton#BtnImprimerActivites:hover {{
+                background: {c['primary']};
+                color: white;
+            }}
             QFrame#StatCard {{
                 background: {c['bg_card']};
                 border: 1px solid {c['border']};
@@ -327,7 +368,7 @@ class ActivitesFournisseurView(QWidget):
                 background: transparent;
             }}
             QTableWidget#ProductsTable {{
-                background: white;
+                background: {c['bg_table']};
                 border: none;
                 gridline-color: {c['table_gridline']};
                 color: {c['text_primary']};
@@ -362,6 +403,9 @@ class ActivitesFournisseurView(QWidget):
         # Mettre à jour les icônes
         if hasattr(self, '_header_icon'):
             self._header_icon.setPixmap(qta.icon("fa5s.briefcase", color=c["primary"]).pixmap(24, 24))
+            
+        if hasattr(self, 'btn_imprimer'):
+            self.btn_imprimer.setIcon(qta.icon("fa5s.print", color=c["primary"]))
         
         if hasattr(self, 'card_produits'):
             for card in [self.card_produits, self.card_quantite, self.card_derniere]:

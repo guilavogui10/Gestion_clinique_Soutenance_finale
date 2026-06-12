@@ -1,4 +1,4 @@
-﻿"""
+"""
 vue_resultat_medical.py
 ------------------------
 Vue principale — Gestion des résultats médicaux.
@@ -116,6 +116,7 @@ class DialogResultatDetail(QDialog):
         self._id   = id_resultat
         self._ctrl = ctrl
         self._data = {}
+        self._pix_cache = None
         self.logger = logging.getLogger(__name__)
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
@@ -133,6 +134,7 @@ class DialogResultatDetail(QDialog):
             screen.x() + (screen.width()  - self.width())  // 2,
             screen.y() + (screen.height() - self.height()) // 2,
         )
+        theme_manager.theme_changed.connect(self.apply_theme)
 
     # ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -149,15 +151,15 @@ class DialogResultatDetail(QDialog):
         h.setSpacing(5)
         h.setContentsMargins(0, 1, 0, 1)
         h.addWidget(self._ico(ico_name, ico_color, 10))
-        key_lbl = QLabel(f"{label}\u00a0:")
+        key_lbl = QLabel(f"{label} :")
         key_lbl.setStyleSheet(
-            f"{self._FONT}font-size:10px;font-weight:600;color:#6B7280;"
+            f"{self._FONT}font-size:10px;font-weight:600;color:{c['text_secondary']};"
             "border:none;background:transparent;min-width:105px;"
         )
-        val_lbl = QLabel(str(value) if value else "\u2014")
+        val_lbl = QLabel(str(value) if value else "—")
         val_lbl.setWordWrap(True)
         val_lbl.setStyleSheet(
-            f"{self._FONT}font-size:10px;color:#111827;border:none;background:transparent;"
+            f"{self._FONT}font-size:10px;color:{c['text_primary']};border:none;background:transparent;"
         )
         h.addWidget(key_lbl, 0, Qt.AlignTop)
         h.addWidget(val_lbl, 1)
@@ -168,7 +170,7 @@ class DialogResultatDetail(QDialog):
         frame = QFrame()
         frame.setStyleSheet(f"""
             QFrame {{
-                background:white;
+                background:{c['bg_card']};
                 border-radius:10px;
                 border:1.5px solid {c['border_light']};
             }}
@@ -213,91 +215,156 @@ class DialogResultatDetail(QDialog):
         outer.setContentsMargins(16, 16, 16, 16)
         outer.setSpacing(0)
 
-        card = QFrame()
-        card.setObjectName("ModalCard")
-        card.setStyleSheet(f"""
-            QFrame#ModalCard {{
-                background:white;
-                border-radius:18px;
-                border:1px solid {c['border']};
-            }}
-        """)
-        card_lay = QVBoxLayout(card)
+        self._card = QFrame()
+        self._card.setObjectName("ModalCard")
+        card_lay = QVBoxLayout(self._card)
         card_lay.setContentsMargins(20, 14, 20, 12)
         card_lay.setSpacing(8)
-        outer.addWidget(card)
+        outer.addWidget(self._card)
 
         # Header
-        type_source = d.get("type_source", "")
+        self._type_source = d.get("type_source", "")
         _src = {
-            "consultation": ("fa5s.stethoscope", "#2563EB"),
-            "examen":       ("fa5s.microscope",  "#7C3AED"),
-            "chirurgie":    ("fa5s.cut",          "#EF4444"),
+            "consultation": ("fa5s.stethoscope", c['info']),
+            "examen":       ("fa5s.microscope",  c['accent']),
+            "chirurgie":    ("fa5s.cut",         c['danger']),
         }
-        ico_name, ico_color = _src.get(type_source, ("fa5s.file-medical", "#0F7B6C"))
+        self._ico_name, self._ico_color = _src.get(
+            self._type_source, ("fa5s.file-medical", c['primary'])
+        )
         nom_patient = (
             f"{d.get('p_nom') or ''} {d.get('p_prenom') or ''}".strip() or
             d.get("code_consultation") or d.get("code_acte_medical") or ""
         )
         hdr = QHBoxLayout()
         hdr.setSpacing(10)
-        badge_hdr = QFrame()
-        badge_hdr.setFixedSize(34, 34)
-        badge_hdr.setStyleSheet(
-            f"background:{ico_color}18;border-radius:9px;border:none;"
-        )
-        bhl = QHBoxLayout(badge_hdr)
+        self._badge_hdr = QFrame()
+        self._badge_hdr.setFixedSize(34, 34)
+        bhl = QHBoxLayout(self._badge_hdr)
         bhl.setContentsMargins(0, 0, 0, 0)
-        bhi = QLabel()
-        bhi.setPixmap(qta.icon(ico_name, color=ico_color).pixmap(16, 16))
-        bhi.setAlignment(Qt.AlignCenter)
-        bhi.setStyleSheet("border:none;background:transparent;")
-        bhl.addWidget(bhi, alignment=Qt.AlignCenter)
+        self._badge_hdr_ico = QLabel()
+        self._badge_hdr_ico.setAlignment(Qt.AlignCenter)
+        self._badge_hdr_ico.setStyleSheet("border:none;background:transparent;")
+        bhl.addWidget(self._badge_hdr_ico, alignment=Qt.AlignCenter)
         titre_col = QVBoxLayout()
         titre_col.setSpacing(1)
-        titre_main = QLabel(f"R\u00e9sultat \u2014 {type_source.capitalize()}")
-        titre_main.setStyleSheet(
-            f"{self._FONT}font-size:14px;font-weight:700;color:#111827;"
-            "border:none;background:transparent;"
-        )
-        titre_sub = QLabel(nom_patient)
-        titre_sub.setStyleSheet(
-            f"{self._FONT}font-size:10px;color:#6B7280;border:none;background:transparent;"
-        )
-        titre_col.addWidget(titre_main)
-        titre_col.addWidget(titre_sub)
-        close_btn = QPushButton()
-        close_btn.setIcon(qta.icon("fa5s.times", color="#9CA3AF"))
-        close_btn.setFixedSize(26, 26)
-        close_btn.setCursor(Qt.PointingHandCursor)
-        close_btn.setStyleSheet(
-            "QPushButton{border:none;background:transparent;border-radius:6px;}"
-            "QPushButton:hover{background:#F3F4F6;}"
-        )
-        close_btn.clicked.connect(self.reject)
-        hdr.addWidget(badge_hdr)
+        self._titre_main = QLabel(f"Résultat — {self._type_source.capitalize()}")
+        self._titre_sub = QLabel(nom_patient)
+        titre_col.addWidget(self._titre_main)
+        titre_col.addWidget(self._titre_sub)
+        self._close_btn_widget = QPushButton()
+        self._close_btn_widget.setFixedSize(26, 26)
+        self._close_btn_widget.setCursor(Qt.PointingHandCursor)
+        self._close_btn_widget.clicked.connect(self.reject)
+        hdr.addWidget(self._badge_hdr)
         hdr.addLayout(titre_col)
         hdr.addStretch()
-        hdr.addWidget(close_btn)
+        hdr.addWidget(self._close_btn_widget)
         card_lay.addLayout(hdr)
 
-        sep0 = QFrame()
-        sep0.setFrameShape(QFrame.HLine)
-        sep0.setStyleSheet(f"color:{c['border_light']};")
-        card_lay.addWidget(sep0)
+        self._sep0 = QFrame()
+        self._sep0.setFrameShape(QFrame.HLine)
+        card_lay.addWidget(self._sep0)
 
         # Zone scrollable
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QFrame.NoFrame)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        card_lay.addWidget(self._scroll, 1)
+
+        self._sep2 = QFrame()
+        self._sep2.setFrameShape(QFrame.HLine)
+        card_lay.addWidget(self._sep2)
+
+        footer = QHBoxLayout()
+        footer.setSpacing(8)
+        footer.addStretch()
+        self._btn_print_dlg = QPushButton("  Imprimer")
+        self._btn_print_dlg.setFixedHeight(32)
+        self._btn_print_dlg.setMinimumWidth(105)
+        self._btn_print_dlg.setCursor(Qt.PointingHandCursor)
+        self._btn_print_dlg.clicked.connect(self._print_pdf)
+        self._btn_open_dlg = QPushButton("  Ouvrir le fichier")
+        self._btn_open_dlg.setFixedHeight(32)
+        self._btn_open_dlg.setMinimumWidth(140)
+        self._btn_open_dlg.setCursor(Qt.PointingHandCursor)
+        self._btn_open_dlg.clicked.connect(self._open_file)
+        self._btn_close_dlg = QPushButton("  Fermer")
+        self._btn_close_dlg.setFixedHeight(32)
+        self._btn_close_dlg.setMinimumWidth(88)
+        self._btn_close_dlg.setCursor(Qt.PointingHandCursor)
+        self._btn_close_dlg.clicked.connect(self.reject)
+        footer.addWidget(self._btn_print_dlg)
+        footer.addWidget(self._btn_open_dlg)
+        footer.addWidget(self._btn_close_dlg)
+        card_lay.addLayout(footer)
+
+        self.apply_theme()
+
+    # ── Apply Theme ──────────────────────────────────────────────────────────
+
+    def apply_theme(self):
+        c = theme_manager.colors()
+        d = self._data
+
+        # Recalcul ico_color selon le thème actif
+        _src = {
+            "consultation": ("fa5s.stethoscope", c['info']),
+            "examen":       ("fa5s.microscope",  c['accent']),
+            "chirurgie":    ("fa5s.cut",         c['danger']),
+        }
+        self._ico_name, self._ico_color = _src.get(
+            self._type_source, ("fa5s.file-medical", c['primary'])
+        )
+
+        # Card principale
+        self._card.setStyleSheet(f"""
+            QFrame#ModalCard {{
+                background:{c['bg_card']};
+                border-radius:18px;
+                border:1px solid {c['border']};
+            }}
+        """)
+
+        # Header badge
+        self._badge_hdr.setStyleSheet(
+            f"background:{self._ico_color}18;border-radius:9px;border:none;"
+        )
+        self._badge_hdr_ico.setPixmap(
+            qta.icon(self._ico_name, color=self._ico_color).pixmap(16, 16)
+        )
+
+        # Titres
+        self._titre_main.setStyleSheet(
+            f"{self._FONT}font-size:14px;font-weight:700;color:{c['text_primary']};"
+            "border:none;background:transparent;"
+        )
+        self._titre_sub.setStyleSheet(
+            f"{self._FONT}font-size:10px;color:{c['text_secondary']};border:none;background:transparent;"
+        )
+
+        # Bouton fermeture header
+        self._close_btn_widget.setIcon(qta.icon("fa5s.times", color=c['text_muted']))
+        self._close_btn_widget.setStyleSheet(
+            "QPushButton{border:none;background:transparent;border-radius:6px;}"
+            f"QPushButton:hover{{background:{c['hover']};}}"
+        )
+
+        # Séparateurs
+        self._sep0.setStyleSheet(f"color:{c['border_light']};")
+        self._sep2.setStyleSheet(f"color:{c['border_light']};")
+
+        # Reconstruction du contenu scrollable
+        old = self._scroll.takeWidget()
+        if old:
+            old.deleteLater()
         sc_w = QWidget()
-        sc_w.setStyleSheet("background:transparent;")
+        sc_w.setStyleSheet(f"background:{c['bg_card']};")
         sc_lay = QVBoxLayout(sc_w)
         sc_lay.setContentsMargins(0, 4, 0, 4)
         sc_lay.setSpacing(8)
-        scroll.setWidget(sc_w)
-        card_lay.addWidget(scroll, 1)
+        self._scroll.setWidget(sc_w)
 
         row1 = QHBoxLayout()
         row1.setSpacing(8)
@@ -311,73 +378,47 @@ class DialogResultatDetail(QDialog):
         row2.addWidget(self._section_resultat(d, c), 1)
         sc_lay.addLayout(row2)
 
-        sep2 = QFrame()
-        sep2.setFrameShape(QFrame.HLine)
-        sep2.setStyleSheet(f"color:{c['border_light']};")
-        card_lay.addWidget(sep2)
-
-        footer = QHBoxLayout()
-        footer.setSpacing(8)
-        footer.addStretch()
-        btn_print = QPushButton("  Imprimer")
-        btn_print.setIcon(qta.icon("fa5s.print", color="white"))
-        btn_print.setFixedHeight(32)
-        btn_print.setMinimumWidth(105)
-        btn_print.setCursor(Qt.PointingHandCursor)
-        btn_print.setStyleSheet(f"""
-            QPushButton{{background:#059669;color:white;border:none;border-radius:8px;
+        # Boutons footer
+        self._btn_print_dlg.setIcon(qta.icon("fa5s.print", color=c['text_inverse']))
+        self._btn_print_dlg.setStyleSheet(f"""
+            QPushButton{{background:{c['success']};color:{c['text_inverse']};border:none;border-radius:8px;
                         {self._FONT}font-size:11px;font-weight:600;padding:0 14px;}}
-            QPushButton:hover{{background:#047857;}}
+            QPushButton:hover{{background:{c['primary']};}}
         """)
-        btn_print.clicked.connect(self._print_pdf)
-        btn_open = QPushButton("  Ouvrir le fichier")
-        btn_open.setIcon(qta.icon("fa5s.external-link-alt", color="white"))
-        btn_open.setFixedHeight(32)
-        btn_open.setMinimumWidth(140)
-        btn_open.setCursor(Qt.PointingHandCursor)
-        btn_open.setStyleSheet(f"""
-            QPushButton{{background:{ico_color};color:white;border:none;border-radius:8px;
+        self._btn_open_dlg.setIcon(qta.icon("fa5s.external-link-alt", color=c['text_inverse']))
+        self._btn_open_dlg.setStyleSheet(f"""
+            QPushButton{{background:{self._ico_color};color:{c['text_inverse']};border:none;border-radius:8px;
                         {self._FONT}font-size:11px;font-weight:600;padding:0 14px;}}
-            QPushButton:hover{{opacity:0.85;}}
+            QPushButton:hover{{background:{self._ico_color};opacity:0.85;}}
         """)
-        btn_open.clicked.connect(self._open_file)
-        btn_close = QPushButton("  Fermer")
-        btn_close.setIcon(qta.icon("fa5s.times", color="#6B7280"))
-        btn_close.setFixedHeight(32)
-        btn_close.setMinimumWidth(88)
-        btn_close.setCursor(Qt.PointingHandCursor)
-        btn_close.setStyleSheet(f"""
-            QPushButton{{background:#F9FAFB;color:#374151;
+        self._btn_close_dlg.setIcon(qta.icon("fa5s.times", color=c['text_secondary']))
+        self._btn_close_dlg.setStyleSheet(f"""
+            QPushButton{{background:{c['bg_main']};color:{c['text_primary']};
                         border:1.5px solid {c['border']};border-radius:8px;
                         {self._FONT}font-size:11px;font-weight:600;padding:0 14px;}}
-            QPushButton:hover{{background:#F3F4F6;}}
+            QPushButton:hover{{background:{c['hover']};}}
         """)
-        btn_close.clicked.connect(self.reject)
-        footer.addWidget(btn_print)
-        footer.addWidget(btn_open)
-        footer.addWidget(btn_close)
-        card_lay.addLayout(footer)
 
     # ── Sections ─────────────────────────────────────────────────────────────
 
     def _section_patient(self, d, c):
-        nom = f"{d.get('p_nom') or ''} {d.get('p_prenom') or ''}".strip() or "\u2014"
+        nom = f"{d.get('p_nom') or ''} {d.get('p_prenom') or ''}".strip() or "—"
 
         def rows(lay, c):
             for ico, lbl, val in [
                 ("fa5s.user",           "Nom complet",  nom),
-                ("fa5s.phone",          "T\u00e9l\u00e9phone",    d.get("p_tel")),
+                ("fa5s.phone",          "Téléphone",    d.get("p_tel")),
                 ("fa5s.birthday-cake",  "Naissance",    _fmt_date(d["p_naissance"]) if d.get("p_naissance") else None),
                 ("fa5s.venus-mars",     "Genre",        d.get("p_genre")),
                 ("fa5s.briefcase",      "Profession",   d.get("p_profession")),
                 ("fa5s.map-marker-alt", "Adresse",      d.get("p_adresse")),
             ]:
-                lay.addLayout(self._field_row(ico, "#2563EB", lbl, val, c))
+                lay.addLayout(self._field_row(ico, c['info'], lbl, val, c))
 
-        return self._sub_card("Patient", "fa5s.user", "#2563EB", rows, c)
+        return self._sub_card("Patient", "fa5s.user", c['info'], rows, c)
 
     def _section_personnel(self, d, c):
-        nom = f"{d.get('per_nom') or ''} {d.get('per_prenom') or ''}".strip() or "\u2014"
+        nom = f"{d.get('per_nom') or ''} {d.get('per_prenom') or ''}".strip() or "—"
 
         def rows(lay, c):
             for ico, lbl, val in [
@@ -385,9 +426,9 @@ class DialogResultatDetail(QDialog):
                 ("fa5s.id-badge",  "Fonction",    d.get("per_fonction")),
                 ("fa5s.phone-alt", "Contact",     d.get("per_contact")),
             ]:
-                lay.addLayout(self._field_row(ico, "#059669", lbl, val, c))
+                lay.addLayout(self._field_row(ico, c['success'], lbl, val, c))
 
-        return self._sub_card("Personnel soignant", "fa5s.user-md", "#059669", rows, c)
+        return self._sub_card("Personnel soignant", "fa5s.user-md", c['success'], rows, c)
 
     def _section_service(self, d, c):
         ts = d.get("type_source", "")
@@ -403,9 +444,9 @@ class DialogResultatDetail(QDialog):
                     ("fa5s.calendar-alt", "Date",          _fmt_date(d["date_consultation"]) if d.get("date_consultation") else None),
                     ("fa5s.layer-group",  "Session",       d.get("nom_session")),
                 ]:
-                    lay.addLayout(self._field_row(ico, "#2563EB", lbl, val, c))
+                    lay.addLayout(self._field_row(ico, c['info'], lbl, val, c))
 
-            return self._sub_card("Consultation", "fa5s.stethoscope", "#2563EB", rows, c)
+            return self._sub_card("Consultation", "fa5s.stethoscope", c['info'], rows, c)
         elif ts == "examen":
             frais = d.get("frais_examen")
             frais_str = f"{frais:,.0f} GNF".replace(",", " ") if frais else None
@@ -413,16 +454,16 @@ class DialogResultatDetail(QDialog):
             def rows(lay, c):
                 for ico, lbl, val in [
                     ("fa5s.hashtag",        "Code acte",   d.get("code_acte_medical")),
-                    ("fa5s.flask",          "Libell\u00e9",    d.get("libelle_examen")),
-                    ("fa5s.comment-medical","D\u00e9cision",   d.get("decision_medicale")),
+                    ("fa5s.flask",          "Libellé",    d.get("libelle_examen")),
+                    ("fa5s.comment-medical","Décision",   d.get("decision_medicale")),
                     ("fa5s.coins",          "Frais",       frais_str),
                     ("fa5s.calendar-alt",   "Date",        _fmt_date(d["date_examen"]) if d.get("date_examen") else None),
                     ("fa5s.check-circle",   "Conclusion",  d.get("conclusion_medicale")),
                     ("fa5s.layer-group",    "Session",     d.get("nom_session")),
                 ]:
-                    lay.addLayout(self._field_row(ico, "#7C3AED", lbl, val, c))
+                    lay.addLayout(self._field_row(ico, c['accent'], lbl, val, c))
 
-            return self._sub_card("Examen", "fa5s.microscope", "#7C3AED", rows, c)
+            return self._sub_card("Examen", "fa5s.microscope", c['accent'], rows, c)
         else:
             frais = d.get("frais_chururgie")
             frais_str = f"{frais:,.0f} GNF".replace(",", " ") if frais else None
@@ -430,89 +471,99 @@ class DialogResultatDetail(QDialog):
             def rows(lay, c):
                 for ico, lbl, val in [
                     ("fa5s.hashtag",        "Code acte",     d.get("code_acte_medical")),
-                    ("fa5s.procedures",     "Libell\u00e9",      d.get("libelle_chururgie")),
-                    ("fa5s.comment-medical","D\u00e9cision",     d.get("decision_medicale")),
+                    ("fa5s.procedures",     "Libellé",      d.get("libelle_chururgie")),
+                    ("fa5s.comment-medical","Décision",     d.get("decision_medicale")),
                     ("fa5s.coins",          "Frais",         frais_str),
                     ("fa5s.calendar-alt",   "Date",          _fmt_date(d["date_chururgie"]) if d.get("date_chururgie") else None),
                     ("fa5s.file-alt",       "Compte rendu",  d.get("compte_rendu_operatoire")),
                     ("fa5s.layer-group",    "Session",       d.get("nom_session")),
                 ]:
-                    lay.addLayout(self._field_row(ico, "#EF4444", lbl, val, c))
+                    lay.addLayout(self._field_row(ico, c['danger'], lbl, val, c))
 
-            return self._sub_card("Chirurgie", "fa5s.cut", "#EF4444", rows, c)
+            return self._sub_card("Chirurgie", "fa5s.cut", c['danger'], rows, c)
 
     def _section_resultat(self, d, c):
         def rows(lay, c):
             for ico, lbl, val in [
-                ("fa5s.barcode",    "ID R\u00e9sultat",     d.get("id_resultat")),
+                ("fa5s.barcode",    "ID Résultat",     d.get("id_resultat")),
                 ("fa5s.tag",        "Type source",     d.get("type_source")),
                 ("fa5s.file",       "Type fichier",    d.get("type_fichier")),
-                ("fa5s.shield-alt", "Confidentialit\u00e9", d.get("niveau_confidentialite")),
+                ("fa5s.shield-alt", "Confidentialité", d.get("niveau_confidentialite")),
                 ("fa5s.clock",      "Date upload",     _fmt_date(d["date_upload"]) if d.get("date_upload") else None),
                 ("fa5s.align-left", "Description",     d.get("description")),
             ]:
-                lay.addLayout(self._field_row(ico, "#0F7B6C", lbl, val, c))
+                lay.addLayout(self._field_row(ico, c['primary'], lbl, val, c))
             if d.get("type_fichier") == "image":
                 self._add_image_preview(lay, d, c)
             else:
-                lbl_type = {"pdf": "PDF", "video": "vid\u00e9o"}.get(d.get("type_fichier", ""), d.get("type_fichier", ""))
-                hint = QLabel(f"  Fichier {lbl_type} \u2014 cliquez sur \u00ab\u00a0Ouvrir le fichier\u00a0\u00bb")
+                lbl_type = {"pdf": "PDF", "video": "vidéo"}.get(d.get("type_fichier", ""), d.get("type_fichier", ""))
+                hint = QLabel(f"  Fichier {lbl_type} — cliquez sur « Ouvrir le fichier »")
                 hint.setStyleSheet(
-                    "font-size:10px;font-style:italic;color:#9CA3AF;border:none;background:transparent;"
+                    f"font-size:10px;font-style:italic;color:{c['text_muted']};border:none;background:transparent;"
                 )
                 lay.addWidget(hint)
 
-        return self._sub_card("R\u00e9sultat m\u00e9dical", "fa5s.file-medical-alt", "#0F7B6C", rows, c)
+        return self._sub_card("Résultat médical", "fa5s.file-medical-alt", c['primary'], rows, c)
 
     def _add_image_preview(self, lay, d, c):
-        # Vérifier l'intégrité avant d'afficher l'image
         id_resultat = d.get("id_resultat", "")
         if not id_resultat:
             hint = QLabel("Aperçu non disponible")
             hint.setStyleSheet(
-                "font-size:10px;font-style:italic;color:#9CA3AF;border:none;background:transparent;"
+                f"font-size:10px;font-style:italic;color:{c['text_muted']};border:none;background:transparent;"
             )
             lay.addWidget(hint)
             return
-        
+
+        # Utiliser le cache si disponible (évite un appel réseau à chaque changement de thème)
+        if self._pix_cache is not None:
+            img_lbl = QLabel()
+            img_lbl.setPixmap(self._pix_cache)
+            img_lbl.setAlignment(Qt.AlignCenter)
+            img_lbl.setStyleSheet(
+                f"border:1.5px solid {c['border']};border-radius:8px;background:transparent;padding:4px;"
+            )
+            lay.addWidget(img_lbl)
+            return
+
         try:
             integrite_ok, message_integrite = self._ctrl.verifier_integrite_resultat(id_resultat)
-            
+
             if not integrite_ok:
-                # Afficher un message d'avertissement au lieu de l'image
                 warning_lbl = QLabel(f"⚠️ {message_integrite}")
                 warning_lbl.setStyleSheet(
-                    "font-size:10px;font-weight:600;color:#EF4444;border:1.5px solid #FEE2E2;"
-                    "border-radius:8px;background:#FEF2F2;padding:8px;"
+                    f"font-size:10px;font-weight:600;color:{c['danger']};border:1.5px solid {c['danger_bg']};"
+                    f"border-radius:8px;background:{c['danger_bg']};padding:8px;"
                 )
                 warning_lbl.setWordWrap(True)
                 lay.addWidget(warning_lbl)
                 return
-            
+
             url = self._ctrl.get_url_temporaire(id_resultat, 30)
             if not url:
                 raise ValueError("URL vide - vérification intégrité échouée")
-            
+
             with urllib.request.urlopen(url, timeout=6) as resp:
                 img_bytes = resp.read()
             pix = QPixmap()
             pix.loadFromData(img_bytes)
             if not pix.isNull():
                 pix = pix.scaled(200, 130, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                self._pix_cache = pix
                 img_lbl = QLabel()
                 img_lbl.setPixmap(pix)
                 img_lbl.setAlignment(Qt.AlignCenter)
                 img_lbl.setStyleSheet(
-                    "border:1.5px solid #E5E7EB;border-radius:8px;background:transparent;padding:4px;"
+                    f"border:1.5px solid {c['border']};border-radius:8px;background:transparent;padding:4px;"
                 )
                 lay.addWidget(img_lbl)
                 return
         except Exception as e:
             self.logger.warning(f"Erreur aperçu image {id_resultat}: {e}")
-        
+
         hint = QLabel("Aperçu non disponible")
         hint.setStyleSheet(
-            "font-size:10px;font-style:italic;color:#9CA3AF;border:none;background:transparent;"
+            f"font-size:10px;font-style:italic;color:{c['text_muted']};border:none;background:transparent;"
         )
         lay.addWidget(hint)
 
@@ -520,19 +571,18 @@ class DialogResultatDetail(QDialog):
         from PySide6.QtGui import QDesktopServices
         from PySide6.QtCore import QUrl
         from views.shared.message_box import CustomMessageBox
-        
+
         if not self._id:
             CustomMessageBox.warning(self, "Erreur", "Identifiant du résultat manquant.")
             return
-        
-        # Vérifier l'intégrité avant d'ouvrir
+
         try:
             integrite_ok, message_integrite = self._ctrl.verifier_integrite_resultat(self._id)
-            
+
             if not integrite_ok:
                 CustomMessageBox.warning(self, "Fichier bloqué", message_integrite)
                 return
-            
+
             url = self._ctrl.get_url_temporaire(self._id, 60)
             if url:
                 QDesktopServices.openUrl(QUrl(url))
@@ -545,22 +595,28 @@ class DialogResultatDetail(QDialog):
         from PySide6.QtGui import QDesktopServices
         from PySide6.QtCore import QUrl
         from services.pdf_admin.resultat_pdf import ResultatPDFService
-        
+        from views.shared.message_box import CustomMessageBox
+
         try:
+            if self._id:
+                integrite_ok, message_integrite = self._ctrl.verifier_integrite_resultat(self._id)
+                if not integrite_ok:
+                    CustomMessageBox.warning(self, "Fichier bloqué", message_integrite)
+                    return
+
             info_cabinet = {}
             if hasattr(self._ctrl, "service") and hasattr(self._ctrl.service, "info_cabinet"):
                 try:
                     info_cabinet = self._ctrl.service.info_cabinet() or {}
                 except Exception:
                     info_cabinet = {}
-            
+
             pdf_path = ResultatPDFService.generer_temp(self._data or {}, info_cabinet)
             QDesktopServices.openUrl(QUrl.fromLocalFile(pdf_path))
         except Exception as e:
-            from views.shared.message_box import CustomMessageBox
             CustomMessageBox.warning(self, "Erreur impression", str(e))
- 
- 
+
+
 class VueResultatMedical(QWidget):
 
     def __init__(self, controleur, permission_ctrl=None, user_info=None, parent=None):
@@ -569,18 +625,16 @@ class VueResultatMedical(QWidget):
         self.permission_ctrl = permission_ctrl
         self.user_info = user_info or {}
         self.logger = logging.getLogger(__name__)
-        
-        # Extraire les infos utilisateur pour les permissions
+
         self.code_utilisateur = self.user_info.get("code", "")
         self.role = self.user_info.get("role", "")
         self.est_responsable = bool(self.user_info.get("est_responsable", 0))
-        
-        # Créer le helper de permissions si disponible
+
         self.permission_helper = None
         if self.permission_ctrl and self.user_info:
             from views.shared.permission_helper import PermissionHelper
             self.permission_helper = PermissionHelper(self, self.permission_ctrl, self.user_info)
-        
+
         self._init_ui()
         self._connect_signals()
         self._load_data()
@@ -615,10 +669,9 @@ class VueResultatMedical(QWidget):
         self.tabs.addTab(self.tab_chirurgies,    qta.icon("fa5s.cut",         color=c.get("warning","#D97706")), "Chirurgies")
         self.tabs.addTab(self.tab_dossier,       qta.icon("fa5s.folder-open", color=c.get("warning","#D97706")), "Dossier patient")
         self.tabs.addTab(self.tab_nouveau,       qta.icon("fa5s.plus-circle", color=c.get("success","#059669")), "Enregistrer")
-        
-        # Connecter le signal de changement d'onglet pour vérifier les permissions
+
         self.tabs.currentChanged.connect(self._verifier_acces_onglet)
-        
+
         root.addWidget(self.main_frame)
 
     def _build_quick_actions(self):
@@ -699,6 +752,7 @@ class VueResultatMedical(QWidget):
         return tab
 
     def _kpi_card(self, title, icon_name, color, value):
+        c = theme_manager.colors()
         card = QFrame()
         card.setObjectName("KpiCard")
         card.setFixedHeight(82)
@@ -712,7 +766,7 @@ class VueResultatMedical(QWidget):
         circ_lay = QHBoxLayout(circle)
         circ_lay.setContentsMargins(0, 0, 0, 0)
         ic_lbl = QLabel()
-        ic_lbl.setPixmap(qta.icon(icon_name, color="white").pixmap(20, 20))
+        ic_lbl.setPixmap(qta.icon(icon_name, color=c['text_inverse']).pixmap(20, 20))
         ic_lbl.setAlignment(Qt.AlignCenter)
         ic_lbl.setStyleSheet("border: none; background: transparent;")
         circ_lay.addWidget(ic_lbl, alignment=Qt.AlignCenter)
@@ -733,12 +787,12 @@ class VueResultatMedical(QWidget):
         return card, val_lbl
 
     def _create_liste_tab(self, source_type):
+        c = theme_manager.colors()
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(12)
 
-        # Barre d'outils : recherche + bouton nouveau
         toolbar = QHBoxLayout()
         toolbar.setSpacing(12)
         search = QLineEdit()
@@ -746,7 +800,7 @@ class VueResultatMedical(QWidget):
         search.setPlaceholderText(f"Rechercher un résultat — {source_type}s…")
         search.setFixedHeight(40)
         search.addAction(
-            qta.icon("fa5s.search", color=theme_manager.colors()["text_muted"]),
+            qta.icon("fa5s.search", color=c["text_muted"]),
             QLineEdit.LeadingPosition,
         )
         btn_new = QPushButton("  Nouveau résultat")
@@ -754,13 +808,12 @@ class VueResultatMedical(QWidget):
         btn_new.setFixedHeight(40)
         btn_new.setMinimumWidth(155)
         btn_new.setCursor(Qt.PointingHandCursor)
-        btn_new.setIcon(qta.icon("fa5s.plus", color="white"))
+        btn_new.setIcon(qta.icon("fa5s.plus", color=c['text_inverse']))
         btn_new.clicked.connect(lambda: self.tabs.setCurrentIndex(5))
         toolbar.addWidget(search, 1)
         toolbar.addWidget(btn_new)
         layout.addLayout(toolbar)
 
-        # Zone défilante avec FlowLayout pour les cartes
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setObjectName("CardsScrollArea")
@@ -781,6 +834,7 @@ class VueResultatMedical(QWidget):
         return tab
 
     def _create_dossier_tab(self):
+        c = theme_manager.colors()
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(20, 16, 20, 16)
@@ -791,20 +845,19 @@ class VueResultatMedical(QWidget):
         self._dossier_input.setObjectName("SearchInput")
         self._dossier_input.setPlaceholderText("Code patient — ex: PAT-00000001")
         self._dossier_input.setFixedHeight(40)
-        self._dossier_input.addAction(qta.icon("fa5s.user", color=theme_manager.colors()["text_muted"]), QLineEdit.LeadingPosition)
+        self._dossier_input.addAction(qta.icon("fa5s.user", color=c["text_muted"]), QLineEdit.LeadingPosition)
         btn_search = QPushButton("  Rechercher")
         btn_search.setObjectName("PrimaryButton")
         btn_search.setFixedHeight(40)
         btn_search.setMinimumWidth(130)
         btn_search.setCursor(Qt.PointingHandCursor)
-        btn_search.setIcon(qta.icon("fa5s.search", color="white"))
+        btn_search.setIcon(qta.icon("fa5s.search", color=c['text_inverse']))
         toolbar.addWidget(self._dossier_input, 1)
         toolbar.addWidget(btn_search)
         layout.addLayout(toolbar)
         self._dossier_info = QLabel("Entrez un code patient pour afficher ses résultats médicaux.")
         self._dossier_info.setObjectName("DossierInfo")
         layout.addWidget(self._dossier_info)
-        # Zone défilante avec FlowLayout
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setObjectName("CardsScrollArea")
@@ -828,7 +881,6 @@ class VueResultatMedical(QWidget):
         outer.setSpacing(16)
         c = theme_manager.colors()
 
-        # En-tête style consultation
         self.header_frame = QFrame()
         self.header_frame.setObjectName("FormHeader")
         self.header_frame.setFixedHeight(72)
@@ -865,12 +917,11 @@ class VueResultatMedical(QWidget):
         self.n_btn_save.setObjectName("BtnSave")
         self.n_btn_save.setFixedSize(140, 40)
         self.n_btn_save.setCursor(Qt.PointingHandCursor)
-        self.n_btn_save.setIcon(qta.icon("fa5s.upload", color="white"))
+        self.n_btn_save.setIcon(qta.icon("fa5s.upload", color=c['text_inverse']))
         hl.addWidget(self.n_btn_cancel)
         hl.addWidget(self.n_btn_save)
         outer.addWidget(self.header_frame)
 
-        # Section carte
         section = QFrame()
         section.setObjectName("FormSection")
         sl = QVBoxLayout(section)
@@ -888,7 +939,6 @@ class VueResultatMedical(QWidget):
         shdr.addStretch()
         sl.addLayout(shdr)
 
-        # Rangée 1
         row1 = QHBoxLayout()
         row1.setSpacing(16)
         self.n_type_source = QComboBox()
@@ -905,7 +955,6 @@ class VueResultatMedical(QWidget):
         row1.addLayout(vl3, 1)
         sl.addLayout(row1)
 
-        # Rangée 2 : chemin + confidentialité
         row2 = QHBoxLayout()
         row2.setSpacing(16)
         file_outer = QVBoxLayout()
@@ -951,7 +1000,6 @@ class VueResultatMedical(QWidget):
         row2.addLayout(vl5, 1)
         sl.addLayout(row2)
 
-        # Description
         self.n_description = QTextEdit()
         self.n_description.setPlaceholderText("Description du résultat (optionnel)")
         self.n_description.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -1024,13 +1072,8 @@ class VueResultatMedical(QWidget):
         self.n_btn_save.clicked.connect(self._save_resultat)
         self._btn_browse.clicked.connect(self._browse_file)
         self.n_type_source.currentTextChanged.connect(self._on_type_source_changed)
-    
+
     def _verifier_acces_onglet(self, index):
-        """
-        Vérifie si l'utilisateur peut accéder à l'onglet sélectionné.
-        Si refusé, revient à l'onglet précédent.
-        """
-        # Mapping des index d'onglets vers les types de source
         onglet_map = {
             0: "Statistiques",
             1: "Consultations",
@@ -1039,40 +1082,67 @@ class VueResultatMedical(QWidget):
             4: "Dossier patient",
             5: "Enregistrer"
         }
-        
         nom_onglet = onglet_map.get(index, "")
-        
-        # Pas de contrôle pour Statistiques, Dossier patient et Enregistrer
-        if index in [0, 4, 5]:
-            self._on_tab_changed(index)
-            return
-        
-        # Vérifier les permissions pour Consultations, Examens, Chirurgies
+
+        # Sans contrôleur de permissions → pas de restriction
         if not self.permission_ctrl:
             self._on_tab_changed(index)
-            return  # Mode dégradé
-        
-        # DG et Admin ont accès à tout
-        if self.role in ["Directeur Général", "Administrateur"]:
+            return
+
+        # Statistiques et Enregistrer → accessibles à tous
+        if index in [0, 5]:
             self._on_tab_changed(index)
             return
-        
-        # Chirurgien : accès uniquement à Chirurgies
-        if self.role.lower() == "chirurgien":
-            if index != 3:  # Index 3 = Chirurgies
-                CustomMessageBox.warning(
-                    self,
-                    "Accès refusé",
-                    f"Votre rôle 'Chirurgien' ne vous permet pas d'accéder à l'onglet '{nom_onglet}'.\n\nVous avez uniquement accès aux résultats de chirurgie."
-                )
-                # Revenir à l'onglet Chirurgies
-                self.tabs.blockSignals(True)
-                self.tabs.setCurrentIndex(3)
-                self.tabs.blockSignals(False)
+
+        role_norm = (self.role or "").lower().strip()
+
+        # Directeur Général → accès complet
+        if role_norm in ("directeur général", "directeur general"):
+            self._on_tab_changed(index)
+            return
+
+        # Administrateur → tout sauf Dossier patient (réservé DG)
+        if role_norm in ("administrateur", "admin"):
+            if index != 4:
+                self._on_tab_changed(index)
                 return
-        
-        # Accès autorisé, charger les données
-        self._on_tab_changed(index)
+
+        # Mapping : onglet → rôles autorisés
+        _ACCES = {
+            1: ("médecin",    "medecin"),
+            2: ("laborantin", "laboratin"),
+            3: ("chirurgien",),
+            4: ("directeur général", "directeur general"),
+        }
+
+        if role_norm in _ACCES.get(index, ()):
+            self._on_tab_changed(index)
+            return
+
+        # Accès refusé → rediriger vers l'onglet par défaut du rôle
+        tab_defaut = self._get_tab_defaut()
+        CustomMessageBox.warning(
+            self,
+            "Accès refusé",
+            f"Votre rôle '{self.role}' ne vous permet pas d'accéder à l'onglet '{nom_onglet}'."
+        )
+        self.tabs.blockSignals(True)
+        self.tabs.setCurrentIndex(tab_defaut)
+        self.tabs.blockSignals(False)
+        self._on_tab_changed(tab_defaut)
+
+    def _get_tab_defaut(self) -> int:
+        """Retourne l'onglet par défaut selon le rôle de l'utilisateur."""
+        role_norm = (self.role or "").lower().strip()
+        if role_norm in ("médecin", "medecin"):
+            return 1
+        if role_norm in ("laborantin", "laboratin"):
+            return 2
+        if role_norm == "chirurgien":
+            return 3
+        if role_norm in ("directeur général", "directeur general"):
+            return 4
+        return 0  # Statistiques pour les rôles non mappés
 
     def _load_data(self):
         self._load_stats()
@@ -1106,14 +1176,16 @@ class VueResultatMedical(QWidget):
     # ── Cartes FlowLayout ─────────────────────────────────────────────────────
 
     def _populate_cards(self, source_type, resultats):
-        """Vide et remplit le FlowLayout de l'onglet source_type."""
         flow = getattr(self, f"_flow_{source_type}", None)
         if flow is None:
             return
         while flow.count():
             item = flow.takeAt(0)
-            if item and item.widget():
-                item.widget().deleteLater()
+            if item:
+                w = item.widget()
+                if w:
+                    w.setParent(None)
+                    w.deleteLater()
         setattr(self, f"_data_{source_type}", resultats)
         _colors = {"consultation": "#2563EB", "examen": "#7C3AED", "chirurgie": "#EF4444"}
         color = _colors.get(source_type, "#0F7B6C")
@@ -1124,11 +1196,13 @@ class VueResultatMedical(QWidget):
             container.adjustSize()
 
     def _populate_cards_dossier(self, resultats):
-        """Vide et remplit le FlowLayout du dossier patient."""
         while self._dossier_flow.count():
             item = self._dossier_flow.takeAt(0)
-            if item and item.widget():
-                item.widget().deleteLater()
+            if item:
+                w = item.widget()
+                if w:
+                    w.setParent(None)
+                    w.deleteLater()
         _colors = {"consultation": "#2563EB", "examen": "#7C3AED", "chirurgie": "#EF4444"}
         for r in resultats:
             color = _colors.get(getattr(r, "type_source", ""), "#0F7B6C")
@@ -1136,7 +1210,7 @@ class VueResultatMedical(QWidget):
         self._dossier_container.adjustSize()
 
     def _make_result_card(self, r, color):
-        """Crée une carte : grande icône + bouton œil avec nom patient."""
+        c = theme_manager.colors()
         id_r           = getattr(r, "id_resultat",    "") or ""
         patient_nom    = getattr(r, "patient_nom",    "") or ""
         patient_prenom = getattr(r, "patient_prenom", "") or ""
@@ -1157,23 +1231,21 @@ class VueResultatMedical(QWidget):
         cl.setSpacing(10)
         cl.setAlignment(Qt.AlignCenter)
 
-        # Grande icône book-medical
         icon_lbl = QLabel()
         icon_lbl.setPixmap(qta.icon("fa5s.book-medical", color=color).pixmap(72, 72))
         icon_lbl.setAlignment(Qt.AlignCenter)
         icon_lbl.setStyleSheet("border: none; background: transparent;")
         cl.addWidget(icon_lbl)
 
-        # Bouton : œil + Résultat — nom patient
         btn_voir = QPushButton(f"  Résultat — {nom_display}")
         btn_voir.setObjectName("CardViewBtn")
         btn_voir.setFixedHeight(34)
         btn_voir.setCursor(Qt.PointingHandCursor)
-        btn_voir.setIcon(qta.icon("fa5s.eye", color="white"))
+        btn_voir.setIcon(qta.icon("fa5s.eye", color=c['text_inverse']))
         btn_voir.setStyleSheet(f"""
             QPushButton#CardViewBtn {{
                 background: {color};
-                color: white;
+                color: {c['text_inverse']};
                 border: none;
                 border-radius: 8px;
                 font-size: 11px;
@@ -1187,10 +1259,45 @@ class VueResultatMedical(QWidget):
         """)
         btn_voir.clicked.connect(lambda _, rid=id_r: self._show_detail(rid))
         cl.addWidget(btn_voir)
+
+        actions_lay = QHBoxLayout()
+        actions_lay.setSpacing(6)
+
+        btn_mod = QPushButton(" Modifier")
+        btn_mod.setIcon(qta.icon("fa5s.edit", color=c['text_primary']))
+        btn_mod.setFixedHeight(28)
+        btn_mod.setCursor(Qt.PointingHandCursor)
+        btn_mod.setStyleSheet(f"""
+            QPushButton {{
+                background: {c['bg_main']}; border: 1px solid {c['border']};
+                border-radius: 6px; font-size: 10px;
+                color: {c['text_primary']}; font-weight: 600;
+            }}
+            QPushButton:hover {{ background: {c['hover']}; }}
+        """)
+        btn_mod.clicked.connect(lambda _, rid=id_r: self._edit_resultat(rid))
+
+        btn_sup = QPushButton(" Supprimer")
+        btn_sup.setIcon(qta.icon("fa5s.trash-alt", color=c['danger']))
+        btn_sup.setFixedHeight(28)
+        btn_sup.setCursor(Qt.PointingHandCursor)
+        btn_sup.setStyleSheet(f"""
+            QPushButton {{
+                background: {c['danger_bg']}; border: 1px solid {c['danger_bg']};
+                border-radius: 6px; font-size: 10px;
+                color: {c['danger']}; font-weight: 600;
+            }}
+            QPushButton:hover {{ background: {c['danger_bg']}; border-color: {c['danger']}; }}
+        """)
+        btn_sup.clicked.connect(lambda _, rid=id_r: self._delete_resultat(rid))
+
+        actions_lay.addWidget(btn_mod)
+        actions_lay.addWidget(btn_sup)
+        cl.addLayout(actions_lay)
+
         return card
 
     def _filter_cards(self, source_type, text):
-        """Filtre les cartes selon le texte de recherche (nom patient / code)."""
         all_data = getattr(self, f"_data_{source_type}", [])
         text = text.lower().strip()
         if not text:
@@ -1254,19 +1361,16 @@ class VueResultatMedical(QWidget):
     def _show_detail(self, id_resultat):
         if not id_resultat:
             return
-        
-        # Vérifier les permissions pour consulter les résultats
+
         if not self.permission_helper:
-            # Mode dégradé sans permissions
             dlg = DialogResultatDetail(id_resultat, self.ctrl, self)
             dlg.exec()
             return
-        
-        # Vérifier et exécuter avec gestion OTP
+
         def afficher_detail():
             dlg = DialogResultatDetail(id_resultat, self.ctrl, self)
             dlg.exec()
-        
+
         self.permission_helper.verifier_et_executer(
             action=self.permission_ctrl.ACTION_CONSULTATION,
             contexte=f"Résultat médical {id_resultat}",
@@ -1281,7 +1385,7 @@ class VueResultatMedical(QWidget):
             if not integrite_ok:
                 CustomMessageBox.warning(self, "Fichier bloqué", message_integrite)
                 return
-            
+
             url = self.ctrl.get_url_temporaire(id_resultat, 60)
             if url:
                 from PySide6.QtGui import QDesktopServices
@@ -1293,18 +1397,76 @@ class VueResultatMedical(QWidget):
             self.logger.error(f"Erreur ouverture URL {id_resultat}: {e}")
             CustomMessageBox.warning(self, "Erreur", str(e))
 
+    def _edit_resultat(self, id_resultat):
+        if not id_resultat:
+            return
+
+        r = self.ctrl.obtenir_resultat(id_resultat)
+        if not r:
+            from views.shared.message_box import CustomMessageBox
+            CustomMessageBox.warning(self, "Erreur", "Résultat introuvable.")
+            return
+
+        def afficher_formulaire_modification():
+            self._current_edit_id = id_resultat
+
+            idx_source = self.n_type_source.findText(r.type_source)
+            if idx_source >= 0:
+                self.n_type_source.setCurrentIndex(idx_source)
+
+            code_to_select = r.code_consultation if r.type_source == "consultation" else r.code_acte_medical
+            for i in range(self.n_code_source.count()):
+                if self.n_code_source.itemData(i) == code_to_select or str(code_to_select) in self.n_code_source.itemText(i):
+                    self.n_code_source.setCurrentIndex(i)
+                    break
+
+            idx_fic = self.n_type_fichier.findText(r.type_fichier)
+            if idx_fic >= 0:
+                self.n_type_fichier.setCurrentIndex(idx_fic)
+
+            idx_conf = self.n_confidentialite.findText(r.niveau_confidentialite or "moyen")
+            if idx_conf >= 0:
+                self.n_confidentialite.setCurrentIndex(idx_conf)
+
+            self.n_description.setText(r.description or "")
+            self.n_chemin.clear()
+            self.n_chemin.setPlaceholderText("Laissez vide pour conserver, ou parcourez...")
+            self._form_title.setText(f"Modification du Résultat : {id_resultat}")
+            self.n_btn_save.setText("  Mettre à jour")
+            self.tabs.setCurrentIndex(5)
+
+        if self.permission_helper:
+            self.permission_helper.verifier_et_executer(
+                action=self.permission_ctrl.ACTION_MODIFICATION,
+                contexte=f"Résultat médical {id_resultat}",
+                callback_success=afficher_formulaire_modification
+            )
+        else:
+            afficher_formulaire_modification()
+
     def _delete_resultat(self, id_resultat):
         if not id_resultat:
             return
         rep = CustomMessageBox.question(self, "Confirmation", f"Supprimer le résultat <b>{id_resultat}</b> ?<br>Le fichier MinIO sera également supprimé.")
         if not rep:
             return
-        ok, msg = self.ctrl.supprimer_resultat(id_resultat)
-        if ok:
-            CustomMessageBox.info(self, "Succès", msg)
-            self._load_data()
+
+        def executer_suppression():
+            ok, msg = self.ctrl.supprimer_resultat(id_resultat)
+            if ok:
+                CustomMessageBox.info(self, "Succès", msg)
+                self._load_data()
+            else:
+                CustomMessageBox.warning(self, "Erreur", msg)
+
+        if self.permission_helper:
+            self.permission_helper.verifier_et_executer(
+                action=self.permission_ctrl.ACTION_SUPPRESSION,
+                contexte=f"Résultat médical {id_resultat}",
+                callback_success=executer_suppression
+            )
         else:
-            CustomMessageBox.warning(self, "Erreur", msg)
+            executer_suppression()
 
     def _browse_file(self):
         path, _ = QFileDialog.getOpenFileName(self, "Sélectionner un fichier", os.path.expanduser("~"),
@@ -1329,22 +1491,56 @@ class VueResultatMedical(QWidget):
         desc         = self.n_description.toPlainText().strip() or None
         code_consultation = code_source if type_source == "consultation" else None
         code_acte_medical = code_source if type_source in ("examen","chirurgie") else None
-        resultat, msg = self.ctrl.ajouter_resultat(
-            type_source=type_source, type_fichier=type_fichier, chemin_local=chemin,
-            code_acte_medical=code_acte_medical, code_consultation=code_consultation,
-            description=desc, niveau_confidentialite=conf,
-        )
-        if resultat:
-            CustomMessageBox.info(self, "Succès", msg)
-            self._reset_form()
-            self._load_data()
-            tab_map = {"consultation": 1, "examen": 2, "chirurgie": 3}
-            if type_source in tab_map:
-                self.tabs.setCurrentIndex(tab_map[type_source])
+
+        from views.shared.message_box import CustomMessageBox
+
+        if getattr(self, "_current_edit_id", None):
+            ok, msg = self.ctrl.modifier_resultat_complet(
+                id_resultat=self._current_edit_id,
+                type_source=type_source,
+                type_fichier=type_fichier,
+                chemin_local=chemin,
+                code_acte_medical=code_acte_medical,
+                code_consultation=code_consultation,
+                description=desc,
+                niveau_confidentialite=conf
+            )
+            if ok:
+                CustomMessageBox.info(self, "Succès", msg)
+                self._reset_form()
+                self._load_data()
+                tab_map = {"consultation": 1, "examen": 2, "chirurgie": 3}
+                if type_source in tab_map:
+                    self.tabs.setCurrentIndex(tab_map[type_source])
+            else:
+                CustomMessageBox.warning(self, "Erreur de modification", msg)
         else:
-            CustomMessageBox.warning(self, "Erreur d'enregistrement", msg)
+            if not chemin:
+                CustomMessageBox.warning(self, "Erreur", "Le chemin du fichier est obligatoire pour un nouvel enregistrement.")
+                return
+            resultat, msg = self.ctrl.ajouter_resultat(
+                type_source=type_source, type_fichier=type_fichier, chemin_local=chemin,
+                code_acte_medical=code_acte_medical, code_consultation=code_consultation,
+                description=desc, niveau_confidentialite=conf,
+            )
+            if resultat:
+                CustomMessageBox.info(self, "Succès", msg)
+                self._reset_form()
+                self._load_data()
+                tab_map = {"consultation": 1, "examen": 2, "chirurgie": 3}
+                if type_source in tab_map:
+                    self.tabs.setCurrentIndex(tab_map[type_source])
+            else:
+                CustomMessageBox.warning(self, "Erreur d'enregistrement", msg)
 
     def _reset_form(self):
+        self._current_edit_id = None
+        if hasattr(self, "_form_title"):
+            self._form_title.setText("Enregistrement d'un Résultat Médical")
+        if hasattr(self, "n_btn_save"):
+            self.n_btn_save.setText("  Enregistrer")
+        if hasattr(self, "n_chemin"):
+            self.n_chemin.setPlaceholderText("Chemin du fichier à uploader…")
         self.n_type_source.setCurrentIndex(0)
         self._on_type_source_changed("consultation")
         self.n_type_fichier.setCurrentIndex(0)
@@ -1356,19 +1552,19 @@ class VueResultatMedical(QWidget):
         c = theme_manager.colors()
         self.setStyleSheet(f"""
             QFrame#MainWhiteFrame {{
-                background: white;
+                background: {c['bg_card']};
                 border-radius: 16px;
                 border: 1px solid {c['border']};
             }}
             QTabWidget::pane {{
                 border: none;
-                background: white;
+                background: {c['bg_card']};
                 padding: 0px;
                 margin-top: 0px;
             }}
-            QTabBar {{ background: white; border: none; }}
+            QTabBar {{ background: {c['bg_card']}; border: none; }}
             QTabBar::tab {{
-                background: white;
+                background: {c['bg_card']};
                 color: {c['text_secondary']};
                 border: none;
                 border-bottom: 3px solid transparent;
@@ -1378,11 +1574,11 @@ class VueResultatMedical(QWidget):
                 min-width: 120px;
             }}
             QTabBar::tab:selected {{
-                background: white;
+                background: {c['bg_card']};
                 color: {c['primary']};
                 border-bottom: 3px solid {c['primary']};
             }}
-            QTabBar::tab:hover {{ background: white; color: {c['text_primary']}; }}
+            QTabBar::tab:hover {{ background: {c['bg_card']}; color: {c['text_primary']}; }}
             QFrame#KpiCard {{
                 background: {c['bg_card']};
                 border: 1.5px solid {c['border_light']};
@@ -1422,7 +1618,7 @@ class VueResultatMedical(QWidget):
                 color: {c['text_primary']};
             }}
             QPushButton#PrimaryButton {{
-                background: {c['primary']}; color: white;
+                background: {c['primary']}; color: {c['text_inverse']};
                 border: none; border-radius: 10px;
                 font-size: 13px; font-weight: 600;
             }}
@@ -1444,7 +1640,7 @@ class VueResultatMedical(QWidget):
                 font-size: 12px; color: {c['text_secondary']};
                 background: transparent; padding: 2px 0;
             }}
-            QWidget#NouveauTab {{ background: white; }}
+            QWidget#NouveauTab {{ background: {c['bg_card']}; }}
             QFrame#FormHeader {{
                 background: {c['bg_card']};
                 border-radius: 14px;
@@ -1473,7 +1669,7 @@ class VueResultatMedical(QWidget):
             }}
             QPushButton#BtnCancel:hover {{ background-color: {c['hover']}; }}
             QPushButton#BtnSave {{
-                background-color: {c['primary']}; color: white;
+                background-color: {c['primary']}; color: {c['text_inverse']};
                 border-radius: 10px; font-size: 13px; font-weight: bold; border: none;
             }}
             QPushButton#BtnSave:hover {{ background-color: {c['primary_hover']}; }}
@@ -1498,16 +1694,16 @@ class VueResultatMedical(QWidget):
                 border-radius: 10px;
             }}
             QWidget#QuickActionsBar {{
-                background: white;
+                background: {c['bg_card']};
                 border-top: 1px solid {c['border_light']};
             }}
             QPushButton#QuickActionButton {{
-                background: white; border: none; border-radius: 8px;
+                background: {c['bg_card']}; border: none; border-radius: 8px;
                 padding-left: 15px; text-align: left;
                 font-size: 12px; font-weight: 600;
                 color: {c['text_primary']};
             }}
-            QPushButton#QuickActionButton:hover {{ background: {c['bg_card']}; }}
+            QPushButton#QuickActionButton:hover {{ background: {c['hover']}; }}
         """)
         for btn in self._qa_buttons:
             color_key = btn.property("color_key") or "primary"

@@ -69,7 +69,7 @@ class UserService:
 
     def gerer_creation(self, mdp: str, role: str, id_personnel: str) -> dict:
         """
-        Gere la creation d'un utilisateur.
+        Gere la creation d'un utilisateur ou la mise à jour s'il existe déjà.
 
         Args:
             mdp (str): Mot de passe en clair.
@@ -81,6 +81,25 @@ class UserService:
         """
         if not all([mdp, role, id_personnel]):
             return {"status": "error", "message": "Erreur : Tous les champs sont requis."}
+
+        # Vérifier si l'utilisateur existe déjà pour ce personnel
+        user_existant = self.dao.rechercher_par_code_personnel(id_personnel)
+        if user_existant:
+            code_user = user_existant["code"]
+            user_maj = ModeleUser(code_user, mdp, role, id_personnel)
+            self.dao.modifier_utilisateur(user_maj)
+            
+            message = f"Le compte '{code_user}' existait déjà. Son mot de passe et son rôle ont été mis à jour."
+            email = (user_existant.get("mail") or "").strip()
+            if email:
+                # Recréer la clé TOTP Vault au cas où
+                self.vault.creer_cle_totp(code_user, account_name=email)
+                
+            return {
+                "status": "success",
+                "message": message,
+                "code": code_user,
+            }
 
         nouveau_code = self.dao.generer_nouveau_code()
         if not nouveau_code:
@@ -313,3 +332,12 @@ class UserService:
         self.dao.supprimer_utilisateur(code)
         self.vault.supprimer_cle_totp(code)
         return {"status": "success", "message": f"L'utilisateur avec le code '{code}' a ete supprime."}
+
+    def lister_personnel_par_roles(self, roles: list) -> list:
+        return self.dao.lister_personnel_par_roles(roles)
+
+    def obtenir_roles_disponibles(self) -> list:
+        """
+        Retourne la liste des rôles distincts présents dans le système.
+        """
+        return self.dao.obtenir_roles_disponibles()

@@ -5,7 +5,7 @@ Architecture à onglets pour une interface moins chargée
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QScrollArea,
                                 QTabWidget, QFrame, QHBoxLayout, QPushButton,
                                 QDialog, QDialogButtonBox, QDateEdit, QFormLayout)
-from PySide6.QtCore import Qt, QSize, QDate
+from PySide6.QtCore import Qt, QSize, QDate, QPoint
 from views.shared.theme_manager import theme_manager
 from .components import (
     KpiCardsSection,
@@ -56,7 +56,7 @@ class PrescriptionView(QWidget):
         self.tabs.setIconSize(QSize(20, 20))
         self._apply_tab_styles()
         main_frame_layout.addWidget(self.tabs)
-        
+
         # Onglet 1: Statistiques + Liste
         self.tab_stats = self._create_stats_tab()
         icon_stats = self._get_icon("chart-line")
@@ -71,10 +71,10 @@ class PrescriptionView(QWidget):
         self.tab_attente = self._create_attente_tab()
         icon_attente = self._get_icon("clock")
         self.tabs.addTab(self.tab_attente, icon_attente, "Patients en attente")
-        
+
         # Ajouter le frame principal au layout
         main_layout.addWidget(main_frame)
-        
+
         # Appliquer le style au frame principal
         self._apply_main_frame_style(main_frame)
     
@@ -138,16 +138,32 @@ class PrescriptionView(QWidget):
     
     def apply_theme(self):
         c = theme_manager.colors()
-        self.setStyleSheet(f"""
-            QWidget {{
-                background: {c['bg_main']};
-            }}
-        """)
         self._apply_tab_styles()
         if hasattr(self, 'tabs'):
             main_frame = self.findChild(QFrame, "MainWhiteFrame")
             if main_frame:
                 self._apply_main_frame_style(main_frame)
+
+        # ── Onglets ──────────────────────────────────────────────────────────
+        for attr in ('tab_stats', 'tab_panier', 'tab_attente'):
+            tab = getattr(self, attr, None)
+            if tab:
+                tab.setStyleSheet(f"background: {c['bg_card']};")
+
+        # ── Bouton acte médical ───────────────────────────────────────────────
+        if hasattr(self, '_btn_acte'):
+            self._btn_acte.setIcon(
+                qta.icon("fa5s.arrow-right", color=c['text_inverse'])
+            )
+            self._btn_acte.setStyleSheet(f"""
+                QPushButton {{
+                    background: {c['primary']}; color: {c['text_inverse']};
+                    border: none; border-radius: 6px;
+                    padding: 0 14px; font-size: 13px; font-weight: 600;
+                }}
+                QPushButton:hover   {{ background: {c['primary_hover']}; }}
+                QPushButton:pressed {{ background: {c['primary_hover']}; }}
+            """)
     
     def _get_icon(self, icon_name):
         """Récupère une icône Font Awesome ou standard"""
@@ -170,7 +186,7 @@ class PrescriptionView(QWidget):
     def _create_stats_tab(self):
         """Crée l'onglet Statistiques + Liste"""
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
+        tab.setStyleSheet(f"background: {theme_manager.colors()['bg_card']};")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(12, 8, 12, 12)
         layout.setSpacing(8)
@@ -198,7 +214,7 @@ class PrescriptionView(QWidget):
         from views.prescription.panier_prescription.components.panier_widget import PanierPrescriptionWidget
         
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
+        tab.setStyleSheet(f"background: {theme_manager.colors()['bg_card']};")
         layout = QHBoxLayout(tab)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(12)
@@ -259,6 +275,8 @@ class PrescriptionView(QWidget):
     def _on_prescription_validee(self):
         """Appelé quand une prescription est validée"""
         self.charger_donnees_stats()
+        if hasattr(self, 'patients_attente_view'):
+            self.patients_attente_view.charger_patients()
         # Revenir à l'onglet Statistiques
         self.tabs.setCurrentIndex(0)
     
@@ -266,7 +284,7 @@ class PrescriptionView(QWidget):
         """Crée l'onglet Patients en attente"""
         from PySide6.QtWidgets import QHBoxLayout, QPushButton
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
+        tab.setStyleSheet(f"background: {theme_manager.colors()['bg_card']};")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(12, 8, 12, 12)
         layout.setSpacing(8)
@@ -276,21 +294,26 @@ class PrescriptionView(QWidget):
         toolbar.setSpacing(8)
         toolbar.addStretch()
 
-        btn_acte = QPushButton(qta.icon("fa5s.arrow-right", color="#ffffff"), "  Aller sur acte médical")
+        _ca = theme_manager.colors()
+        self._btn_acte = QPushButton(
+            qta.icon("fa5s.arrow-right", color=_ca['text_inverse']),
+            "  Aller sur acte médical"
+        )
+        btn_acte = self._btn_acte
         btn_acte.setFixedHeight(32)
         btn_acte.setCursor(Qt.PointingHandCursor)
-        btn_acte.setStyleSheet("""
-            QPushButton {
-                background: #2563EB;
-                color: #ffffff;
+        btn_acte.setStyleSheet(f"""
+            QPushButton {{
+                background: {_ca['primary']};
+                color: {_ca['text_inverse']};
                 border: none;
                 border-radius: 6px;
                 padding: 0 14px;
                 font-size: 13px;
                 font-weight: 600;
-            }
-            QPushButton:hover  { background: #1D4ED8; }
-            QPushButton:pressed{ background: #1E40AF; }
+            }}
+            QPushButton:hover  {{ background: {_ca['primary_hover']}; }}
+            QPushButton:pressed{{ background: {_ca['primary_hover']}; }}
         """)
         btn_acte.clicked.connect(self._aller_sur_acte_medical)
         toolbar.addWidget(btn_acte)
@@ -318,7 +341,7 @@ class PrescriptionView(QWidget):
         c = theme_manager.colors()
         frame.setStyleSheet(f"""
             QFrame#MainWhiteFrame {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 16px;
             }}
@@ -499,7 +522,7 @@ class PrescriptionView(QWidget):
         menu = QMenu(self)
         menu.setStyleSheet(f"""
             QMenu {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 8px;
                 padding: 6px 0;
@@ -536,8 +559,26 @@ class PrescriptionView(QWidget):
         )
         action_date.triggered.connect(self._on_imprimer_rapport_par_date_prescription)
 
+        menu.addSeparator()
+        act_exp_xl = menu.addAction(qta.icon("fa5s.file-excel", color="#217346"), "  Exporter Excel (.xlsx)")
+        act_exp_cs = menu.addAction(qta.icon("fa5s.file-csv",   color="#0070c0"), "  Exporter CSV (.csv)")
+        menu.addSeparator()
+        act_imp_xl = menu.addAction(qta.icon("fa5s.upload", color="#217346"),     "  Importer Excel (.xlsx)")
+        act_imp_cs = menu.addAction(qta.icon("fa5s.upload", color="#0070c0"),     "  Importer CSV (.csv)")
+        act_exp_xl.triggered.connect(lambda: self._on_export_import_prescription("export", "excel"))
+        act_exp_cs.triggered.connect(lambda: self._on_export_import_prescription("export", "csv"))
+        act_imp_xl.triggered.connect(lambda: self._on_export_import_prescription("import", "excel"))
+        act_imp_cs.triggered.connect(lambda: self._on_export_import_prescription("import", "csv"))
+
         btn = self.table.btn_rapport
         menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+
+    def _on_export_import_prescription(self, mode: str, format_fichier: str):
+        from views.acte_medical.export_import_acte import ApercuActeModal
+        if mode == "export":
+            ApercuActeModal.ouvrir_export(self, self.ctrl, "prescription", format_fichier)
+        else:
+            ApercuActeModal.ouvrir_import(self, self.ctrl, "prescription", format_fichier)
 
     def _on_imprimer_tous_rapports_prescription(self):
         from views.shared.message_box import CustomMessageBox

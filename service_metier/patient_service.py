@@ -53,16 +53,16 @@ class PatientService:
         """Valide le nom du patient (min 3 caractères, pas de caractères spéciaux)."""
         if len(nom) < 3:
             return False, "le nom doit contenir au moins trois lettres !"
-        if re.match(r"^[a-zA-Z0-9\s'-]+$", nom) is None:
+        if re.match(r"^[a-zA-ZÀ-ÿ0-9\s'\-\.]+$", nom) is None:
             return False, "le Le nom contient des caractères spéciaux non autorisés."
         return True, ""
 
     def _valider_prenom(self, prenom):
         """Valide le prénom du patient (min 3 caractères, pas de caractères spéciaux)."""
         if len(prenom) < 3:
-            return False, "le nom doit contenir au moins trois lettres !"
-        if re.match(r"^[a-zA-Z0-9\s'-]+$", prenom) is None:
-            return False, "le nom contient des caractères spéciaux non autorisés. !"
+            return False, "le prénom doit contenir au moins trois lettres !"
+        if re.match(r"^[a-zA-ZÀ-ÿ0-9\s'\-\.]+$", prenom) is None:
+            return False, "le prénom contient des caractères spéciaux non autorisés !"
         return True, ""
 
     def _valider_telephone(self, telephone):
@@ -75,41 +75,60 @@ class PatientService:
         return True, ""
 
     def _valider_date(self, naissance):
-        """Valide la date de naissance (formats acceptés : YYYY-MM-DD, DD/MM/YYYY)."""
+        """Valide la date de naissance."""
+        from datetime import date as date_type
+
+        # Convertir en objet date
         if isinstance(naissance, datetime):
-            return True, ""
-        if pd.notna(naissance) and isinstance(naissance, float):
-            naissance = str(pd.to_datetime(naissance).date())
-        for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
-            try:
-                datetime.strptime(str(naissance), fmt)
-                return True, ""
-            except Exception:
-                continue
-        return False, "Date invalide. Format attendu: YYYY-MM-DD ou DD/MM/YYYY."
+            dt = naissance.date()
+        elif isinstance(naissance, date_type):
+            dt = naissance
+        else:
+            if pd.notna(naissance) and isinstance(naissance, float):
+                naissance = str(pd.to_datetime(naissance).date())
+            dt = None
+            for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
+                try:
+                    dt = datetime.strptime(str(naissance), fmt).date()
+                    break
+                except Exception:
+                    continue
+            if dt is None:
+                return False, "Date de naissance invalide. Format attendu : YYYY-MM-DD ou DD/MM/YYYY."
+
+        aujourd_hui = date_type.today()
+
+        if dt >= aujourd_hui:
+            return False, "La date de naissance ne peut pas être aujourd'hui ou dans le futur."
+
+        age = (aujourd_hui - dt).days // 365
+        if age > 100:
+            return False, f"Date de naissance invalide : âge calculé ({age} ans) dépasse 100 ans."
+
+        return True, ""
 
     def _valider_genre(self, genre):
         """Valide le genre du patient (min 3 caractères)."""
         if len(genre) < 3:
             return False, "le genre doit contenir au moins trois lettres !"
-        if re.match(r"^[a-zA-Z0-9\s'-]+$", genre) is None:
-            return False, "le genre contient des caracteres spéciaux non autorisés !"
+        if re.match(r"^[a-zA-ZÀ-ÿ0-9\s'\-\.]+$", genre) is None:
+            return False, "le genre contient des caractères spéciaux non autorisés !"
         return True, ""
 
     def _valider_profession(self, profession):
         """Valide la profession du patient (min 3 caractères)."""
         if len(profession) < 3:
             return False, "la profession doit contenir au moins trois lettres !"
-        if re.match(r"^[a-zA-Z0-9\s'-]+$", profession) is None:
-            return False, "la profession contient des caracteres speciaux non autorisé !"
+        if re.match(r"^[a-zA-ZÀ-ÿ0-9\s'\-\.\/]+$", profession) is None:
+            return False, "la profession contient des caractères spéciaux non autorisés !"
         return True, ""
 
     def _valider_adresse(self, adresse):
         """Valide l'adresse du patient (min 3 caractères)."""
         if len(adresse) < 3:
             return False, "l'adresse doit contenir au moins trois lettres !"
-        if re.match(r"^[a-zA-Z0-9\s'-]+$", adresse) is None:
-            return False, "l'adresse contient des caracteres spéciaux non autorisés !"
+        if re.match(r"^[a-zA-ZÀ-ÿ0-9\s'\-\.\,\/\#]+$", adresse) is None:
+            return False, "l'adresse contient des caractères spéciaux non autorisés !"
         return True, ""
 
     def _control_exist(self, telephone):
@@ -256,6 +275,26 @@ class PatientService:
     # EXPORT / IMPORT
     # =========================================================================
 
+    def obtenir_donnees_pour_export(self):
+        """Retourne tous les patients formatés pour aperçu/export."""
+        try:
+            patients = self.dao.reedAllPatient()
+            return [
+                {
+                    "code_patient": p.get_code_patient(),
+                    "nom":          p.get_nom(),
+                    "prenom":       p.get_prenom(),
+                    "telephone":    p.get_telephone(),
+                    "naissance":    str(p.get_naissance()),
+                    "genre":        p.get_genre(),
+                    "profession":   p.get_profession(),
+                    "adresse":      p.get_adresse(),
+                }
+                for p in patients
+            ]
+        except Exception:
+            return []
+
     def export_to_excel(self, fichier):
         """
         Exporte tous les patients vers un fichier Excel.
@@ -324,10 +363,22 @@ class PatientService:
         except Exception as e:
             return False, f"Erreur lors de l'exportation : {str(e)}"
 
+    @staticmethod
+    def _get_col(row, *cles):
+        """
+        Cherche la première clé non vide parmi les variantes fournies.
+        Insensible à la casse — les clés doivent être en minuscules.
+        """
+        for k in cles:
+            val = row.get(k, '')
+            if val is not None and str(val).strip() not in ('', 'nan', 'None'):
+                return str(val).strip()
+        return ''
+
     def import_from_excel(self, fichier):
         """
         Importe des patients depuis un fichier Excel.
-        Chaque ligne est validée individuellement.
+        Accepte toutes les variantes courantes de noms de colonnes.
 
         Args:
             fichier (str): Chemin du fichier source.
@@ -337,20 +388,22 @@ class PatientService:
         """
         try:
             df = pd.read_excel(fichier)
+            df.columns = [c.strip().lower() for c in df.columns]
             df = df.fillna("")
             succes_count = 0
             erreur = []
 
             for index, row in df.iterrows():
+                g = self._get_col
                 nouveau_patient = self.patient_classe(
                     code_patient="",
-                    nom=str(row.get('Nom', '')),
-                    prenom=str(row.get('Prénom', '')),
-                    telephone=str(row.get('Telephone', '')),
-                    naissance=row.get('Date de naissance', ''),
-                    genre=str(row.get('genre', '')),
-                    profession=str(row.get('Profession', '')),
-                    adresse=str(row.get('Adresse', ''))
+                    nom=g(row, 'nom', 'name', 'nom patient'),
+                    prenom=g(row, 'prénom', 'prenom', 'firstname', 'first name', 'prénom patient', 'prenom patient'),
+                    telephone=g(row, 'téléphone', 'telephone', 'tel', 'phone', 'téléphone patient', 'telephone patient'),
+                    naissance=g(row, 'date de naissance', 'date_naissance', 'naissance', 'birth_date', 'birthdate', 'date naissance'),
+                    genre=g(row, 'genre', 'gender', 'sexe', 'sex'),
+                    profession=g(row, 'profession', 'job', 'métier', 'metier', 'occupation'),
+                    adresse=g(row, 'adresse', 'address', 'adress', 'adresse patient')
                 )
 
                 reussite, message = self.save_patient(nouveau_patient)
@@ -363,7 +416,7 @@ class PatientService:
                 return True, f"Importation réussie : {succes_count} patients ajoutés"
             else:
                 msg_final = (
-                    f"{succes_count} patients jouté. "
+                    f"{succes_count} patient(s) ajouté(s). "
                     f"Erreurs sur les lignes suivantes :\n" + "\n".join(erreur[:5])
                 )
                 if len(erreur) > 5:
@@ -376,6 +429,7 @@ class PatientService:
         """
         Importe des patients depuis un fichier CSV.
         Détection automatique du séparateur.
+        Accepte toutes les variantes courantes de noms de colonnes.
 
         Args:
             chemin_fichier (str): Chemin du fichier source.
@@ -384,21 +438,23 @@ class PatientService:
             tuple: (succès, message)
         """
         try:
-            df = pd.read_csv(chemin_fichier, sep=None, engine='python')
+            df = pd.read_csv(chemin_fichier, sep=None, engine='python', encoding='utf-8-sig')
+            df.columns = [c.strip().lower() for c in df.columns]
             df = df.fillna("")
             succes_count = 0
             erreur = []
 
             for index, row in df.iterrows():
+                g = self._get_col
                 nouveau_patient = self.patient_classe(
                     code_patient='',
-                    nom=str(row.get('Nom', '')).strip(),
-                    prenom=str(row.get('Prenom', '')).strip(),
-                    telephone=str(row.get('Telephone', '')).strip(),
-                    naissance=row.get('Date de naissance', ''),
-                    genre=str(row.get('genre', '')).strip(),
-                    profession=str(row.get('Profession', '')).strip(),
-                    adresse=str(row.get('adresse', '')).strip()
+                    nom=g(row, 'nom', 'nom patient', 'name'),
+                    prenom=g(row, 'prénom', 'prenom', 'prénom patient', 'prenom patient', 'firstname', 'first name'),
+                    telephone=g(row, 'téléphone', 'telephone', 'téléphone patient', 'telephone patient', 'tel', 'phone'),
+                    naissance=g(row, 'date naissance', 'date de naissance', 'date_naissance', 'naissance', 'birth_date', 'birthdate'),
+                    genre=g(row, 'genre', 'gender', 'sexe', 'sex'),
+                    profession=g(row, 'profession', 'job', 'métier', 'metier', 'occupation'),
+                    adresse=g(row, 'adresse', 'address', 'adress', 'adresse patient')
                 )
 
                 reussite, message = self.save_patient(nouveau_patient)
@@ -510,28 +566,27 @@ class PatientService:
             return False, f"Erreur lors de l'exportation : {str(e)}"
 
     def generer_liste_total_patient(self, dossier_destination):
-        """
-        Génère le PDF de la liste complète de tous les patients.
-
-        Args:
-            dossier_destination (str): Dossier de sortie.
-
-        Returns:
-            tuple: (succès, message)
-        """
+        """Ancienne méthode — sauvegarde directe dans un dossier."""
         try:
             liste_patients = self.dao.reedAllPatient()
             if not liste_patients:
                 return False, "Aucun patient trouvé dans la base"
-
             horodate = datetime.now().strftime("%Y%m%d_%H%M")
-            nom_f = f"Liste de fichier_{horodate}.pdf"
-            chemin_complet = os.path.join(dossier_destination, nom_f)
-
-            return PatientPDFService.generer_liste_total_patients(
-                controller=self,
-                chemin_save=chemin_complet,
-                liste_patients=liste_patients
-            )
+            chemin_complet = os.path.join(dossier_destination, f"Liste_Patients_{horodate}.pdf")
+            PatientPDFService.generer_rapport_liste_patients(self, liste_patients, chemin_complet)
+            return True, f"Rapport généré : {chemin_complet}"
         except Exception as e:
             return False, f"Erreur lors de la génération du pdf: {str(e)}"
+
+    def generer_rapport_patients(self):
+        """
+        Génère le rapport PDF liste patients dans un fichier temporaire.
+        Retourne le chemin du PDF pour l'afficher dans ApercuPDFDialog.
+        Structure identique au rapport consultation.
+        """
+        from services.pdf_rapports.rapport_patient import RapportPatientPDF
+        liste_patients = self.dao.reedAllPatient()
+        if not liste_patients:
+            raise ValueError("Aucun patient trouvé dans la base.")
+        info_cabinet = self.get_cabinet_info()
+        return RapportPatientPDF.generer_pdf_liste_patients(liste_patients, info_cabinet)

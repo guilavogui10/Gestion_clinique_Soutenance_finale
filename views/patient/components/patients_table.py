@@ -508,7 +508,7 @@ class PatientsTable(QWidget):
         # Style du menu
         menu.setStyleSheet(f"""
             QMenu {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 8px;
                 padding: 8px 0;
@@ -635,7 +635,7 @@ class PatientsTable(QWidget):
         
         self.container.setStyleSheet(f"""
             QFrame#PatientsTableCard {{
-                background: white;
+                background: {c['bg_card']};
                 border: none;
             }}
             QLineEdit#SearchInput {{
@@ -682,7 +682,7 @@ class PatientsTable(QWidget):
                 background: {c['primary_hover']};
             }}
             QTableWidget#PatientTable {{
-                background: white;
+                background: {c['bg_table']};
                 border: none;
                 gridline-color: {c['table_gridline']};
                 color: {c['text_primary']};
@@ -728,6 +728,9 @@ class PatientsTable(QWidget):
         self.btn_prev.setIcon(qta.icon("fa5s.chevron-left", color=c["text_secondary"]))
         self.btn_next.setIcon(qta.icon("fa5s.chevron-right", color=c["text_secondary"]))
         self._update_pagination()
+        # Rafraîchir les cell-widgets existants (icônes et badges colorés)
+        if self.filtered_patients:
+            self.update_table()
     
     def _on_cell_clicked(self, row, column):
         """Appelé quand on clique sur une cellule du tableau"""

@@ -171,7 +171,7 @@ class CarteMembreWidget(QFrame):
         body_layout.addStretch()
         
         # Bouton générer PDF
-        btn_pdf = QPushButton(qta.icon("fa5s.file-pdf", color="white"), " Générer PDF")
+        btn_pdf = QPushButton(qta.icon("fa5s.file-pdf", color=theme_manager.color("text_inverse")), " Générer PDF")
         btn_pdf.setFixedHeight(36)
         btn_pdf.setCursor(Qt.PointingHandCursor)
         btn_pdf.setObjectName("BtnPdf")
@@ -206,13 +206,13 @@ class CarteMembreWidget(QFrame):
                 border-radius: 16px;
             }}
             QFrame#CardHeader {{
-                background: white;
+                background: {c['bg_card']};
                 border-top-left-radius: 16px;
                 border-top-right-radius: 16px;
                 border: none;
             }}
             QLabel#CardTitle {{
-                color: #2ecc71;
+                color: {c['success']};
                 font-size: 14px;
                 font-weight: 900;
                 letter-spacing: 0.5px;
@@ -220,7 +220,7 @@ class CarteMembreWidget(QFrame):
                 border: none;
             }}
             QLabel#CardCode {{
-                color: #e74c3c;
+                color: {c['danger']};
                 font-size: 11px;
                 font-weight: 800;
                 background: transparent;
@@ -261,15 +261,15 @@ class CarteMembreWidget(QFrame):
                 border: none;
             }}
             QPushButton#BtnPdf {{
-                background: {c['danger']};
-                color: white;
+                background: {c['primary']};
+                color: {c['text_inverse']};
                 border: none;
                 border-radius: 8px;
                 font-weight: bold;
                 font-size: 12px;
             }}
             QPushButton#BtnPdf:hover {{
-                background: {c['primary']};
+                background: {c['primary_hover']};
             }}
         """)
 
@@ -438,20 +438,39 @@ class CartesPersonnelView(QWidget):
             CustomMessageBox("Erreur", "Code personnel introuvable.", False, self).exec()
             return
         
-        chemin, _ = QFileDialog.getSaveFileName(
-            self, "Générer carte membre", f"carte_{code}.pdf", "PDF Files (*.pdf)"
-        )
-        if not chemin:
-            return
+        from services.pdf_personnel.personnel_pdf import PersonnelPDFService
+        from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+        import os
+        import tempfile
         
-        ok, msg = self.ctrl.generer_carte_membre_pdf(code, chemin)
-        CustomMessageBox("Succès" if ok else "Erreur", msg, ok, self).exec()
+        try:
+            cabinet_info = self.ctrl.get_cabinet_info() if hasattr(self.ctrl, "get_cabinet_info") else {}
+            photo_name = personnel.get("photo_path")
+            photo_path = None
+            if photo_name:
+                script_dir = os.path.dirname(__file__)
+                photo_path = os.path.normpath(os.path.join(script_dir, "..", "..", "connexion", "image", photo_name))
+                if not os.path.exists(photo_path):
+                    photo_path = None
+
+            fd, chemin = tempfile.mkstemp(suffix=".pdf", prefix=f"carte_{code}_")
+            os.close(fd)
+
+            PersonnelPDFService.generer_carte_membre(
+                personnel_data=personnel,
+                cabinet_info=cabinet_info,
+                photo_path=photo_path,
+                chemin_pdf=chemin
+            )
+            ApercuPDFDialog(chemin, f"Carte Membre — {code}", self).exec()
+        except Exception as e:
+            CustomMessageBox("Erreur", f"Échec de la génération :\n{e}", False, self).exec()
     
     def apply_theme(self):
         c = theme_manager.colors()
         
         self.setStyleSheet(f"""
-            QWidget {{
+            CartesPersonnelView {{
                 background: {c['bg_main']};
             }}
             QFrame#HeaderFrame {{
@@ -488,6 +507,9 @@ class CartesPersonnelView(QWidget):
             QScrollArea#CardsScroll {{
                 background: transparent;
                 border: none;
+            }}
+            QScrollArea#CardsScroll > QWidget {{
+                background: transparent;
             }}
             QWidget#CardsContainer {{
                 background: transparent;

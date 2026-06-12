@@ -82,17 +82,15 @@ class PrescriptionWidget(AnimatedFrame):
         # ----------------------------------------------------------------
         # Composants UI
         # ----------------------------------------------------------------
-        _bleu = theme_manager.colors()['primary']
-        _rouge = theme_manager.colors()['danger']
-        self.header_component    = PrescriptionHeader(_bleu)
-        self.form_component      = PrescriptionForm(_bleu)
-        self.footer_component    = PrescriptionFooter(_bleu)
-        self.ligne_item_factory  = PrescriptionLigneItem(_bleu, _rouge)
+        self.header_component    = PrescriptionHeader()
+        self.form_component      = PrescriptionForm()
+        self.footer_component    = PrescriptionFooter()
+        self.ligne_item_factory  = PrescriptionLigneItem()
 
         # ----------------------------------------------------------------
         # Handlers métier
         # ----------------------------------------------------------------
-        self.data_loader         = PrescriptionDataLoader(_bleu)
+        self.data_loader         = PrescriptionDataLoader()
         self.validation_handler  = PrescriptionValidationHandler(prescription_ctrl)
         self.operations          = PrescriptionOperations(prescription_ctrl)
 
@@ -108,8 +106,9 @@ class PrescriptionWidget(AnimatedFrame):
 
     def _init_ui(self) -> None:
         """Initialise et assemble tous les composants de l'interface."""
+        c = theme_manager.colors()
         self.setStyleSheet(
-            "background-color: white; border-radius: 18px; border: 1px solid #eaeaea;"
+            f"background-color: {c['bg_card']}; border-radius: 18px; border: 1px solid {c['border']};"
         )
 
         layout = QVBoxLayout(self)

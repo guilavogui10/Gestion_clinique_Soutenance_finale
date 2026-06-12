@@ -113,20 +113,21 @@ class ChoixPatientDialog(QDialog):
 
         self.btn_group = QButtonGroup(self)
 
+        _c = theme_manager.colors()
         self.radio_maintenant = self._radio_card(
             "fa5s.bolt",        "Maintenant",
             "Exécution immédiate — entrée en file d'attente",
-            "maintenant", "#10B981"
+            "maintenant", _c['success']
         )
         self.radio_plus_tard = self._radio_card(
             "fa5s.calendar-plus", "Plus tard",
             "Reporter — planification d'un rendez-vous",
-            "plus_tard", "#3B82F6"
+            "plus_tard", _c['info']
         )
         self.radio_ailleurs = self._radio_card(
             "fa5s.external-link-alt", "Ailleurs",
             "Réalisation externe — refus interne",
-            "ailleurs", "#EF4444"
+            "ailleurs", _c['danger']
         )
 
         for radio, widget in (self.radio_maintenant, self.radio_plus_tard, self.radio_ailleurs):
@@ -336,7 +337,7 @@ class ChoixPatientDialog(QDialog):
             }}
             QPushButton#BtnValidate {{
                 background: {c['primary']};
-                color: white;
+                color: {c['text_inverse']};
                 border-radius: 8px;
                 font-weight: bold;
                 font-size: 14px;

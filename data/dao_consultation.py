@@ -219,6 +219,7 @@ class ConsultationDAO:
             query = """
                 SELECT
                     c.*,
+                    v.code_patient,
                     p.nom           AS patient_nom,
                     p.prenom        AS patient_prenom,
                     p.telephone     AS patient_telephone,
@@ -842,13 +843,50 @@ class ConsultationDAO:
                 WHERE v.code_session=%s
                   AND c.code IS NULL
                   AND v.statut_patient IN ('Attente consultation', 'En consultation')
-                ORDER BY v.date_visite ASC
+                ORDER BY v.urgent DESC, v.date_visite ASC
             """
             cursor.execute(query, (code_session,))
             return cursor.fetchall()
         except Exception as e:
             print(f"[ConsultationDAO] Erreur patients_en_attente: {e}")
             return []
+        finally:
+            self.db.close()
+
+    def get_numero_attente_consultation(self, code_visite: str) -> int:
+        """Retourne la position (1-based) du patient dans la file d'attente consultation.
+        Retourne 0 si la visite n'est pas dans la file (déjà en consultation, terminée, etc.)."""
+        conn = self.db.connect()
+        if not conn:
+            return 0
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT code_session FROM visite WHERE code_visite = %s", (code_visite,))
+            row = cursor.fetchone()
+            if not row:
+                return 0
+            # DBConnection utilise DictCursor par défaut → row est un dict
+            code_session = row.get('code_session') if isinstance(row, dict) else row[0]
+            if not code_session:
+                return 0
+            cursor.execute("""
+                SELECT v.code_visite
+                FROM visite v
+                INNER JOIN patients p ON v.code_patient = p.code_patient
+                LEFT JOIN  consultation c ON v.code_visite = c.code_visite
+                WHERE v.code_session = %s
+                  AND c.code IS NULL
+                  AND v.statut_patient IN ('Attente consultation', 'En consultation')
+                ORDER BY v.urgent DESC, v.date_visite ASC
+            """, (code_session,))
+            for idx, r in enumerate(cursor.fetchall()):
+                cv = r.get('code_visite', '') if isinstance(r, dict) else r[0]
+                if cv == code_visite:
+                    return idx + 1
+            return 0
+        except Exception as e:
+            print(f"[ConsultationDAO] Erreur get_numero_attente_consultation: {e}")
+            return 0
         finally:
             self.db.close()
 
@@ -1186,6 +1224,71 @@ class ConsultationDAO:
         except Exception as e:
             print(f"[ConsultationDAO] Erreur _patients_par_service_acte ({type_acte}): {e}")
             return []
+        finally:
+            self.db.close()
+
+    def get_code_visite_par_consultation(self, code_consultation: str):
+        conn = self.db.connect()
+        if not conn:
+            return None
+        try:
+            cursor = conn.cursor(DictCursor)
+            cursor.execute(
+                "SELECT code_visite FROM consultation WHERE code = %s LIMIT 1",
+                (code_consultation,)
+            )
+            row = cursor.fetchone()
+            return row['code_visite'] if row else None
+        except Exception as e:
+            print(f"[ConsultationDAO] Erreur get_code_visite_par_consultation: {e}")
+            return None
+        finally:
+            self.db.close()
+
+    def lister_pour_formulaire_acte(self) -> list:
+        conn = self.db.connect()
+        if not conn:
+            return []
+        try:
+            cursor = conn.cursor(DictCursor)
+            cursor.execute("""
+                SELECT c.code,
+                       CONCAT(c.code, ' — ', COALESCE(p.nom,'?'), ' ', COALESCE(p.prenom,''),
+                              ' (', COALESCE(v.statut_patient, 'Inconnu'), ')') AS label
+                FROM consultation c
+                LEFT JOIN visite v   ON c.code_visite  = v.code_visite
+                LEFT JOIN patients p ON v.code_patient = p.code_patient
+                WHERE v.statut_patient IS NULL
+                   OR LOWER(v.statut_patient) NOT IN (
+                       'attente payement', 'payé', 'paye', 'termine', 'annulé'
+                   )
+                ORDER BY c.code DESC
+                LIMIT 200
+            """)
+            return cursor.fetchall() or []
+        except Exception as e:
+            print(f"[ConsultationDAO] Erreur lister_pour_formulaire_acte: {e}")
+            return []
+        finally:
+            self.db.close()
+
+    def get_visite_et_session(self, code_consultation: str) -> dict | None:
+        """Retourne code_visite et code_session pour une consultation donnée."""
+        conn = self.db.connect()
+        if not conn:
+            return None
+        try:
+            cursor = conn.cursor(DictCursor)
+            cursor.execute("""
+                SELECT c.code_visite, v.code_session
+                FROM consultation c
+                JOIN visite v ON c.code_visite = v.code_visite
+                WHERE c.code = %s LIMIT 1
+            """, (code_consultation,))
+            return cursor.fetchone()
+        except Exception as e:
+            print(f"[ConsultationDAO] Erreur get_visite_et_session: {e}")
+            return None
         finally:
             self.db.close()
 

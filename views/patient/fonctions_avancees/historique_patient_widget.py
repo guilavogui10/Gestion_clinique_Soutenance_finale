@@ -35,6 +35,7 @@ class HistoriquePatientWidget(QWidget):
         
         self._init_ui()
         self._connect_signals()
+        theme_manager.theme_changed.connect(self.apply_theme)
         self.apply_theme()
     
     def _init_ui(self):
@@ -182,10 +183,22 @@ class HistoriquePatientWidget(QWidget):
     def apply_theme(self):
         """Applique le thème"""
         c = theme_manager.colors()
-        
+
+        # Propager aux sous-tableaux (leurs cell-widgets ont besoin d'être recréés)
+        for sub in (
+            getattr(self, 'visites_widget', None),
+            getattr(self, 'consultations_widget', None),
+            getattr(self, 'actes_widget', None),
+        ):
+            if sub and hasattr(sub, 'apply_theme'):
+                try:
+                    sub.apply_theme()
+                except Exception:
+                    pass
+
         self.setStyleSheet(f"""
             QWidget {{
-                background: white;
+                background: {c['bg_card']};
             }}
             
             QFrame#HistoriqueHeader {{

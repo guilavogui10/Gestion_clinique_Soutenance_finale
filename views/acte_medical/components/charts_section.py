@@ -54,9 +54,10 @@ class _BarChart(QFrame):
             bar.setValue(value)
             bar.setFixedHeight(16)
             bar.setTextVisible(False)
+            c = theme_manager.colors()
             bar.setStyleSheet(f"""
                 QProgressBar {{
-                    background: #F0F4F3;
+                    background: {c['bg_main']};
                     border-radius: 6px;
                     border: none;
                 }}

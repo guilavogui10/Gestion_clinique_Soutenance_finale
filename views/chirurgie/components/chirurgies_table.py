@@ -198,7 +198,7 @@ class ChirurgiesTable(QWidget):
         self.container.setStyleSheet(
             f"""
             QFrame#ChirurgiesTableCard {{
-                background: white;
+                background: {c['bg_card']};
                 border: none;
             }}
             QLineEdit#SearchInput {{
@@ -246,7 +246,7 @@ class ChirurgiesTable(QWidget):
                 background: {c['primary_hover']};
             }}
             QTableWidget#ChirurgieTable {{
-                background: white;
+                background: {c['bg_table']};
                 border: none;
                 gridline-color: {c['table_gridline']};
                 color: {c['text_primary']};
@@ -616,7 +616,7 @@ class ChirurgiesTable(QWidget):
         menu = QMenu(self)
         menu.setStyleSheet(f"""
             QMenu {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 8px;
                 padding: 6px 0;

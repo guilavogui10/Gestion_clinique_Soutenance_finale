@@ -21,6 +21,7 @@ from datetime import datetime
 from typing import Dict, Optional
 
 from data.dao_consultation import ConsultationDAO
+from data.dao_visite import Visitedao
 from models.modele_consultation import Consultation
 from parametre.dao_param import CabinetDAO
 
@@ -31,9 +32,10 @@ class ConsultationService:
     Contient la validation, le CRUD, le workflow patient et les statistiques.
     """
 
-    def __init__(self, dao=None, cabinet_dao=None):
-        self.dao = dao or ConsultationDAO()
+    def __init__(self, dao=None, cabinet_dao=None, visite_dao=None):
+        self.dao         = dao or ConsultationDAO()
         self.cabinet_dao = cabinet_dao or CabinetDAO()
+        self.visite_dao  = visite_dao or Visitedao()
         self.logger = logging.getLogger(__name__)
 
     # =========================================================================
@@ -307,6 +309,10 @@ class ConsultationService:
         """Retourne la liste du personnel pour le formulaire."""
         return self.dao.lister_personnel()
 
+    def lister_personnel_par_roles(self, roles: list) -> list:
+        from data.dao_user import UserDAO
+        return UserDAO().lister_personnel_par_roles(roles)
+
     # =========================================================================
     # MÉTHODES DE RECHERCHE AVANCÉE & FILTRAGE
     # =========================================================================
@@ -352,3 +358,240 @@ class ConsultationService:
         except Exception as e:
             self.logger.error(f"Erreur obtenir_codes_patients_session: {e}")
             return []
+
+    # =========================================================================
+    # EXPORT / IMPORT
+    # =========================================================================
+
+    def _valider_date_import(self, date_val) -> tuple:
+        """Valide le format de date pour import — accepte les dates passées."""
+        if not date_val or str(date_val).strip() in ("", "nan", "None"):
+            return True, datetime.now()
+        if isinstance(date_val, datetime):
+            return True, date_val
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%d/%m/%Y %H:%M:%S", "%Y-%m-%d", "%d/%m/%Y"):
+            try:
+                return True, datetime.strptime(str(date_val), fmt)
+            except ValueError:
+                continue
+        return False, "Format de date invalide (YYYY-MM-DD ou DD/MM/YYYY)"
+
+    def _valider_date_dans_session(self, date_obj: datetime, plage: dict) -> str | None:
+        """Retourne un message d'erreur si la date est hors session ou dans le futur, None si OK."""
+        aujourd_hui = datetime.now().replace(hour=23, minute=59, second=59, microsecond=0)
+        nom = plage.get("nom_session", "session active")
+        if date_obj > aujourd_hui:
+            return f"Date {date_obj.date()} dans le futur — importation refusée."
+        date_debut = plage.get("date_debut")
+        date_fin   = plage.get("date_fin")
+        if isinstance(date_debut, datetime) and date_obj < date_debut:
+            return f"Date {date_obj.date()} antérieure au début de la session '{nom}' ({date_debut.date()})."
+        if isinstance(date_fin, datetime) and date_obj > date_fin:
+            return f"Date {date_obj.date()} postérieure à la fin de la session '{nom}' ({date_fin.date()})."
+        return None
+
+    def _get_session_from_visite(self, code_visite: str) -> str:
+        """Récupère le code_session depuis la visite liée."""
+        try:
+            return self.visite_dao.get_session_from_visite(code_visite)
+        except Exception as e:
+            self.logger.error(f"Erreur _get_session_from_visite: {e}")
+            return None
+
+    def _creer_consultation_import(self, consultation: Consultation) -> tuple:
+        """creer_consultation sans restriction de date passée — réservé à l'import.
+        code_personne est optionnel pour l'import (pas de visite formulaire).
+        """
+        try:
+            valide, msg = self.valider_texte(consultation.diagnostique, "diagnostique")
+            if not valide:
+                return False, msg
+            valide, msg = self.valider_frais(consultation.frais_consultation)
+            if not valide:
+                return False, msg
+            # Pour l'import : seuls code_visite et code_session sont obligatoires
+            if not consultation.code_visite or not consultation.code_session:
+                return False, "code_visite et code_session sont obligatoires"
+            if self.dao.obtenir_par_visite(consultation.code_visite):
+                return False, f"Une consultation existe déjà pour la visite {consultation.code_visite}"
+            self._nettoyer_consultation(consultation)
+            if self.dao.ajouter(consultation):
+                return True, "Consultation créée"
+            return False, "Erreur lors de la création"
+        except Exception as e:
+            err = str(e)
+            if "1452" in err or "foreign key" in err.lower():
+                return False, "Code visite ou personnel introuvable en base."
+            return False, err[:120]
+
+    @staticmethod
+    def _get_col(row, *cles):
+        for k in cles:
+            val = row.get(k, '')
+            if val is not None and str(val).strip() not in ('', 'nan', 'None'):
+                return str(val).strip()
+        return ''
+
+    def obtenir_donnees_pour_export(self) -> list:
+        """Retourne toutes les consultations formatées pour aperçu/export."""
+        try:
+            consultations = self.dao.lister_toutes()
+            return [
+                {
+                    "code":               c.code,
+                    "code_visite":        c.code_visite,
+                    "code_personnel":     c.code_personne,
+                    "diagnostique":       c.diagnostique,
+                    "frais_consultation": c.frais_consultation,
+                    "statut_facture":     c.statut_facture,
+                    "date_consultation":  str(c.date_consultation),
+                }
+                for c in consultations
+            ]
+        except Exception as e:
+            self.logger.error(f"Erreur obtenir_donnees_pour_export consultation: {e}")
+            return []
+
+    def export_to_excel(self, chemin: str) -> tuple:
+        """Exporte toutes les consultations vers un fichier Excel."""
+        try:
+            import pandas as pd
+            donnees = self.obtenir_donnees_pour_export()
+            if not donnees:
+                return False, "Aucune consultation à exporter."
+            pd.DataFrame(donnees).to_excel(chemin, index=False)
+            return True, f"{len(donnees)} consultation(s) exportée(s) avec succès."
+        except Exception as e:
+            return False, f"Erreur export : {e}"
+
+    def export_to_csv(self, chemin: str) -> tuple:
+        """Exporte toutes les consultations vers un fichier CSV."""
+        try:
+            import pandas as pd
+            donnees = self.obtenir_donnees_pour_export()
+            if not donnees:
+                return False, "Aucune consultation à exporter."
+            pd.DataFrame(donnees).to_csv(chemin, index=False, encoding="utf-8-sig")
+            return True, f"{len(donnees)} consultation(s) exportée(s) avec succès."
+        except Exception as e:
+            return False, f"Erreur export : {e}"
+
+    def import_from_excel(self, chemin: str) -> tuple:
+        """
+        Importe des consultations depuis un fichier Excel.
+        Colonnes requises : code_visite, code_personnel, diagnostique, frais_consultation
+        Colonnes optionnelles : date_consultation, statut_facture
+        """
+        try:
+            import pandas as pd
+            df = pd.read_excel(chemin)
+            df.columns = [c.strip().lower() for c in df.columns]
+            df = df.fillna("")
+            return self._traiter_import(df)
+        except Exception as e:
+            return False, f"Erreur lecture fichier : {e}"
+
+    def import_from_csv(self, chemin: str) -> tuple:
+        """
+        Importe des consultations depuis un fichier CSV.
+        Colonnes requises : code_visite, code_personnel, diagnostique, frais_consultation
+        Colonnes optionnelles : date_consultation, statut_facture
+        """
+        try:
+            import pandas as pd
+            df = pd.read_csv(chemin, sep=None, engine='python', encoding='utf-8-sig')
+            df.columns = [c.strip().lower() for c in df.columns]
+            df = df.fillna("")
+            return self._traiter_import(df)
+        except Exception as e:
+            return False, f"Erreur lecture fichier : {e}"
+
+    def _traiter_import(self, df) -> tuple:
+        """Logique commune d'import Excel/CSV."""
+        colonnes_requises = ["code_visite", "diagnostique", "frais_consultation"]
+        for col in colonnes_requises:
+            if col not in df.columns:
+                return False, f"Colonne manquante dans le fichier : '{col}'"
+
+        succes_count = 0
+        erreurs = []
+        _cache_plages: dict = {}  # code_session → {nom_session, date_debut, date_fin}
+
+        for index, row in df.iterrows():
+            ligne = index + 2
+            try:
+                g = self._get_col
+                code_visite    = g(row, "code_visite")
+                code_personnel = g(row, "code_personnel", "code_personne", "personnel")
+                diagnostique   = g(row, "diagnostique", "diagnostic")
+                frais_raw      = row.get("frais_consultation", 0)
+                date_raw       = row.get("date_consultation", "")
+                statut         = g(row, "statut_facture", "statut") or "attente payement"
+
+                if not code_visite:
+                    erreurs.append(f"Ligne {ligne} : code_visite vide")
+                    continue
+
+                # Récupérer code_session depuis la visite
+                code_session = self._get_session_from_visite(code_visite)
+                if not code_session:
+                    erreurs.append(f"Ligne {ligne} : visite '{code_visite}' introuvable")
+                    continue
+
+                if code_session not in _cache_plages:
+                    plage = self.visite_dao.get_plage_session(code_session)
+                    if plage:
+                        _cache_plages[code_session] = plage
+
+                try:
+                    frais = float(frais_raw) if frais_raw != "" else 0.0
+                except (ValueError, TypeError):
+                    erreurs.append(f"Ligne {ligne} : frais_consultation invalide")
+                    continue
+
+                ok_date, date_obj = self._valider_date_import(date_raw)
+                if not ok_date:
+                    erreurs.append(f"Ligne {ligne} : {date_obj}")
+                    continue
+
+                plage = _cache_plages.get(code_session)
+                if plage:
+                    err_plage = self._valider_date_dans_session(date_obj, plage)
+                    if err_plage:
+                        erreurs.append(f"Ligne {ligne} : {err_plage}")
+                        continue
+
+                consultation = Consultation(
+                    code_visite=code_visite,
+                    code_session=code_session,
+                    code_personne=code_personnel or None,
+                    diagnostique=diagnostique,
+                    frais_consultation=frais,
+                    statut_facture=statut,
+                    date_consultation=date_obj
+                )
+
+                ok, msg = self._creer_consultation_import(consultation)
+                if ok:
+                    succes_count += 1
+                else:
+                    erreurs.append(f"Ligne {ligne} : {msg}")
+
+            except Exception as e:
+                erreurs.append(f"Ligne {ligne} : erreur inattendue — {str(e)[:100]}")
+
+        if succes_count == 0:
+            msg = "Aucune consultation importée."
+            if erreurs:
+                msg += "\nErreurs :\n" + "\n".join(erreurs[:3])
+            return False, msg
+
+        msg = f"{succes_count} consultation(s) importée(s) avec succès."
+        if erreurs:
+            msg += f"\nDétail ({len(erreurs)} erreur(s)) :\n" + "\n".join(
+                [e[:120] for e in erreurs[:3]]
+            )
+            if len(erreurs) > 3:
+                msg += f"\n... et {len(erreurs) - 3} autre(s)."
+            return False, msg
+        return True, msg

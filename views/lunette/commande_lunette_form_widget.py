@@ -74,7 +74,8 @@ class CommandeLunetteFormWidget(QWidget):
         layout.setContentsMargins(20, 0, 20, 0)
         layout.setSpacing(14)
 
-        icon_box = QFrame()
+        self._icon_box = QFrame()
+        icon_box = self._icon_box
         icon_box.setFixedSize(46, 46)
         icon_box.setStyleSheet(f"""
             background-color: {c['bg_main']};
@@ -83,25 +84,25 @@ class CommandeLunetteFormWidget(QWidget):
         """)
         ib_layout = QHBoxLayout(icon_box)
         ib_layout.setContentsMargins(0, 0, 0, 0)
-        ico_lbl = QLabel()
-        ico_lbl.setPixmap(qta.icon("fa5s.glasses", color=c['primary']).pixmap(22, 22))
-        ico_lbl.setAlignment(Qt.AlignCenter)
-        ib_layout.addWidget(ico_lbl, alignment=Qt.AlignCenter)
+        self._ico_header = QLabel()
+        self._ico_header.setPixmap(qta.icon("fa5s.glasses", color=c['primary']).pixmap(22, 22))
+        self._ico_header.setAlignment(Qt.AlignCenter)
+        ib_layout.addWidget(self._ico_header, alignment=Qt.AlignCenter)
 
         title_col = QVBoxLayout()
         title_col.setSpacing(2)
-        lbl_main = QLabel("Commande de Lunettes")
-        lbl_main.setStyleSheet(
+        self._lbl_main = QLabel("Commande de Lunettes")
+        self._lbl_main.setStyleSheet(
             f"font-size: 17px; font-weight: bold; color: {c['text_primary']};"
-            " background: transparent; border: none;"
+            f" background: {c['bg_card']}; border: none;"
         )
-        lbl_sub = QLabel("Remplissez les informations de la commande")
-        lbl_sub.setStyleSheet(
+        self._lbl_sub = QLabel("Remplissez les informations de la commande")
+        self._lbl_sub.setStyleSheet(
             f"font-size: 12px; color: {c['text_muted']};"
-            " background: transparent; border: none;"
+            f" background: {c['bg_card']}; border: none;"
         )
-        title_col.addWidget(lbl_main)
-        title_col.addWidget(lbl_sub)
+        title_col.addWidget(self._lbl_main)
+        title_col.addWidget(self._lbl_sub)
 
         layout.addWidget(icon_box)
         layout.addLayout(title_col)
@@ -125,7 +126,7 @@ class CommandeLunetteFormWidget(QWidget):
         self.btn_cancel.clicked.connect(self._annuler)
 
         self.btn_save = QPushButton(
-            qta.icon("fa5s.save", color="#ffffff"), " Enregistrer"
+            qta.icon("fa5s.save", color=c['text_inverse']), " Enregistrer"
         )
         self.btn_save.setFixedSize(150, 40)
         self.btn_save.setEnabled(False)
@@ -149,7 +150,7 @@ class CommandeLunetteFormWidget(QWidget):
             }}
             QPushButton:enabled {{
                 background-color: {c['primary']};
-                color: #ffffff;
+                color: {c['text_inverse']};
             }}
             QPushButton:enabled:hover {{ background-color: {c['primary_hover']}; }}
         """)
@@ -158,18 +159,14 @@ class CommandeLunetteFormWidget(QWidget):
     # HELPERS — champ badge-icône
     # =========================================================================
 
-    def _make_field(self, label_text: str, widget, icon_name: str, icon_color: str,
+    def _make_field(self, label_text: str, widget, icon_name: str, color_key: str,
                     height: int = 42, align_top: bool = False):
-        """Retourne (QVBoxLayout, wrapper_QFrame)."""
+        """Retourne (QVBoxLayout, wrapper_QFrame). Enregistre dans _field_registry."""
         c = theme_manager.colors()
         vbox = QVBoxLayout()
         vbox.setSpacing(4)
 
         lbl = QLabel(label_text)
-        lbl.setStyleSheet(
-            f"font-size: 11px; font-weight: 600; color: {c['text_secondary']};"
-            " background: transparent; border: none;"
-        )
         vbox.addWidget(lbl)
 
         wrapper = QFrame()
@@ -183,22 +180,45 @@ class CommandeLunetteFormWidget(QWidget):
 
         badge = QFrame()
         badge.setFixedSize(28, 28)
-        badge.setStyleSheet(
-            f"background-color: {icon_color}20; border-radius: 7px; border: none;"
-        )
         bl = QHBoxLayout(badge)
         bl.setContentsMargins(0, 0, 0, 0)
         ic_lbl = QLabel()
-        ic_lbl.setPixmap(qta.icon(icon_name, color=icon_color).pixmap(14, 14))
         ic_lbl.setAlignment(Qt.AlignCenter)
-        ic_lbl.setStyleSheet("border: none; background: transparent;")
+        ic_lbl.setStyleSheet(f"border: none; background: {c['bg_card']};")
         bl.addWidget(ic_lbl, alignment=Qt.AlignCenter)
 
         self._clear_widget_style(widget, c)
         hbox.addWidget(badge, 0, Qt.AlignVCenter)
         hbox.addWidget(widget, 1)
         vbox.addWidget(wrapper)
+
+        if not hasattr(self, '_field_registry'):
+            self._field_registry = []
+        self._field_registry.append({
+            'wrapper':   wrapper,
+            'badge':     badge,
+            'ico_lbl':   ic_lbl,
+            'lbl':       lbl,
+            'icon_name': icon_name,
+            'color_key': color_key,
+        })
+        self._refresh_field(self._field_registry[-1], c)
+
         return vbox, wrapper
+
+    def _refresh_field(self, entry: dict, c: dict):
+        icon_color = c[entry['color_key']]
+        entry['badge'].setStyleSheet(
+            f"background-color: {icon_color}20; border-radius: 7px; border: none;"
+        )
+        entry['ico_lbl'].setPixmap(
+            qta.icon(entry['icon_name'], color=icon_color).pixmap(14, 14)
+        )
+        entry['lbl'].setStyleSheet(
+            f"font-size: 11px; font-weight: 600; color: {c['text_secondary']};"
+            f" background: {c['bg_card']}; border: none;"
+        )
+        self._apply_wrapper_style(entry['wrapper'])
 
     def _apply_wrapper_style(self, wrapper: QFrame, border_color: str = None):
         c = theme_manager.colors()
@@ -213,7 +233,7 @@ class CommandeLunetteFormWidget(QWidget):
 
     def _clear_widget_style(self, widget, c):
         base = (
-            f"border: none; background: transparent;"
+            f"border: none; background: {c['bg_card']};"
             f" font-size: 12px; color: {c['text_primary']};"
         )
         if isinstance(widget, QComboBox):
@@ -240,8 +260,9 @@ class CommandeLunetteFormWidget(QWidget):
             widget.setStyleSheet(f"QLineEdit {{ {base} padding: 0; }}")
 
     def _field_widget(self, vbox: QVBoxLayout) -> QWidget:
+        c = theme_manager.colors()
         w = QWidget()
-        w.setStyleSheet("background: transparent; border: none;")
+        w.setStyleSheet(f"background: {c['bg_card']}; border: none;")
         w.setLayout(vbox)
         return w
 
@@ -250,7 +271,7 @@ class CommandeLunetteFormWidget(QWidget):
         lbl = QLabel("")
         lbl.setStyleSheet(
             f"color: {c['danger']}; font-size: 10px; font-style: italic;"
-            " background: transparent;"
+            f" background: {c['bg_card']};"
         )
         lbl.setVisible(False)
         return lbl
@@ -261,7 +282,8 @@ class CommandeLunetteFormWidget(QWidget):
 
     def _section_infos(self, parent_layout):
         c = theme_manager.colors()
-        card = QFrame()
+        self._section_card = QFrame()
+        card = self._section_card
         card.setStyleSheet(f"""
             QFrame {{
                 background-color: {c['bg_card']};
@@ -275,13 +297,15 @@ class CommandeLunetteFormWidget(QWidget):
 
         # Titre de section
         hdr = QHBoxLayout()
-        ico = QLabel()
+        self._ico_section = QLabel()
+        ico = self._ico_section
         ico.setPixmap(qta.icon("fa5s.glasses", color=c['primary']).pixmap(16, 16))
-        ico.setStyleSheet("border: none; background: transparent;")
-        lbl_t = QLabel("Informations de la commande")
+        ico.setStyleSheet(f"border: none; background: {c['bg_card']};")
+        self._section_card_lbl = QLabel("Informations de la commande")
+        lbl_t = self._section_card_lbl
         lbl_t.setStyleSheet(
             f"font-size: 14px; font-weight: bold; color: {c['primary']};"
-            " background: transparent; border: none;"
+            f" background: {c['bg_card']}; border: none;"
         )
         hdr.addWidget(ico)
         hdr.addSpacing(8)
@@ -298,7 +322,7 @@ class CommandeLunetteFormWidget(QWidget):
         self.edit_session.setPlaceholderText("Code Session")
         self.edit_session.setEnabled(False)
         vb_s, _ = self._make_field(
-            "Code Session", self.edit_session, "fa5s.id-badge", "#95a5a6"
+            "Code Session", self.edit_session, "fa5s.id-badge", "text_muted"
         )
         row1.addWidget(self._field_widget(vb_s), 1, Qt.AlignTop)
 
@@ -306,7 +330,7 @@ class CommandeLunetteFormWidget(QWidget):
         self.edit_code_acte.setPlaceholderText("Entrez le code de l'acte")
         vb_acte, self._wrap_acte = self._make_field(
             "Code Acte *", self.edit_code_acte,
-            "fa5s.file-medical", "#e74c3c"
+            "fa5s.file-medical", "danger"
         )
         self._err_acte = self._err_label()
         vb_acte.addWidget(self._err_acte)
@@ -315,14 +339,14 @@ class CommandeLunetteFormWidget(QWidget):
         self.edit_numero_cadre = QLineEdit()
         self.edit_numero_cadre.setPlaceholderText("Ex : CAD-2024-001")
         vb_cad, _ = self._make_field(
-            "Numéro Cadre", self.edit_numero_cadre, "fa5s.glasses", "#3498db"
+            "Numéro Cadre", self.edit_numero_cadre, "fa5s.glasses", "info"
         )
         row1.addWidget(self._field_widget(vb_cad), 1, Qt.AlignTop)
 
         self.edit_numero_verre = QLineEdit()
         self.edit_numero_verre.setPlaceholderText("Ex : +2.00 / -1.50")
         vb_ver, _ = self._make_field(
-            "Numéro Verre", self.edit_numero_verre, "fa5s.eye", "#9b59b6"
+            "Numéro Verre", self.edit_numero_verre, "fa5s.eye", "accent"
         )
         row1.addWidget(self._field_widget(vb_ver), 1, Qt.AlignTop)
 
@@ -339,14 +363,14 @@ class CommandeLunetteFormWidget(QWidget):
         self.edit_date_livraison.setDate(QDate.currentDate().addDays(7))
         vb_date, _ = self._make_field(
             "Date Livraison Prévue", self.edit_date_livraison,
-            "fa5s.calendar-alt", "#e67e22"
+            "fa5s.calendar-alt", "warning"
         )
         row2.addWidget(self._field_widget(vb_date), 1, Qt.AlignTop)
 
         self.edit_prix = QLineEdit()
         self.edit_prix.setPlaceholderText("Ex : 850000")
         vb_prix, self._wrap_prix = self._make_field(
-            "Prix (GNF) *", self.edit_prix, "fa5s.money-bill-wave", "#27ae60"
+            "Prix (GNF) *", self.edit_prix, "fa5s.money-bill-wave", "success"
         )
         self._err_prix = self._err_label()
         vb_prix.addWidget(self._err_prix)
@@ -357,7 +381,12 @@ class CommandeLunetteFormWidget(QWidget):
         self.combo_personnel.addItem("-- Sélectionner le personnel --", "")
         # Charger la liste du personnel
         try:
-            personnels = self.ctrl.lister_personnel() or []
+            if hasattr(self.ctrl, 'lister_personnel_par_roles'):
+                personnels = self.ctrl.lister_personnel_par_roles(
+                    ['Directeur Général', 'Médecin']
+                ) or []
+            else:
+                personnels = self.ctrl.lister_personnel() or []
             for personnel in personnels:
                 nom = personnel.get('nom', '') if isinstance(personnel, dict) else getattr(personnel, 'nom', '')
                 prenom = personnel.get('prenom', '') if isinstance(personnel, dict) else getattr(personnel, 'prenom', '')
@@ -369,7 +398,7 @@ class CommandeLunetteFormWidget(QWidget):
             print(f"Erreur chargement personnel: {e}")
         vb_perso, self._wrap_personnel = self._make_field(
             "Personnel *", self.combo_personnel,
-            "fa5s.user-md", "#1abc9c"
+            "fa5s.user-md", "primary"
         )
         self._err_personnel = self._err_label()
         vb_perso.addWidget(self._err_personnel)
@@ -381,7 +410,7 @@ class CommandeLunetteFormWidget(QWidget):
         ])
         vb_stat, _ = self._make_field(
             "Statut Facture", self.combo_statut_facture,
-            "fa5s.file-invoice", "#f39c12"
+            "fa5s.file-invoice", "warning"
         )
         row2.addWidget(self._field_widget(vb_stat), 1, Qt.AlignTop)
 
@@ -394,7 +423,8 @@ class CommandeLunetteFormWidget(QWidget):
 
     def _section_info_bas(self, parent_layout):
         c = theme_manager.colors()
-        card = QFrame()
+        self._info_bas_card = QFrame()
+        card = self._info_bas_card
         card.setFixedHeight(70)
         card.setStyleSheet(f"""
             QFrame {{
@@ -407,30 +437,34 @@ class CommandeLunetteFormWidget(QWidget):
         hbox.setContentsMargins(20, 0, 20, 0)
         hbox.setSpacing(14)
 
-        ico_frame = QFrame()
+        self._ico_bas_frame = QFrame()
+        ico_frame = self._ico_bas_frame
         ico_frame.setFixedSize(36, 36)
         ico_frame.setStyleSheet(
             f"background-color: {c['primary']}; border-radius: 18px;"
         )
         ifi = QHBoxLayout(ico_frame)
         ifi.setContentsMargins(0, 0, 0, 0)
-        il = QLabel()
-        il.setPixmap(qta.icon("fa5s.info", color="#ffffff").pixmap(14, 14))
+        self._ico_bas_lbl = QLabel()
+        il = self._ico_bas_lbl
+        il.setPixmap(qta.icon("fa5s.info", color=c['text_inverse']).pixmap(14, 14))
         il.setAlignment(Qt.AlignCenter)
         ifi.addWidget(il, alignment=Qt.AlignCenter)
 
         txt = QVBoxLayout()
         txt.setSpacing(2)
-        t1 = QLabel("Informations")
+        self._info_bas_t1 = QLabel("Informations")
+        t1 = self._info_bas_t1
         t1.setStyleSheet(
             f"font-size: 13px; font-weight: bold; color: {c['primary']};"
-            " background: transparent;"
+            f" background: {c['bg_card']};"
         )
-        t2 = QLabel(
+        self._info_bas_t2 = QLabel(
             "Sélectionnez un patient et saisissez le prix avant d'enregistrer la commande."
         )
+        t2 = self._info_bas_t2
         t2.setStyleSheet(
-            f"font-size: 11px; color: {c['text_secondary']}; background: transparent;"
+            f"font-size: 11px; color: {c['text_secondary']}; background: {c['bg_card']};"
         )
         txt.addWidget(t1)
         txt.addWidget(t2)
@@ -575,21 +609,102 @@ class CommandeLunetteFormWidget(QWidget):
 
     def apply_theme(self):
         c = theme_manager.colors()
-        self.setStyleSheet(f"QWidget {{ background: {c['bg_main']}; }}")
-        self.header_frame.setStyleSheet(f"""
-            background-color: {c['bg_card']};
-            border-radius: 14px;
-            border: none;
-        """)
-        self._apply_save_btn_style()
-        self.btn_cancel.setStyleSheet(f"""
-            QPushButton {{
+        self.setStyleSheet(f"QWidget {{ background: {c['bg_main']}; color: {c['text_primary']}; }}")
+
+        # ── Header ──────────────────────────────────────────────────────────
+        if hasattr(self, 'header_frame'):
+            self.header_frame.setStyleSheet(f"""
+                background-color: {c['bg_card']};
+                border-radius: 14px; border: none;
+            """)
+        if hasattr(self, '_icon_box'):
+            self._icon_box.setStyleSheet(f"""
                 background-color: {c['bg_main']};
-                color: {c['text_secondary']};
-                border: 1.5px solid {c['border']};
                 border-radius: 10px;
-                font-size: 13px;
-                font-weight: 500;
-            }}
-            QPushButton:hover {{ background-color: {c['hover']}; }}
-        """)
+                border: 1px solid {c['border_light']};
+            """)
+        if hasattr(self, '_ico_header'):
+            self._ico_header.setPixmap(
+                qta.icon("fa5s.glasses", color=c['primary']).pixmap(22, 22)
+            )
+        if hasattr(self, '_lbl_main'):
+            self._lbl_main.setStyleSheet(
+                f"font-size: 17px; font-weight: bold; color: {c['text_primary']};"
+                f" background: {c['bg_card']}; border: none;"
+            )
+        if hasattr(self, '_lbl_sub'):
+            self._lbl_sub.setStyleSheet(
+                f"font-size: 12px; color: {c['text_muted']}; background: {c['bg_card']}; border: none;"
+            )
+
+        # ── Card infos section ───────────────────────────────────────────────
+        if hasattr(self, '_section_card'):
+            self._section_card.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {c['bg_card']};
+                    border: 1.5px solid {c['border_light']};
+                    border-radius: 14px;
+                }}
+            """)
+        if hasattr(self, '_ico_section'):
+            self._ico_section.setPixmap(
+                qta.icon("fa5s.glasses", color=c['primary']).pixmap(16, 16)
+            )
+        if hasattr(self, '_section_card_lbl'):
+            self._section_card_lbl.setStyleSheet(
+                f"font-size: 14px; font-weight: bold; color: {c['primary']};"
+                f" background: {c['bg_card']}; border: none;"
+            )
+
+        # ── Card bas ─────────────────────────────────────────────────────────
+        if hasattr(self, '_info_bas_card'):
+            self._info_bas_card.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {c['primary_light']};
+                    border: 1.5px solid {c['border_light']};
+                    border-radius: 14px;
+                }}
+            """)
+        if hasattr(self, '_ico_bas_frame'):
+            self._ico_bas_frame.setStyleSheet(
+                f"background-color: {c['primary']}; border-radius: 18px;"
+            )
+        if hasattr(self, '_ico_bas_lbl'):
+            self._ico_bas_lbl.setPixmap(
+                qta.icon("fa5s.info", color=c['text_inverse']).pixmap(14, 14)
+            )
+        if hasattr(self, '_info_bas_t1'):
+            self._info_bas_t1.setStyleSheet(
+                f"font-size: 13px; font-weight: bold; color: {c['primary']}; background: {c['bg_card']};"
+            )
+        if hasattr(self, '_info_bas_t2'):
+            self._info_bas_t2.setStyleSheet(
+                f"font-size: 11px; color: {c['text_secondary']}; background: {c['bg_card']};"
+            )
+
+        # ── Registre champs ──────────────────────────────────────────────────
+        if hasattr(self, '_field_registry'):
+            for entry in self._field_registry:
+                self._refresh_field(entry, c)
+
+        # ── Widgets internes ─────────────────────────────────────────────────
+        if hasattr(self, 'edit_session'):
+            for w in (self.edit_session, self.edit_code_acte, self.edit_numero_cadre,
+                      self.edit_numero_verre, self.edit_date_livraison, self.edit_prix,
+                      self.combo_personnel, self.combo_statut_facture):
+                self._clear_widget_style(w, c)
+
+        # ── Boutons ──────────────────────────────────────────────────────────
+        self._apply_save_btn_style()
+        if hasattr(self, 'btn_cancel'):
+            self.btn_cancel.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {c['bg_main']};
+                    color: {c['text_secondary']};
+                    border: 1.5px solid {c['border']};
+                    border-radius: 10px;
+                    font-size: 13px;
+                    font-weight: 500;
+                }}
+                QPushButton:hover {{ background-color: {c['hover']}; }}
+            """)

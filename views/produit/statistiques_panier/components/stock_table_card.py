@@ -18,6 +18,7 @@ class StockTableCard(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._setup_ui()
+        theme_manager.theme_changed.connect(self.apply_theme)
     
     def _setup_ui(self):
         """Configure l'interface du tableau."""
@@ -25,7 +26,7 @@ class StockTableCard(QFrame):
         
         self.setStyleSheet(f"""
             QFrame {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border_light']};
                 border-radius: 12px;
             }}
@@ -64,7 +65,7 @@ class StockTableCard(QFrame):
         # Style du tableau
         self.table.setStyleSheet(f"""
             QTableWidget {{
-                background: white;
+                background: {c['bg_card']};
                 border: none;
                 gridline-color: {c['border_light']};
             }}
@@ -73,10 +74,10 @@ class StockTableCard(QFrame):
                 border: none;
             }}
             QTableWidget::item:alternate {{
-                background: {c['bg_card']};
+                background: {c['bg_table_alt']};
             }}
             QHeaderView::section {{
-                background: {c['bg_card']};
+                background: {c['table_header_bg']};
                 color: {c['text_primary']};
                 padding: 8px;
                 border: none;
@@ -133,6 +134,41 @@ class StockTableCard(QFrame):
             
             self.table.setItem(row, 3, statut_item)
     
+    def apply_theme(self):
+        """Met à jour les couleurs selon le thème actif."""
+        c = theme_manager.colors()
+        self.setStyleSheet(f"""
+            QFrame {{
+                background: {c['bg_card']};
+                border: 1px solid {c['border_light']};
+                border-radius: 12px;
+            }}
+        """)
+        if hasattr(self, 'table'):
+            self.table.setStyleSheet(f"""
+                QTableWidget {{
+                    background: {c['bg_card']};
+                    border: none;
+                    gridline-color: {c['border_light']};
+                }}
+                QTableWidget::item {{
+                    padding: 8px;
+                    border: none;
+                }}
+                QTableWidget::item:alternate {{
+                    background: {c['bg_table_alt']};
+                }}
+                QHeaderView::section {{
+                    background: {c['table_header_bg']};
+                    color: {c['text_primary']};
+                    padding: 8px;
+                    border: none;
+                    border-bottom: 2px solid {c['border']};
+                    font-weight: bold;
+                    font-size: 11px;
+                }}
+            """)
+
     def vider(self):
         """Vide le tableau."""
         self.table.setRowCount(0)

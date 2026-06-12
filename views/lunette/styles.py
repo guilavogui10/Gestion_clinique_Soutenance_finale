@@ -76,10 +76,10 @@ class LunetteStyles:
         """Badge de statut de livraison (en_attente, en_cours, livree, annulee)."""
         c = theme_manager.colors()
         colors_map = {
-            "en_attente": (c.get('warning', '#f59e0b'), c.get('warning_bg', '#fef3c7')),
-            "en_cours":   (c.get('info', '#3b82f6'),    c.get('info_bg', '#dbeafe')),
-            "livree":     (c.get('success', '#10b981'), c.get('success_bg', '#d1fae5')),
-            "annulee":    (c.get('danger', '#ef4444'),  c.get('danger_bg', '#fee2e2')),
+            "en_attente": (c['warning'], c['warning_bg']),
+            "en_cours":   (c['info'],    c['info_bg']),
+            "livree":     (c['success'], c['success_bg']),
+            "annulee":    (c['danger'],  c['danger_bg']),
         }
         fg, bg = colors_map.get(status, (c['text_secondary'], c['bg_card']))
         return f"""
@@ -96,7 +96,7 @@ class LunetteStyles:
     @staticmethod
     def tab_widget() -> str:
         c = theme_manager.colors()
-        primary = c.get('primary', '#2ecc71')
+        primary = c['primary']
         return f"""
             QTabWidget::pane {{
                 border: none;

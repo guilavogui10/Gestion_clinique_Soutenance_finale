@@ -15,8 +15,9 @@ from views.shared.theme_manager import theme_manager
 
 class VisiteFormWidget(QWidget):
     """Formulaire visite intégré (non-modal)"""
-    
+
     visite_saved = Signal()
+    rdv_visite_created = Signal(str, str)  # (code_visite, code_session)
     
     def __init__(self, controleur, parent=None):
         super().__init__(parent)
@@ -34,82 +35,53 @@ class VisiteFormWidget(QWidget):
     
     def _init_ui(self):
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(24, 6, 24, 16)
-        outer.setSpacing(14)
-        
+        outer.setContentsMargins(24, 4, 24, 6)
+        outer.setSpacing(6)
+
         self._setup_header(outer)
         self._section_infos(outer)
         self._section_info_bas(outer)
         outer.addStretch()
-        
+
         self.apply_theme()
     
     def _setup_header(self, parent_layout):
-        self.header_frame = QFrame()
-        self.header_frame.setFixedHeight(72)
         c = theme_manager.colors()
-        self.header_frame.setStyleSheet(f"""
-            background-color: {c['bg_card']};
-            border-radius: 14px;
-            border: none;
-        """)
-        
+        self.header_frame = QFrame()
+        self.header_frame.setFixedHeight(58)
+
         layout = QHBoxLayout(self.header_frame)
-        layout.setContentsMargins(20, 0, 20, 0)
-        layout.setSpacing(14)
-        
-        # Icône
-        icon_box = QFrame()
-        icon_box.setFixedSize(46, 46)
-        icon_box.setStyleSheet(f"""
-            background-color: {c['bg_main']};
-            border-radius: 10px;
-            border: 1px solid {c['border_light']};
-        """)
-        ib_layout = QHBoxLayout(icon_box)
+        layout.setContentsMargins(16, 0, 16, 0)
+        layout.setSpacing(10)
+
+        self._icon_box = QFrame()
+        self._icon_box.setFixedSize(38, 38)
+        ib_layout = QHBoxLayout(self._icon_box)
         ib_layout.setContentsMargins(0, 0, 0, 0)
-        ico_lbl = QLabel()
-        ico_lbl.setPixmap(qta.icon("fa5s.user-md", color=c['primary']).pixmap(22, 22))
-        ico_lbl.setAlignment(Qt.AlignCenter)
-        ib_layout.addWidget(ico_lbl, alignment=Qt.AlignCenter)
-        
-        # Titre + sous-titre
+        self._ico_header = QLabel()
+        self._ico_header.setAlignment(Qt.AlignCenter)
+        ib_layout.addWidget(self._ico_header, alignment=Qt.AlignCenter)
+
         title_col = QVBoxLayout()
         title_col.setSpacing(2)
-        lbl_main = QLabel("Enregistrement d'une visite")
-        lbl_main.setStyleSheet(f"font-size: 17px; font-weight: bold; color: {c['text_primary']}; background: transparent; border: none;")
-        lbl_sub = QLabel("Saisissez les informations de la visite médicale")
-        lbl_sub.setStyleSheet(f"font-size: 12px; color: {c['text_muted']}; background: transparent; border: none;")
-        title_col.addWidget(lbl_main)
-        title_col.addWidget(lbl_sub)
-        
-        layout.addWidget(icon_box)
+        self._lbl_main = QLabel("Enregistrement d'une visite")
+        self._lbl_sub  = QLabel("Saisissez les informations de la visite médicale")
+        title_col.addWidget(self._lbl_main)
+        title_col.addWidget(self._lbl_sub)
+
+        layout.addWidget(self._icon_box)
         layout.addLayout(title_col)
         layout.addStretch()
-        
-        # Bouton Annuler
+
         self.btn_cancel = QPushButton(qta.icon("fa5s.times", color=c['text_secondary']), " Annuler")
         self.btn_cancel.setFixedSize(110, 40)
-        self.btn_cancel.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {c['bg_main']};
-                color: {c['text_secondary']};
-                border: 1.5px solid {c['border']};
-                border-radius: 10px;
-                font-size: 13px;
-                font-weight: 500;
-            }}
-            QPushButton:hover {{ background-color: {c['hover']}; }}
-        """)
         self.btn_cancel.clicked.connect(self.reset_form)
-        
-        # Bouton Enregistrer
-        self.btn_save = QPushButton(qta.icon("fa5s.save", color="#ffffff"), " Enregistrer")
+
+        self.btn_save = QPushButton(qta.icon("fa5s.save", color=c['text_inverse']), " Enregistrer")
         self.btn_save.setFixedSize(140, 40)
         self.btn_save.setEnabled(False)
-        self._apply_save_btn_style()
         self.btn_save.clicked.connect(self.soumettre)
-        
+
         layout.addWidget(self.btn_cancel)
         layout.addWidget(self.btn_save)
         parent_layout.addWidget(self.header_frame)
@@ -132,43 +104,65 @@ class VisiteFormWidget(QWidget):
             QPushButton:enabled:hover {{ background-color: {c['primary_hover']}; }}
         """)
     
-    def _make_field(self, label_text: str, widget, icon_name: str, icon_color: str, height: int = 42):
+    def _make_field(self, label_text: str, widget, icon_name: str, color_key: str, height: int = 36):
         c = theme_manager.colors()
         vbox = QVBoxLayout()
         vbox.setSpacing(4)
-        
+
         lbl = QLabel(label_text)
-        lbl.setStyleSheet(
-            f"font-size: 11px; font-weight: 600; color: {c['text_secondary']};"
-            " background: transparent; border: none;"
-        )
         vbox.addWidget(lbl)
-        
+
         wrapper = QFrame()
         wrapper.setObjectName("inputWrapper")
         wrapper.setFixedHeight(height)
         self._apply_wrapper_style(wrapper)
-        
+
         hbox = QHBoxLayout(wrapper)
-        hbox.setContentsMargins(8, 5, 8, 5)
-        hbox.setSpacing(8)
-        
+        hbox.setContentsMargins(8, 2, 8, 2)
+        hbox.setSpacing(6)
+
         badge = QFrame()
-        badge.setFixedSize(28, 28)
-        badge.setStyleSheet(f"background-color: {icon_color}20; border-radius: 7px; border: none;")
+        badge.setFixedSize(24, 24)
         bl = QHBoxLayout(badge)
         bl.setContentsMargins(0, 0, 0, 0)
         ico_lbl = QLabel()
-        ico_lbl.setPixmap(qta.icon(icon_name, color=icon_color).pixmap(14, 14))
         ico_lbl.setAlignment(Qt.AlignCenter)
         ico_lbl.setStyleSheet("border: none; background: transparent;")
         bl.addWidget(ico_lbl, alignment=Qt.AlignCenter)
-        
+
         self._clear_widget_style(widget, c)
         hbox.addWidget(badge, 0, Qt.AlignVCenter)
+
         hbox.addWidget(widget, 1)
         vbox.addWidget(wrapper)
+
+        if not hasattr(self, '_field_registry'):
+            self._field_registry = []
+        self._field_registry.append({
+            'wrapper':   wrapper,
+            'badge':     badge,
+            'ico_lbl':   ico_lbl,
+            'lbl':       lbl,
+            'icon_name': icon_name,
+            'color_key': color_key,
+        })
+        self._refresh_field(self._field_registry[-1], c)
+
         return vbox, wrapper
+
+    def _refresh_field(self, entry: dict, c: dict):
+        icon_color = c[entry['color_key']]
+        entry['badge'].setStyleSheet(
+            f"background-color: {icon_color}20; border-radius: 6px; border: none;"
+        )
+        entry['ico_lbl'].setPixmap(
+            qta.icon(entry['icon_name'], color=icon_color).pixmap(12, 12)
+        )
+        entry['lbl'].setStyleSheet(
+            f"font-size: 11px; font-weight: 600; color: {c['text_secondary']};"
+            " background: transparent; border: none;"
+        )
+        self._apply_wrapper_style(entry['wrapper'])
     
     def _apply_wrapper_style(self, wrapper: QFrame, border_color: str = None):
         c = theme_manager.colors()
@@ -182,13 +176,16 @@ class VisiteFormWidget(QWidget):
         """)
     
     def _clear_widget_style(self, widget, c):
-        base = (
-            f"border: none; background: transparent;"
-            f" font-size: 12px; color: {c['text_primary']};"
-        )
         if isinstance(widget, QComboBox):
             widget.setStyleSheet(f"""
-                QComboBox {{ {base} padding: 0; min-height: 28px; }}
+                QComboBox {{
+                    border: none;
+                    background-color: {c['bg_input']};
+                    color: {c['text_primary']};
+                    font-size: 12px;
+                    padding: 0;
+                    min-height: 28px;
+                }}
                 QComboBox::drop-down {{ border: none; width: 20px; }}
                 QComboBox QAbstractItemView {{
                     background-color: {c['bg_card']};
@@ -205,136 +202,192 @@ class VisiteFormWidget(QWidget):
                 }}
             """)
         elif isinstance(widget, (QDateEdit, QTimeEdit)):
-            widget.setStyleSheet(f"QDateEdit, QTimeEdit {{ {base} padding: 0; }}")
+            widget.setStyleSheet(f"""
+                QDateEdit, QTimeEdit {{
+                    border: none;
+                    background: transparent;
+                    color: {c['text_primary']};
+                    font-size: 12px;
+                    padding: 0;
+                    selection-background-color: {c['primary']};
+                    selection-color: {c['text_inverse']};
+                }}
+                QDateEdit::drop-down, QTimeEdit::drop-down {{
+                    border: none;
+                    width: 20px;
+                    background: transparent;
+                }}
+            """)
+            if isinstance(widget, QDateEdit) and widget.calendarPopup():
+                self._style_calendar(widget.calendarWidget(), c)
         else:
-            widget.setStyleSheet(f"QLineEdit {{ {base} padding: 0; }}")
+            widget.setStyleSheet(f"""
+                QLineEdit {{
+                    border: none;
+                    background: transparent;
+                    font-size: 12px;
+                    color: {c['text_primary']};
+                    padding: 0;
+                }}
+            """)
     
-    def _section_infos(self, parent_layout):
-        c = theme_manager.colors()
-        card = QFrame()
-        card.setStyleSheet(f"""
-            QFrame {{
+    def _style_calendar(self, cal, c):
+        if not cal:
+            return
+        cal.setStyleSheet(f"""
+            QCalendarWidget QWidget {{
                 background-color: {c['bg_card']};
-                border: 1.5px solid {c['border_light']};
-                border-radius: 14px;
+                color: {c['text_primary']};
+            }}
+            QCalendarWidget QAbstractItemView {{
+                background-color: {c['bg_card']};
+                color: {c['text_primary']};
+                selection-background-color: {c['primary']};
+                selection-color: {c['text_inverse']};
+                border: none;
+                outline: none;
+            }}
+            QCalendarWidget QAbstractItemView::item:hover {{
+                background-color: {c['hover']};
+                border-radius: 4px;
+            }}
+            QCalendarWidget QWidget#qt_calendar_navigationbar {{
+                background-color: {c['primary']};
+                padding: 4px 8px;
+            }}
+            QCalendarWidget QToolButton {{
+                color: {c['text_inverse']};
+                background-color: transparent;
+                border: none;
+                font-size: 13px;
+                font-weight: bold;
+                padding: 4px 8px;
+                border-radius: 4px;
+            }}
+            QCalendarWidget QToolButton:hover {{
+                background-color: {c['primary_hover']};
+            }}
+            QCalendarWidget QSpinBox {{
+                color: {c['text_inverse']};
+                background-color: transparent;
+                border: none;
+                font-size: 13px;
+                font-weight: bold;
+            }}
+            QCalendarWidget QSpinBox::up-button,
+            QCalendarWidget QSpinBox::down-button {{ width: 0; height: 0; }}
+            QCalendarWidget QMenu {{
+                background-color: {c['bg_card']};
+                color: {c['text_primary']};
+                border: 1px solid {c['border']};
+                border-radius: 6px;
+            }}
+            QCalendarWidget QMenu::item:selected {{
+                background-color: {c['primary']};
+                color: {c['text_inverse']};
             }}
         """)
-        vbox = QVBoxLayout(card)
-        vbox.setContentsMargins(22, 18, 22, 18)
-        vbox.setSpacing(18)
-        
+
+    def _section_infos(self, parent_layout):
+        self._card_infos = QFrame()
+        vbox = QVBoxLayout(self._card_infos)
+        vbox.setContentsMargins(18, 8, 18, 8)
+        vbox.setSpacing(8)
+
         # Titre section
         hdr = QHBoxLayout()
-        ico = QLabel()
-        ico.setPixmap(qta.icon("fa5s.clipboard-list", color=c['primary']).pixmap(16, 16))
-        ico.setStyleSheet("border: none; background: transparent;")
-        lbl_t = QLabel("Informations de la visite")
-        lbl_t.setStyleSheet(
-            f"font-size: 14px; font-weight: bold; color: {c['primary']};"
-            " background: transparent; border: none;"
-        )
-        hdr.addWidget(ico)
+        self._ico_section = QLabel()
+        self._ico_section.setStyleSheet("border: none; background: transparent;")
+        self._lbl_section = QLabel("Informations de la visite")
+        hdr.addWidget(self._ico_section)
         hdr.addSpacing(8)
-        hdr.addWidget(lbl_t)
+        hdr.addWidget(self._lbl_section)
         hdr.addStretch()
         vbox.addLayout(hdr)
-        
-        # Rangée 1: Code Patient | Nom Patient
+
+        # Rangée 1 : Code Patient | Nom Patient
         row1 = QHBoxLayout()
         row1.setSpacing(16)
-        
+
         self.combo_code_p = QComboBox()
         self.combo_code_p.addItem("-- Sélectionner un patient --", "")
         patient_ctrl = ControleurPatient()
-        patients = patient_ctrl.reed_Allpatient()
-        for p in patients:
-            self.combo_code_p.addItem(f"{p.get_code_patient()} - {p.get_nom()} {p.get_prenom()}", p.get_code_patient())
-        
-        vb_code, self._wrap_code = self._make_field("Code Patient", self.combo_code_p, "fa5s.id-card", "#9b59b6")
+        for p in patient_ctrl.reed_Allpatient():
+            self.combo_code_p.addItem(
+                f"{p.get_code_patient()} - {p.get_nom()} {p.get_prenom()}",
+                p.get_code_patient()
+            )
+        vb_code, self._wrap_code = self._make_field("Code Patient", self.combo_code_p, "fa5s.id-card", 'accent')
         self._err_code = self._err_label()
         vb_code.addWidget(self._err_code)
         row1.addWidget(self._field_widget(vb_code), 1, Qt.AlignTop)
-        
+
         self.edit_nom_p = QLineEdit()
         self.edit_nom_p.setPlaceholderText("Nom complet du patient")
         self.edit_nom_p.setReadOnly(True)
-        vb_nom, _ = self._make_field("Nom Complet", self.edit_nom_p, "fa5s.user-tag", "#1abc9c")
+        vb_nom, _ = self._make_field("Nom Complet", self.edit_nom_p, "fa5s.user-tag", 'primary')
         row1.addWidget(self._field_widget(vb_nom), 1, Qt.AlignTop)
-        
         vbox.addLayout(row1)
-        
-        # Rangée 2: Type | Urgence
+
+        # Rangée 2 : Type | Urgence
         row2 = QHBoxLayout()
         row2.setSpacing(16)
-        
         self.combo_type = QComboBox()
-        vb_type, _ = self._make_field("Type de Visite", self.combo_type, "fa5s.calendar-check", "#3498db")
+        vb_type, _ = self._make_field("Type de Visite", self.combo_type, "fa5s.calendar-check", 'info')
         row2.addWidget(self._field_widget(vb_type), 1, Qt.AlignTop)
-        
+
         self.combo_urgent = QComboBox()
-        vb_urg, _ = self._make_field("Niveau d'urgence", self.combo_urgent, "fa5s.exclamation-triangle", "#e74c3c")
+        vb_urg, _ = self._make_field("Niveau d'urgence", self.combo_urgent, "fa5s.exclamation-triangle", 'danger')
         row2.addWidget(self._field_widget(vb_urg), 1, Qt.AlignTop)
-        
         vbox.addLayout(row2)
-        
-        # Rangée 3: Date | Heure
+
+        # Rangée 3 : Date | Heure
         row3 = QHBoxLayout()
         row3.setSpacing(16)
-        
         self.edit_date = QDateEdit()
         self.edit_date.setCalendarPopup(True)
         self.edit_date.setDate(QDate.currentDate())
         self.edit_date.setDisplayFormat("dd/MM/yyyy")
-        vb_date, _ = self._make_field("Date de la visite", self.edit_date, "fa5s.calendar-alt", "#27ae60")
+        vb_date, _ = self._make_field("Date de la visite", self.edit_date, "fa5s.calendar-alt", 'success')
         row3.addWidget(self._field_widget(vb_date), 1, Qt.AlignTop)
-        
+
         self.edit_time = QTimeEdit()
         self.edit_time.setTime(QTime.currentTime())
         self.edit_time.setDisplayFormat("HH:mm")
-        vb_time, _ = self._make_field("Temps / Heure", self.edit_time, "fa5s.clock", "#e67e22")
+        vb_time, _ = self._make_field("Temps / Heure", self.edit_time, "fa5s.clock", 'warning')
         row3.addWidget(self._field_widget(vb_time), 1, Qt.AlignTop)
-        
         vbox.addLayout(row3)
-        parent_layout.addWidget(card)
+
+        parent_layout.addWidget(self._card_infos)
     
     def _section_info_bas(self, parent_layout):
-        c = theme_manager.colors()
-        card = QFrame()
-        card.setFixedHeight(80)
-        card.setStyleSheet(f"""
-            QFrame {{
-                background-color: {c['primary_light']};
-                border: 1.5px solid {c['border_light']};
-                border-radius: 14px;
-            }}
-        """)
-        hbox = QHBoxLayout(card)
-        hbox.setContentsMargins(20, 0, 20, 0)
-        hbox.setSpacing(14)
-        
-        ico_frame = QFrame()
-        ico_frame.setFixedSize(36, 36)
-        ico_frame.setStyleSheet(f"background-color: {c['primary']}; border-radius: 18px;")
-        ifi = QHBoxLayout(ico_frame)
+        self._card_bas = QFrame()
+        self._card_bas.setFixedHeight(48)
+        hbox = QHBoxLayout(self._card_bas)
+        hbox.setContentsMargins(16, 0, 16, 0)
+        hbox.setSpacing(12)
+
+        self._ico_bas_frame = QFrame()
+        self._ico_bas_frame.setFixedSize(30, 30)
+        ifi = QHBoxLayout(self._ico_bas_frame)
         ifi.setContentsMargins(0, 0, 0, 0)
-        il = QLabel()
-        il.setPixmap(qta.icon("fa5s.info", color="#ffffff").pixmap(14, 14))
-        il.setAlignment(Qt.AlignCenter)
-        ifi.addWidget(il, alignment=Qt.AlignCenter)
-        
+        self._ico_bas_lbl = QLabel()
+        self._ico_bas_lbl.setAlignment(Qt.AlignCenter)
+        ifi.addWidget(self._ico_bas_lbl, alignment=Qt.AlignCenter)
+
         txt = QVBoxLayout()
         txt.setSpacing(2)
-        t1 = QLabel("Informations")
-        t1.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {c['primary']}; background: transparent;")
-        t2 = QLabel("Veuillez remplir tous les champs obligatoires avant d'enregistrer la visite.")
-        t2.setStyleSheet(f"font-size: 11px; color: {c['text_secondary']}; background: transparent;")
-        txt.addWidget(t1)
-        txt.addWidget(t2)
-        
-        hbox.addWidget(ico_frame)
+        self._lbl_bas_title = QLabel("Informations")
+        self._lbl_bas_desc  = QLabel(
+            "Veuillez remplir tous les champs obligatoires avant d'enregistrer la visite."
+        )
+        txt.addWidget(self._lbl_bas_title)
+        txt.addWidget(self._lbl_bas_desc)
+
+        hbox.addWidget(self._ico_bas_frame)
         hbox.addLayout(txt)
         hbox.addStretch()
-        parent_layout.addWidget(card)
+        parent_layout.addWidget(self._card_bas)
     
     def _err_label(self):
         c = theme_manager.colors()
@@ -424,24 +477,13 @@ class VisiteFormWidget(QWidget):
             
             if ok:
                 CustomMessageBox("Succès", msg, True, self).exec()
-                
+
                 if v_type in ["VIP", "Rendez vous"]:
-                    from controllers.controleur_rendez_vous import RendezVousControleur
-                    from views.rendez_vous.rendez_vous_form import RendezVousFormDialog
-                    
                     code_session = nouvelle_visite.get_code_session()
-                    code_visite = nouvelle_visite.get_code_visite()
-                    
+                    code_visite  = nouvelle_visite.get_code_visite()
                     if code_session and code_visite:
-                        rdv_controleur = RendezVousControleur()
-                        rdv_dialog = RendezVousFormDialog(
-                            controleur=rdv_controleur,
-                            code_session=code_session,
-                            code_visite=code_visite,
-                            parent=self,
-                        )
-                        rdv_dialog.exec()
-                
+                        self.rdv_visite_created.emit(code_visite, code_session)
+
                 self.reset_form()
                 self.visite_saved.emit()
                 self._soumission_en_cours = False
@@ -456,19 +498,112 @@ class VisiteFormWidget(QWidget):
     
     def apply_theme(self):
         c = theme_manager.colors()
-        self.setStyleSheet(f"""
-            QWidget {{
-                background: {c['bg_main']};
-                color: {c['text_primary']};
-            }}
-        """)
-        
+
+        # Fond global cascade
+        self.setStyleSheet(f"QWidget {{ background: {c['bg_main']}; color: {c['text_primary']}; }}")
+
+        # ── Header frame ────────────────────────────────────────────────────
+        if hasattr(self, 'header_frame'):
+            self.header_frame.setStyleSheet(f"""
+                background-color: {c['bg_card']};
+                border-radius: 14px; border: none;
+            """)
+        if hasattr(self, '_icon_box'):
+            self._icon_box.setStyleSheet(f"""
+                background-color: {c['bg_main']};
+                border-radius: 10px;
+                border: 1px solid {c['border_light']};
+            """)
+        if hasattr(self, '_ico_header'):
+            self._ico_header.setPixmap(
+                qta.icon("fa5s.user-md", color=c['primary']).pixmap(22, 22)
+            )
+        if hasattr(self, '_lbl_main'):
+            self._lbl_main.setStyleSheet(
+                f"font-size: 17px; font-weight: bold; color: {c['text_primary']};"
+                " background: transparent; border: none;"
+            )
+        if hasattr(self, '_lbl_sub'):
+            self._lbl_sub.setStyleSheet(
+                f"font-size: 12px; color: {c['text_muted']}; background: transparent; border: none;"
+            )
+
+        # ── Card infos ────────────────────────────────────────────────────
+        if hasattr(self, '_card_infos'):
+            self._card_infos.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {c['bg_card']};
+                    border: 1.5px solid {c['border_light']};
+                    border-radius: 14px;
+                }}
+            """)
+        if hasattr(self, '_ico_section'):
+            self._ico_section.setPixmap(
+                qta.icon("fa5s.clipboard-list", color=c['primary']).pixmap(16, 16)
+            )
+        if hasattr(self, '_lbl_section'):
+            self._lbl_section.setStyleSheet(
+                f"font-size: 14px; font-weight: bold; color: {c['primary']};"
+                " background: transparent; border: none;"
+            )
+
+        # ── Card bas ──────────────────────────────────────────────────────
+        if hasattr(self, '_card_bas'):
+            self._card_bas.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {c['primary_light']};
+                    border: 1.5px solid {c['border_light']};
+                    border-radius: 14px;
+                }}
+            """)
+        if hasattr(self, '_ico_bas_frame'):
+            self._ico_bas_frame.setStyleSheet(
+                f"background-color: {c['primary']}; border-radius: 18px;"
+            )
+        if hasattr(self, '_ico_bas_lbl'):
+            self._ico_bas_lbl.setPixmap(
+                qta.icon("fa5s.info", color=c['text_inverse']).pixmap(14, 14)
+            )
+        if hasattr(self, '_lbl_bas_title'):
+            self._lbl_bas_title.setStyleSheet(
+                f"font-size: 13px; font-weight: bold; color: {c['primary']}; background: transparent;"
+            )
+        if hasattr(self, '_lbl_bas_desc'):
+            self._lbl_bas_desc.setStyleSheet(
+                f"font-size: 11px; color: {c['text_secondary']}; background: transparent;"
+            )
+
+        # ── Champs (registre) ─────────────────────────────────────────────
+        if hasattr(self, '_field_registry'):
+            for entry in self._field_registry:
+                self._refresh_field(entry, c)
+        if hasattr(self, 'combo_code_p'):
+            for w in (self.combo_code_p, self.edit_nom_p, self.combo_type,
+                      self.combo_urgent, self.edit_date, self.edit_time):
+                self._clear_widget_style(w, c)
+
+        # ── Boutons ──────────────────────────────────────────────────────
+        if hasattr(self, 'btn_cancel'):
+            self.btn_cancel.setIcon(qta.icon("fa5s.times", color=c['text_secondary']))
+            self.btn_cancel.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {c['bg_main']};
+                    color: {c['text_secondary']};
+                    border: 1.5px solid {c['border']};
+                    border-radius: 10px;
+                    font-size: 13px; font-weight: 500;
+                }}
+                QPushButton:hover {{ background-color: {c['hover']}; }}
+            """)
+        if hasattr(self, 'btn_save'):
+            self._apply_save_btn_style()
+
+        # ── Remplir les combos si vides ───────────────────────────────────
         if hasattr(self, 'combo_type') and self.combo_type.count() == 0:
-            self.combo_type.addItem(qta.icon("fa5s.bolt", color=c['warning']), "Immediat")
-            self.combo_type.addItem(qta.icon("fa5s.calendar-check", color=c['primary']), "Rendez vous")
-            self.combo_type.addItem(qta.icon("fa5s.crown", color=c['accent']), "VIP")
-            self.combo_type.addItem(qta.icon("fa5s.redo", color=c['info']), "Controle")
-        
+            self.combo_type.addItem(qta.icon("fa5s.bolt",          color=c['warning']), "Immediat")
+            self.combo_type.addItem(qta.icon("fa5s.calendar-check",color=c['primary']), "Rendez vous")
+            self.combo_type.addItem(qta.icon("fa5s.crown",         color=c['accent']),  "VIP")
+            self.combo_type.addItem(qta.icon("fa5s.redo",          color=c['info']),    "Controle")
         if hasattr(self, 'combo_urgent') and self.combo_urgent.count() == 0:
-            self.combo_urgent.addItem(qta.icon("fa5s.check-circle", color=c['info']), "Non")
-            self.combo_urgent.addItem(qta.icon("fa5s.exclamation-triangle", color=c['danger']), "Oui")
+            self.combo_urgent.addItem(qta.icon("fa5s.check-circle",        color=c['info']),   "Non")
+            self.combo_urgent.addItem(qta.icon("fa5s.exclamation-triangle",color=c['danger']), "Oui")

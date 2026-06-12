@@ -34,7 +34,6 @@ class QuickActions(QWidget):
             ("fa5s.plus-circle", "Nouvelle consultation", "primary", self.new_consultation_clicked),
             ("fa5s.hourglass-half", "Patients en attente", "warning", self.patients_waiting_clicked),
             ("fa5s.search-plus", "Recherche avancée", "accent", self.advanced_search_clicked),
-            ("fa5s.file-export", "Rapports & exports", "success", self.reports_clicked),
             ("fa5s.history", "Historique patient", "text_secondary", self.patient_history_clicked),
         ]
 
@@ -48,6 +47,17 @@ class QuickActions(QWidget):
             btn.clicked.connect(signal.emit)
             self.buttons.append(btn)
             layout.addWidget(btn)
+
+        # Bouton Export/Import — référence nommée pour le positionnement du menu
+        self.btn_reports = QPushButton("  Rapports & exports")
+        self.btn_reports.setCursor(Qt.PointingHandCursor)
+        self.btn_reports.setFixedHeight(40)
+        self.btn_reports.setObjectName("QuickActionButton")
+        self.btn_reports.setProperty("color_key", "success")
+        self.btn_reports.setProperty("icon_name", "fa5s.file-export")
+        self.btn_reports.clicked.connect(self.reports_clicked.emit)
+        self.buttons.append(self.btn_reports)
+        layout.addWidget(self.btn_reports)
 
         # Bouton Imprimer rapport avec menu déroulant
         self.btn_imprimer_rapport = QPushButton("  Imprimer rapport")
@@ -67,7 +77,7 @@ class QuickActions(QWidget):
         menu = QMenu(self)
         menu.setStyleSheet(f"""
             QMenu {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 8px;
                 padding: 6px 0;
@@ -119,7 +129,7 @@ class QuickActions(QWidget):
             btn.setStyleSheet(
                 f"""
                 QPushButton#QuickActionButton {{
-                    background: white;
+                    background: {c['bg_card']};
                     border: none;
                     border-radius: 8px;
                     padding-left: 15px;
@@ -129,7 +139,10 @@ class QuickActions(QWidget):
                     color: {c['text_primary']};
                 }}
                 QPushButton#QuickActionButton:hover {{
-                    background: {c['bg_card']};
+                    background: {c['hover']};
+                }}
+                QPushButton#QuickActionButton:pressed {{
+                    background: {c['primary_light']};
                 }}
                 """
             )

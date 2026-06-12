@@ -11,10 +11,10 @@ from views.shared.theme_manager import theme_manager
 
 class KpiCard(QFrame):
     """Carte KPI individuelle"""
-    
-    def __init__(self, title, icon_name, color, parent=None):
+
+    def __init__(self, title, icon_name, color_key, parent=None):
         super().__init__(parent)
-        self.color = color
+        self.color_key = color_key          # clé thème dynamique
         self.title_text = title
         self.icon_name = icon_name
         self.init_ui()
@@ -70,7 +70,8 @@ class KpiCard(QFrame):
     
     def apply_theme(self):
         c = theme_manager.colors()
-        
+        color = c[self.color_key]           # toujours la couleur du thème actif
+
         self.setStyleSheet(f"""
             QFrame {{
                 background: {c['bg_card']};
@@ -78,12 +79,12 @@ class KpiCard(QFrame):
                 border-radius: 15px;
             }}
             QFrame:hover {{
-                border: 1px solid {self.color};
+                border: 1px solid {color};
                 background: {c['hover']};
             }}
             QFrame#IconCircle {{
-                background: {self.color}20;
-                border: 2px solid {self.color}40;
+                background: {color}20;
+                border: 2px solid {color}40;
                 border-radius: 22px;
             }}
             QLabel {{
@@ -96,15 +97,15 @@ class KpiCard(QFrame):
                 font-weight: 600;
             }}
             QLabel#KpiValue {{
-                color: {self.color};
+                color: {color};
             }}
             QLabel#KpiSubtitle {{
                 color: {c['text_muted']};
                 font-size: 11px;
             }}
         """)
-        
-        self.icon_label.setPixmap(qta.icon(self.icon_name, color=self.color).pixmap(24, 24))
+
+        self.icon_label.setPixmap(qta.icon(self.icon_name, color=color).pixmap(24, 24))
 
 
 class KpiCardsSection(QWidget):
@@ -120,14 +121,12 @@ class KpiCardsSection(QWidget):
         layout.setContentsMargins(0, 0, 0, 8)  # Réduit encore la marge du bas
         layout.setSpacing(10)  # Réduit l'espacement entre les cards
         
-        c = theme_manager.colors()
-        
-        # 5 cartes KPI
-        self.card_today = KpiCard("Visites aujourd'hui", "fa5s.users", c['info'])
-        self.card_completed = KpiCard("Visites terminées", "fa5s.check-circle", c['success'])
-        self.card_ongoing = KpiCard("Visites en cours", "fa5s.clock", c['warning'])
-        self.card_urgent = KpiCard("Urgences", "fa5s.exclamation-triangle", c['danger'])
-        self.card_duration = KpiCard("Durée moyenne", "fa5s.stopwatch", c['accent'])
+        # 5 cartes KPI — on passe la clé de thème, pas la valeur
+        self.card_today    = KpiCard("Visites aujourd'hui",  "fa5s.users",               'info')
+        self.card_completed= KpiCard("Visites terminées",    "fa5s.check-circle",        'success')
+        self.card_ongoing  = KpiCard("Visites en cours",     "fa5s.clock",               'warning')
+        self.card_urgent   = KpiCard("Urgences",             "fa5s.exclamation-triangle",'danger')
+        self.card_duration = KpiCard("Durée moyenne",        "fa5s.stopwatch",           'accent')
         
         layout.addWidget(self.card_today)
         layout.addWidget(self.card_completed)

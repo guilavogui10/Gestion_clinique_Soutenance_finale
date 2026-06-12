@@ -548,15 +548,15 @@ class PaymentSlidePanel(QFrame):
 
     def _create_pay_button(self, layout):
         c = theme_manager.colors()
-        self.btn_pay = QPushButton(qta.icon("fa5s.lock", color="white"), "  Payer")
-        self.btn_pay.setFixedHeight(36) # Compact mais cliquable
+        self.btn_pay = QPushButton(qta.icon("fa5s.lock", color=c['text_inverse']), "  Payer")
+        self.btn_pay.setFixedHeight(36)
         self.btn_pay.setCursor(Qt.PointingHandCursor)
         self.btn_pay.setStyleSheet(f"""
             QPushButton {{
-                background: {c['primary']}; color: white;
+                background: {c['primary']}; color: {c['text_inverse']};
                 border-radius: 6px; font-size: 12px; font-weight: 700; border: none;
             }}
-            QPushButton:hover {{ background: {c['primary_light']}; }}
+            QPushButton:hover {{ background: {c['primary_hover']}; }}
         """)
         self.btn_pay.clicked.connect(self.process_payment)
         layout.addWidget(self.btn_pay)

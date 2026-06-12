@@ -485,3 +485,7 @@ class CommandeLunetteService:
     def lister_personnel(self) -> list:
         """Retourne la liste du personnel pour le formulaire."""
         return self.dao.lister_personnel()
+
+    def lister_personnel_par_roles(self, roles: list) -> list:
+        from data.dao_user import UserDAO
+        return UserDAO().lister_personnel_par_roles(roles)

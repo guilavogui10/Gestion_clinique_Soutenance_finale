@@ -21,7 +21,6 @@ import pandas as pd
 from data.dao_fournisseur import FournisseurDAO
 from models.modele_fournisseur import Fournisseur
 from parametre.dao_param import CabinetDAO
-from services.pdf_admin.fournisseur_pdf import FournisseurPDFService
 
 
 class FournisseurService:
@@ -45,7 +44,7 @@ class FournisseurService:
         """Valide le nom de l'entreprise (min 3 caractères)."""
         if len(nom) < 3:
             return False, "Le nom doit contenir au moins 3 caracteres."
-        if re.match(r"^[a-zA-Z0-9\\s'-]+$", nom) is None:
+        if re.match(r"^[a-zA-Z0-9\s'&.()\-]+$", nom) is None:
             return False, "Le nom contient des caracteres speciaux non autorises."
         return True, ""
 
@@ -53,7 +52,7 @@ class FournisseurService:
         """Valide l'adresse du fournisseur (min 3 caractères)."""
         if len(adresse) < 3:
             return False, "L'adresse doit contenir au moins 3 caracteres."
-        if re.match(r"^[a-zA-Z0-9\\s'-]+$", adresse) is None:
+        if re.match(r"^[a-zA-Z0-9\s'.,\-]+$", adresse) is None:
             return False, "L'adresse contient des caracteres speciaux non autorises."
         return True, ""
 
@@ -61,7 +60,7 @@ class FournisseurService:
         """Valide le format de l'email (minuscules, format valide)."""
         if mail != mail.lower():
             return False, "L'email doit etre en minuscules."
-        if re.match(r"^[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,4}$", mail) is None:
+        if re.match(r"^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$", mail) is None:
             return False, "Format d'email invalide."
         return True, ""
 
@@ -88,10 +87,10 @@ class FournisseurService:
         Returns:
             tuple: (succès, message)
         """
-        mail = donnees.get('email_fournisseur', '').strip()
-        nom = donnees.get('nom_entreprise', '').strip()
-        telephone = donnees.get('telephone', '').strip()
-        adresse = donnees.get('adresse', '').strip()
+        mail      = str(donnees.get('email_fournisseur', '')).strip()
+        nom       = str(donnees.get('nom_entreprise',    '')).strip()
+        telephone = str(donnees.get('telephone',         '')).strip()
+        adresse   = str(donnees.get('adresse',           '')).strip()
 
         val_mail, msg = self._valider_mail(mail)
         if not val_mail:
@@ -225,13 +224,23 @@ class FournisseurService:
 
     def importer_fournisseurs_from_csv(self, fichier):
         try:
-            df = pd.read_csv(fichier).rename(columns={'mail': 'email_fournisseur'})
-            total = 0
+            # dtype=str : force toutes les colonnes en texte
+            # → évite que pandas convertisse le téléphone en int (perte du zéro initial)
+            df = pd.read_csv(fichier, dtype=str).rename(columns={'mail': 'email_fournisseur'})
+            df = df.fillna('')
+            total, erreurs = 0, []
             for d in df.to_dict('records'):
-                ok, _ = self.add_new_fournisseur(d)
+                ok, msg = self.add_new_fournisseur(d)
                 if ok:
                     total += 1
-            return True, f"{total} fournisseurs importes."
+                else:
+                    erreurs.append(msg)
+            if total == 0:
+                return False, f"Aucun fournisseur importe.\n" + "\n".join(erreurs[:3])
+            msg = f"{total} fournisseur(s) importe(s)."
+            if erreurs:
+                msg += f"\n{len(erreurs)} ligne(s) ignoree(s) : " + " | ".join(erreurs[:2])
+            return True, msg
         except FileNotFoundError:
             return False, "Fichier CSV introuvable."
         except Exception as e:
@@ -239,13 +248,22 @@ class FournisseurService:
 
     def importer_fournisseurs_from_excel(self, fichier):
         try:
-            df = pd.read_excel(fichier).rename(columns={'mail': 'email_fournisseur'})
-            total = 0
+            # dtype=str : même raison — forcer le téléphone en texte
+            df = pd.read_excel(fichier, dtype=str).rename(columns={'mail': 'email_fournisseur'})
+            df = df.fillna('')
+            total, erreurs = 0, []
             for d in df.to_dict('records'):
-                ok, _ = self.add_new_fournisseur(d)
+                ok, msg = self.add_new_fournisseur(d)
                 if ok:
                     total += 1
-            return True, f"{total} fournisseurs importes."
+                else:
+                    erreurs.append(msg)
+            if total == 0:
+                return False, f"Aucun fournisseur importe.\n" + "\n".join(erreurs[:3])
+            msg = f"{total} fournisseur(s) importe(s)."
+            if erreurs:
+                msg += f"\n{len(erreurs)} ligne(s) ignoree(s) : " + " | ".join(erreurs[:2])
+            return True, msg
         except FileNotFoundError:
             return False, "Fichier Excel introuvable."
         except Exception as e:
@@ -277,14 +295,66 @@ class FournisseurService:
     # GÉNÉRATION PDF
     # =========================================================================
 
-    def generer_liste_pdf(self, chemin_fichier):
-        """Génère la liste PDF des fournisseurs."""
-        try:
-            fournisseurs = self.fournisseur_dao.lister_fournisseurs()
-            return FournisseurPDFService.generer_liste_pdf(
-                controller=self,
-                chemin_fichier=chemin_fichier,
-                fournisseurs=fournisseurs
-            )
-        except Exception as e:
-            return False, f"Erreur PDF : {e}"
+
+    def generer_rapport_fournisseurs(self):
+        """
+        Génère le rapport PDF liste fournisseurs dans un fichier temporaire.
+        Retourne le chemin du PDF pour l'afficher dans ApercuPDFDialog.
+        Structure identique au rapport consultation/patient.
+        """
+        from services.pdf_rapports.rapport_fournisseur import RapportFournisseurPDF
+        
+        liste_fournisseurs = self.fournisseur_dao.lister_fournisseurs()
+        if not liste_fournisseurs:
+            raise ValueError("Aucun fournisseur trouvé dans la base.")
+            
+        info_cabinet = self.get_cabinet_info()
+        return RapportFournisseurPDF.generer_pdf_liste_fournisseurs(liste_fournisseurs, info_cabinet)
+
+    def generer_rapport_activites_un_fournisseur(self, email_fournisseur, code_session=None):
+        """
+        Génère le rapport PDF des activités d'un fournisseur dans un fichier temporaire.
+        """
+        from services.pdf_rapports.rapport_activites_fournisseur import RapportActivitesFournisseurPDF
+        
+        fournisseur = self.fournisseur_dao.get_fournisseur_by_mail(email_fournisseur)
+        if not fournisseur:
+            raise ValueError(f"Fournisseur introuvable pour l'email: {email_fournisseur}")
+            
+        stats = self.fournisseur_dao.get_stats_fournisseur_detail(email_fournisseur, code_session)
+        info_cabinet = self.get_cabinet_info()
+        
+        # conversion objet Fournisseur vers dict si nécessaire, mais FournisseurPDF l'attend comme objet ou dict
+        fournisseur_dict = {
+            'email_fournisseur': fournisseur.get('email_fournisseur', ''),
+            'nom_entreprise': fournisseur.get('nom_entreprise', '')
+        } if hasattr(fournisseur, 'get') else {
+            'email_fournisseur': getattr(fournisseur, 'email_fournisseur', ''),
+            'nom_entreprise': getattr(fournisseur, 'nom_entreprise', '')
+        }
+        
+        return RapportActivitesFournisseurPDF.generer_pdf_activites_un_fournisseur(fournisseur_dict, stats, info_cabinet)
+
+    def generer_rapport_toutes_activites_fournisseurs(self, code_session=None):
+        """
+        Génère le rapport PDF global des activités de tous les fournisseurs.
+        """
+        from services.pdf_rapports.rapport_activites_fournisseur import RapportActivitesFournisseurPDF
+        
+        fournisseurs = self.fournisseur_dao.lister_fournisseurs()
+        if not fournisseurs:
+            raise ValueError("Aucun fournisseur trouvé.")
+            
+        liste_fournisseurs_stats = []
+        for f in fournisseurs:
+            email = f.get('email_fournisseur', '') if hasattr(f, 'get') else getattr(f, 'email_fournisseur', '')
+            if email:
+                stats = self.fournisseur_dao.get_stats_fournisseur_detail(email, code_session)
+                liste_fournisseurs_stats.append({
+                    'fournisseur': f,
+                    'stats': stats
+                })
+                
+        info_cabinet = self.get_cabinet_info()
+        return RapportActivitesFournisseurPDF.generer_pdf_toutes_activites(liste_fournisseurs_stats, info_cabinet)
+

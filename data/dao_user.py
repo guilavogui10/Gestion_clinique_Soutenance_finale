@@ -23,17 +23,14 @@ class UserDAO:
             return None
 
         try:
-            with conn.cursor() as cursor:
-                sql = "SELECT code FROM utilisateur ORDER BY code DESC LIMIT 1"
+            with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+                sql = "SELECT MAX(CAST(SUBSTRING(code, 2) AS UNSIGNED)) AS max_id FROM utilisateur WHERE code LIKE 'U%'"
                 cursor.execute(sql)
                 resultat = cursor.fetchone()
 
-                dernier_numero = 0
-                if resultat:
-                    dernier_code = resultat["code"] if isinstance(resultat, dict) else resultat[0]
-                    dernier_numero = int(dernier_code[1:])
+                max_id = resultat['max_id'] if resultat and resultat['max_id'] is not None else 0
+                nouveau_numero = max_id + 1
 
-                nouveau_numero = dernier_numero + 1
                 return f"U{nouveau_numero:04d}"
         except Exception as e:
             print(f"Erreur lors de la generation du code : {e}")
@@ -196,6 +193,31 @@ class UserDAO:
     def rechercher_code_par_role(self, role: str) -> str | None:
         return self.rechercher_code_par_login(role)
 
+    def lister_personnel_par_roles(self, roles: list) -> list:
+        """Retourne le personnel dont le rôle utilisateur est dans la liste fournie."""
+        if not roles:
+            return []
+        conn = self.db_connection.connect()
+        if not conn:
+            return []
+        try:
+            placeholders = ', '.join(['%s'] * len(roles))
+            with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+                sql = f"""
+                    SELECT p.code, p.nom, p.prenom, p.fonction
+                    FROM personnel p
+                    INNER JOIN utilisateur u ON u.personnel = p.code
+                    WHERE u.role IN ({placeholders})
+                    ORDER BY p.nom ASC
+                """
+                cursor.execute(sql, roles)
+                return cursor.fetchall()
+        except Exception as e:
+            print(f"Erreur lister_personnel_par_roles: {e}")
+            return []
+        finally:
+            conn.close()
+
     def rechercher_par_code_personnel(self, code_personnel: str) -> dict | None:
         """
         Recherche un utilisateur via le code personnel lie.
@@ -219,5 +241,28 @@ class UserDAO:
         except pymysql.MySQLError as e:
             print(f"Erreur PyMySQL: {e}")
             return None
+        finally:
+            conn.close()
+
+    def obtenir_roles_disponibles(self) -> list:
+        """
+        Recupere la liste des roles distincts presents dans la table utilisateur.
+        
+        Returns:
+            Liste des roles disponibles (ex: ['Administrateur', 'Chirurgien', ...])
+        """
+        conn = self.db_connection.connect()
+        if not conn:
+            return []
+
+        try:
+            with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+                sql = "SELECT DISTINCT role FROM utilisateur WHERE role IS NOT NULL ORDER BY role"
+                cursor.execute(sql)
+                resultats = cursor.fetchall()
+                return [r['role'] for r in resultats if r['role']]
+        except pymysql.MySQLError as e:
+            print(f"Erreur PyMySQL: {e}")
+            return []
         finally:
             conn.close()

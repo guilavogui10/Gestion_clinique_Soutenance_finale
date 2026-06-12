@@ -26,13 +26,24 @@ from views.consultation.graphe_consultation import (
 
 class StatutFactureGraph(FigureCanvas):
     """Graphique camembert - Répartition par statut facture"""
-    
+
     def __init__(self, parent=None, width=4, height=3, dpi=100):
-        self.fig = Figure(figsize=(width, height), dpi=dpi, facecolor="none")
+        _bg = theme_manager.colors()['bg_card']
+        self.fig = Figure(figsize=(width, height), dpi=dpi, facecolor=_bg)
         self.axes = self.fig.add_subplot(111)
+        self.axes.set_facecolor(_bg)
         super().__init__(self.fig)
         self.setParent(parent)
-        
+        self.setStyleSheet(f"background-color: {_bg};")
+        theme_manager.theme_changed.connect(self._on_canvas_theme_change)
+
+    def _on_canvas_theme_change(self):
+        bg = theme_manager.colors()['bg_card']
+        self.setStyleSheet(f"background-color: {bg};")
+        self.fig.patch.set_facecolor(bg)
+        self.axes.set_facecolor(bg)
+        self.draw_idle()
+
     def update_graph(self, data):
         """data: dict avec clés 'Facturee', 'Non facturee', 'En attente'"""
         self.axes.clear()
@@ -59,13 +70,24 @@ class StatutFactureGraph(FigureCanvas):
 
 class Top5DiagnosticsGraph(FigureCanvas):
     """Graphique barres horizontales - Top 5 diagnostiques"""
-    
+
     def __init__(self, parent=None, width=4, height=3, dpi=100):
-        self.fig = Figure(figsize=(width, height), dpi=dpi, facecolor="none")
+        _bg = theme_manager.colors()['bg_card']
+        self.fig = Figure(figsize=(width, height), dpi=dpi, facecolor=_bg)
         self.axes = self.fig.add_subplot(111)
+        self.axes.set_facecolor(_bg)
         super().__init__(self.fig)
         self.setParent(parent)
-        
+        self.setStyleSheet(f"background-color: {_bg};")
+        theme_manager.theme_changed.connect(self._on_canvas_theme_change)
+
+    def _on_canvas_theme_change(self):
+        bg = theme_manager.colors()['bg_card']
+        self.setStyleSheet(f"background-color: {bg};")
+        self.fig.patch.set_facecolor(bg)
+        self.axes.set_facecolor(bg)
+        self.draw_idle()
+
     def update_graph(self, data):
         """data: dict {diagnostic: count}"""
         self.axes.clear()
@@ -96,13 +118,24 @@ class Top5DiagnosticsGraph(FigureCanvas):
 
 class ConsultationParPersonnelGraph(FigureCanvas):
     """Graphique barres verticales - Consultations par personnel"""
-    
+
     def __init__(self, parent=None, width=4, height=3, dpi=100):
-        self.fig = Figure(figsize=(width, height), dpi=dpi, facecolor="none")
+        _bg = theme_manager.colors()['bg_card']
+        self.fig = Figure(figsize=(width, height), dpi=dpi, facecolor=_bg)
         self.axes = self.fig.add_subplot(111)
+        self.axes.set_facecolor(_bg)
         super().__init__(self.fig)
         self.setParent(parent)
-        
+        self.setStyleSheet(f"background-color: {_bg};")
+        theme_manager.theme_changed.connect(self._on_canvas_theme_change)
+
+    def _on_canvas_theme_change(self):
+        bg = theme_manager.colors()['bg_card']
+        self.setStyleSheet(f"background-color: {bg};")
+        self.fig.patch.set_facecolor(bg)
+        self.axes.set_facecolor(bg)
+        self.draw_idle()
+
     def update_graph(self, data):
         """data: dict {nom_personnel: count}"""
         self.axes.clear()
@@ -157,7 +190,7 @@ class ChartsSection(QWidget):
         self.chart2_frame.layout().addWidget(self.chart2_graph)
         
         # Graphique 3: Moyenne journalière par mois (scatter)
-        self.chart3_frame = self._create_chart_frame("Moyenne journalière par mois")
+        self.chart3_frame = self._create_chart_frame("Revenu moyen journalier par mois")
         self.chart3_graph = MoyenneJournaliereGraph(self.chart3_frame, width=6, height=4, dpi=100)
         self.chart3_frame.layout().addWidget(self.chart3_graph)
         
@@ -203,17 +236,18 @@ class ChartsSection(QWidget):
             self.chart2_graph.update_graph({})
         
         try:
-            moyenne_data = self.ctrl.obtenir_moyenne_journaliere_par_mois(code_session)
+            moyenne_data = self.ctrl.obtenir_moyenne_montant_journalier_par_mois(code_session)
             self.chart3_graph.update_graph(moyenne_data or {})
         except:
             self.chart3_graph.update_graph({})
     
     def apply_theme(self):
         c = theme_manager.colors()
-        
+        bg = c['bg_card']
+
         self.setStyleSheet(f"""
             QFrame#ChartFrame {{
-                background: {c['bg_card']};
+                background: {bg};
                 border: 1px solid {c['border']};
                 border-radius: 15px;
             }}
@@ -223,3 +257,9 @@ class ChartsSection(QWidget):
                 border: none;
             }}
         """)
+
+        for graph in (self.chart1_graph, self.chart2_graph, self.chart3_graph):
+            graph.setStyleSheet(f"background-color: {bg};")
+            graph.fig.patch.set_facecolor(bg)
+            graph.axes.set_facecolor(bg)
+            graph.draw_idle()

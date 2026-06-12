@@ -152,7 +152,7 @@ class StatistiquesStockWidget(QWidget):
         c = theme_manager.colors()
         frame.setStyleSheet(f"""
             QFrame {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border_light']};
                 border-radius: 12px;
             }}
@@ -285,7 +285,7 @@ class StatistiquesStockWidget(QWidget):
         frame = QFrame()
         frame.setStyleSheet(f"""
             QFrame {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border_light']};
                 border-radius: 12px;
             }}
@@ -535,4 +535,25 @@ class StatistiquesStockWidget(QWidget):
 
     def apply_theme(self):
         """Met à jour les couleurs selon le thème actif."""
-        pass  # Les couleurs sont appliquées dynamiquement via theme_manager
+        c = theme_manager.colors()
+        self.setStyleSheet(f"StatistiquesStockWidget {{ background: {c['bg_main']}; }}")
+
+        panel_style = f"""
+            QFrame {{
+                background: {c['bg_card']};
+                border: 1px solid {c['border_light']};
+                border-radius: 12px;
+            }}
+        """
+        for frame in (
+            getattr(self, 'expiration_chart', None),
+            getattr(self, 'type_chart', None),
+            getattr(self, 'alert_panel', None),
+        ):
+            if frame:
+                frame.setStyleSheet(panel_style)
+
+        if hasattr(self, 'stock_table_card'):
+            fn = getattr(self.stock_table_card, 'apply_theme', None)
+            if fn:
+                fn()

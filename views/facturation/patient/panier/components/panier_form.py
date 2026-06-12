@@ -5,7 +5,8 @@ Version E-COMMERCE : Spinner quantité, Date picker, Price input formaté.
 """
 
 import qtawesome as qta
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
+from views.shared.theme_manager import theme_manager
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton,
     QFrame, QLabel, QComboBox, QScrollArea
@@ -17,6 +18,16 @@ from views.shared.theme_manager import theme_manager
 from .modern_quantity_spinner import ModernQuantitySpinner
 from .modern_date_picker import ModernDatePicker
 from .modern_price_input import ModernPriceInput
+
+
+class _ComboDown(QComboBox):
+    """QComboBox qui force la liste déroulante à s'afficher toujours en bas."""
+    def showPopup(self):
+        super().showPopup()
+        popup = self.view().window()
+        QTimer.singleShot(0, lambda: popup.move(
+            self.mapToGlobal(self.rect().bottomLeft())
+        ))
 
 
 class PanierForm:
@@ -112,7 +123,7 @@ class PanierForm:
         )
         layout.addWidget(lbl_four)
 
-        self.combo_fournisseur = QComboBox()
+        self.combo_fournisseur = _ComboDown()
         self.combo_fournisseur.addItem(
             qta.icon("fa5s.truck", color=self.vert_principal),
             "  Sélectionner un fournisseur..."
@@ -134,7 +145,7 @@ class PanierForm:
             f"font-size: 10px; font-weight: bold; color: {theme_manager.colors()['text_muted']};"
             "text-transform: uppercase; border: none; background: transparent;"
         )
-        self.combo_produit = QComboBox()
+        self.combo_produit = _ComboDown()
         self.combo_produit.addItem(
             qta.icon("fa5s.pills", color=self.vert_principal),
             "  Choisir..."
@@ -222,7 +233,7 @@ class PanierForm:
         layout.addSpacing(4)
         
         self.btn_ajouter_panier = QPushButton(
-            qta.icon("fa5s.cart-plus", color="white"), "  Ajouter au Panier"
+            qta.icon("fa5s.cart-plus", color=theme_manager.colors()['text_inverse']), "  Ajouter au Panier"
         )
         self.btn_ajouter_panier.setFixedHeight(46)
         self.btn_ajouter_panier.setCursor(Qt.PointingHandCursor)

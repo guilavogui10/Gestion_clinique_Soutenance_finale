@@ -66,31 +66,23 @@ class PatientFormWidget(QWidget):
         layout.setSpacing(14)
 
         # Icône utilisateur
-        icon_box = QFrame()
-        icon_box.setFixedSize(46, 46)
-        icon_box.setStyleSheet(f"""
-            background-color: {c['bg_main']};
-            border-radius: 10px;
-            border: 1px solid {c['border_light']};
-        """)
-        ib_layout = QHBoxLayout(icon_box)
+        self._icon_box = QFrame()
+        self._icon_box.setFixedSize(46, 46)
+        ib_layout = QHBoxLayout(self._icon_box)
         ib_layout.setContentsMargins(0, 0, 0, 0)
-        ico_lbl = QLabel()
-        ico_lbl.setPixmap(qta.icon("fa5s.user-injured", color=c['primary']).pixmap(22, 22))
-        ico_lbl.setAlignment(Qt.AlignCenter)
-        ib_layout.addWidget(ico_lbl, alignment=Qt.AlignCenter)
+        self._ico_header = QLabel()
+        self._ico_header.setAlignment(Qt.AlignCenter)
+        ib_layout.addWidget(self._ico_header, alignment=Qt.AlignCenter)
 
         # Titre + sous-titre
         title_col = QVBoxLayout()
         title_col.setSpacing(2)
-        lbl_main = QLabel("Enregistrement d'un patient")
-        lbl_main.setStyleSheet(f"font-size: 17px; font-weight: bold; color: {c['text_primary']}; background: transparent; border: none;")
-        lbl_sub = QLabel("Saisissez les informations du patient")
-        lbl_sub.setStyleSheet(f"font-size: 12px; color: {c['text_muted']}; background: transparent; border: none;")
-        title_col.addWidget(lbl_main)
-        title_col.addWidget(lbl_sub)
+        self._lbl_main = QLabel("Enregistrement d'un patient")
+        self._lbl_sub = QLabel("Saisissez les informations du patient")
+        title_col.addWidget(self._lbl_main)
+        title_col.addWidget(self._lbl_sub)
 
-        layout.addWidget(icon_box)
+        layout.addWidget(self._icon_box)
         layout.addLayout(title_col)
         layout.addStretch()
 
@@ -144,10 +136,15 @@ class PatientFormWidget(QWidget):
     # HELPERS : CHAMP AVEC ICÔNE
     # =========================================================================
 
-    def _make_field(self, label_text: str, widget, icon_name: str, icon_color: str,
+    def _make_field(self, label_text: str, widget, icon_name: str, color_key: str,
                     height: int = 42):
-        """Retourne (QVBoxLayout, wrapper_QFrame) : label + cadre [badge-icône + widget]."""
+        """Retourne (QVBoxLayout, wrapper_QFrame).
+        Enregistre automatiquement tous les sous-widgets dans _field_registry
+        pour que apply_theme() puisse les mettre à jour sans références manuelles.
+        """
         c = theme_manager.colors()
+        icon_color = c[color_key]
+
         vbox = QVBoxLayout()
         vbox.setSpacing(4)
 
@@ -169,11 +166,9 @@ class PatientFormWidget(QWidget):
 
         badge = QFrame()
         badge.setFixedSize(28, 28)
-        badge.setStyleSheet(f"background-color: {icon_color}20; border-radius: 7px; border: none;")
         bl = QHBoxLayout(badge)
         bl.setContentsMargins(0, 0, 0, 0)
         ico_lbl = QLabel()
-        ico_lbl.setPixmap(qta.icon(icon_name, color=icon_color).pixmap(14, 14))
         ico_lbl.setAlignment(Qt.AlignCenter)
         ico_lbl.setStyleSheet("border: none; background: transparent;")
         bl.addWidget(ico_lbl, alignment=Qt.AlignCenter)
@@ -182,7 +177,38 @@ class PatientFormWidget(QWidget):
         hbox.addWidget(badge, 0, Qt.AlignVCenter)
         hbox.addWidget(widget, 1)
         vbox.addWidget(wrapper)
+
+        # Registre centralisé — mis à jour en une seule boucle dans apply_theme
+        if not hasattr(self, '_field_registry'):
+            self._field_registry = []
+        self._field_registry.append({
+            'wrapper':    wrapper,
+            'badge':      badge,
+            'ico_lbl':    ico_lbl,
+            'lbl':        lbl,
+            'icon_name':  icon_name,
+            'color_key':  color_key,
+        })
+
+        # Appliquer les styles initiaux via le registre (réutilise la même logique)
+        self._refresh_field(self._field_registry[-1], c)
+
         return vbox, wrapper
+
+    def _refresh_field(self, entry: dict, c: dict):
+        """Rafraîchit un champ du registre avec les couleurs c."""
+        icon_color = c[entry['color_key']]
+        entry['badge'].setStyleSheet(
+            f"background-color: {icon_color}20; border-radius: 7px; border: none;"
+        )
+        entry['ico_lbl'].setPixmap(
+            qta.icon(entry['icon_name'], color=icon_color).pixmap(14, 14)
+        )
+        entry['lbl'].setStyleSheet(
+            f"font-size: 11px; font-weight: 600; color: {c['text_secondary']};"
+            " background: transparent; border: none;"
+        )
+        self._apply_wrapper_style(entry['wrapper'])
 
     def _apply_wrapper_style(self, wrapper: QFrame, border_color: str = None):
         c = theme_manager.colors()
@@ -196,14 +222,19 @@ class PatientFormWidget(QWidget):
         """)
 
     def _clear_widget_style(self, widget, c):
-        """Enlève bordure et fond du widget interne — le wrapper reste visible."""
-        base = (
-            f"border: none; background: transparent;"
-            f" font-size: 12px; color: {c['text_primary']};"
-        )
+        """Applique fond + couleur du thème au widget interne du wrapper."""
+        # QComboBox et QDateEdit ignorent background:transparent sur Windows
+        # (rendu natif) — on leur donne explicitement la couleur bg_input.
         if isinstance(widget, QComboBox):
             widget.setStyleSheet(f"""
-                QComboBox {{ {base} padding: 0; min-height: 28px; }}
+                QComboBox {{
+                    border: none;
+                    background-color: {c['bg_input']};
+                    color: {c['text_primary']};
+                    font-size: 12px;
+                    padding: 0;
+                    min-height: 28px;
+                }}
                 QComboBox::drop-down {{ border: none; width: 20px; }}
                 QComboBox QAbstractItemView {{
                     background-color: {c['bg_card']};
@@ -220,9 +251,32 @@ class PatientFormWidget(QWidget):
                 }}
             """)
         elif isinstance(widget, QDateEdit):
-            widget.setStyleSheet(f"QDateEdit {{ {base} padding: 0; }}")
+            widget.setStyleSheet(f"""
+                QDateEdit {{
+                    border: none;
+                    background-color: {c['bg_input']};
+                    color: {c['text_primary']};
+                    font-size: 12px;
+                    padding: 0;
+                }}
+                QDateEdit::drop-down {{ border: none; width: 20px; }}
+                QDateEdit::down-arrow {{
+                    image: none;
+                    border-left: 4px solid transparent;
+                    border-right: 4px solid transparent;
+                    border-top: 4px solid {c['text_muted']};
+                }}
+            """)
         else:
-            widget.setStyleSheet(f"QLineEdit {{ {base} padding: 0; }}")
+            widget.setStyleSheet(f"""
+                QLineEdit {{
+                    border: none;
+                    background: transparent;
+                    font-size: 12px;
+                    color: {c['text_primary']};
+                    padding: 0;
+                }}
+            """)
 
     # =========================================================================
     # SECTION INFORMATIONS
@@ -230,31 +284,19 @@ class PatientFormWidget(QWidget):
 
     def _section_infos(self, parent_layout):
         c = theme_manager.colors()
-        card = QFrame()
-        card.setStyleSheet(f"""
-            QFrame {{
-                background-color: {c['bg_card']};
-                border: 1.5px solid {c['border_light']};
-                border-radius: 14px;
-            }}
-        """)
-        vbox = QVBoxLayout(card)
+        self._card_infos = QFrame()
+        vbox = QVBoxLayout(self._card_infos)
         vbox.setContentsMargins(22, 18, 22, 18)
-        vbox.setSpacing(12)  # Réduit de 18 à 12
+        vbox.setSpacing(12)
 
         # Titre section
         hdr = QHBoxLayout()
-        ico = QLabel()
-        ico.setPixmap(qta.icon("fa5s.clipboard-list", color=c['primary']).pixmap(16, 16))
-        ico.setStyleSheet("border: none; background: transparent;")
-        lbl_t = QLabel("Informations du patient")
-        lbl_t.setStyleSheet(
-            f"font-size: 14px; font-weight: bold; color: {c['primary']};"
-            " background: transparent; border: none;"
-        )
-        hdr.addWidget(ico)
+        self._ico_section = QLabel()
+        self._ico_section.setStyleSheet("border: none; background: transparent;")
+        self._lbl_section = QLabel("Informations du patient")
+        hdr.addWidget(self._ico_section)
         hdr.addSpacing(8)
-        hdr.addWidget(lbl_t)
+        hdr.addWidget(self._lbl_section)
         hdr.addStretch()
         vbox.addLayout(hdr)
 
@@ -266,7 +308,7 @@ class PatientFormWidget(QWidget):
         self.edit_nom = QLineEdit()
         self.edit_nom.setPlaceholderText("Ex: DIALLO")
         vb_nom, self._wrap_nom = self._make_field(
-            "Nom", self.edit_nom, "fa5s.user", "#9b59b6"
+            "Nom", self.edit_nom, "fa5s.user", 'accent'
         )
         self._err_nom = self._err_label()
         vb_nom.addWidget(self._err_nom)
@@ -275,7 +317,7 @@ class PatientFormWidget(QWidget):
         self.edit_prenom = QLineEdit()
         self.edit_prenom.setPlaceholderText("Ex: Mamadou")
         vb_prenom, self._wrap_prenom = self._make_field(
-            "Prénom", self.edit_prenom, "fa5s.user", "#1abc9c"
+            "Prénom", self.edit_prenom, "fa5s.user", 'primary'
         )
         self._err_prenom = self._err_label()
         vb_prenom.addWidget(self._err_prenom)
@@ -291,7 +333,7 @@ class PatientFormWidget(QWidget):
         self.edit_tel = QLineEdit()
         self.edit_tel.setPlaceholderText("Ex: 628123456")
         vb_tel, self._wrap_tel = self._make_field(
-            "Téléphone", self.edit_tel, "fa5s.phone", "#27ae60"
+            "Téléphone", self.edit_tel, "fa5s.phone", 'success'
         )
         self._err_tel = self._err_label()
         vb_tel.addWidget(self._err_tel)
@@ -300,8 +342,8 @@ class PatientFormWidget(QWidget):
         self.combo_sexe = QComboBox()
         self.combo_sexe.addItem("Homme")
         self.combo_sexe.addItem("Femme")
-        vb_sexe, _ = self._make_field(
-            "Genre", self.combo_sexe, "fa5s.venus-mars", "#e67e22"
+        vb_sexe, self._wrap_sexe = self._make_field(
+            "Genre", self.combo_sexe, "fa5s.venus-mars", 'warning'
         )
         row2.addWidget(self._field_widget(vb_sexe), 1, Qt.AlignTop)
 
@@ -313,8 +355,8 @@ class PatientFormWidget(QWidget):
         self.edit_date.setCalendarPopup(True)
         self.edit_date.setDisplayFormat("dd/MM/yyyy")
         self.edit_date.setDate(QDate.currentDate())
-        vb_date, _ = self._make_field(
-            "Date de naissance", self.edit_date, "fa5s.calendar-alt", "#3498db"
+        vb_date, self._wrap_date = self._make_field(
+            "Date de naissance", self.edit_date, "fa5s.calendar-alt", 'info'
         )
         vbox.addLayout(vb_date)
         vbox.addSpacing(6)  # Réduit de 10 à 6
@@ -326,7 +368,7 @@ class PatientFormWidget(QWidget):
         self.edit_profession = QLineEdit()
         self.edit_profession.setPlaceholderText("Ex: Enseignant")
         vb_prof, self._wrap_profession = self._make_field(
-            "Profession", self.edit_profession, "fa5s.briefcase", "#f39c12"
+            "Profession", self.edit_profession, "fa5s.briefcase", 'warning'
         )
         self._err_profession = self._err_label()
         vb_prof.addWidget(self._err_profession)
@@ -335,14 +377,14 @@ class PatientFormWidget(QWidget):
         self.edit_adresse = QLineEdit()
         self.edit_adresse.setPlaceholderText("Ex: Conakry, Kaloum")
         vb_adr, self._wrap_adresse = self._make_field(
-            "Adresse", self.edit_adresse, "fa5s.map-marker-alt", "#e74c3c"
+            "Adresse", self.edit_adresse, "fa5s.map-marker-alt", 'danger'
         )
         self._err_adresse = self._err_label()
         vb_adr.addWidget(self._err_adresse)
         row4.addWidget(self._field_widget(vb_adr), 1, Qt.AlignTop)
 
         vbox.addLayout(row4)
-        parent_layout.addWidget(card)
+        parent_layout.addWidget(self._card_infos)
 
     # =========================================================================
     # UTILITAIRES
@@ -510,22 +552,69 @@ class PatientFormWidget(QWidget):
 
     def apply_theme(self):
         c = theme_manager.colors()
-        self.setStyleSheet(f"""
-            QWidget {{
-                background: {c['bg_main']};
-                color: {c['text_primary']};
-            }}
-        """)
-        # Re-appliquer les styles des wrappers et widgets internes après un changement de thème
-        if hasattr(self, '_wrap_nom'):
-            for w in (self._wrap_nom, self._wrap_prenom, self._wrap_tel, 
-                      self._wrap_profession, self._wrap_adresse):
-                self._apply_wrapper_style(w)
+
+        # Fond global du widget (cascade vers tous les enfants non explicitement stylés)
+        self.setStyleSheet(f"QWidget {{ background: {c['bg_main']}; color: {c['text_primary']}; }}")
+
+        # ── Header frame ────────────────────────────────────────────────────
+        if hasattr(self, 'header_frame'):
+            self.header_frame.setStyleSheet(f"""
+                background-color: {c['bg_card']};
+                border-radius: 14px;
+                border: none;
+            """)
+        if hasattr(self, '_icon_box'):
+            self._icon_box.setStyleSheet(f"""
+                background-color: {c['bg_main']};
+                border-radius: 10px;
+                border: 1px solid {c['border_light']};
+            """)
+        if hasattr(self, '_ico_header'):
+            self._ico_header.setPixmap(
+                qta.icon("fa5s.user-injured", color=c['primary']).pixmap(22, 22)
+            )
+        if hasattr(self, '_lbl_main'):
+            self._lbl_main.setStyleSheet(
+                f"font-size: 17px; font-weight: bold; color: {c['text_primary']};"
+                " background: transparent; border: none;"
+            )
+        if hasattr(self, '_lbl_sub'):
+            self._lbl_sub.setStyleSheet(
+                f"font-size: 12px; color: {c['text_muted']}; background: transparent; border: none;"
+            )
+
+        # ── Card infos section ───────────────────────────────────────────────
+        if hasattr(self, '_card_infos'):
+            self._card_infos.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {c['bg_card']};
+                    border: 1.5px solid {c['border_light']};
+                    border-radius: 14px;
+                }}
+            """)
+        if hasattr(self, '_ico_section'):
+            self._ico_section.setPixmap(
+                qta.icon("fa5s.clipboard-list", color=c['primary']).pixmap(16, 16)
+            )
+        if hasattr(self, '_lbl_section'):
+            self._lbl_section.setStyleSheet(
+                f"font-size: 14px; font-weight: bold; color: {c['primary']};"
+                " background: transparent; border: none;"
+            )
+
+        # ── Tous les champs via le registre (badge + icon + label + wrapper) ──
+        if hasattr(self, '_field_registry'):
+            for entry in self._field_registry:
+                self._refresh_field(entry, c)
+        # Widgets internes (QLineEdit / QComboBox / QDateEdit)
         if hasattr(self, 'edit_nom'):
             for w in (self.edit_nom, self.edit_prenom, self.edit_tel,
                       self.edit_profession, self.edit_adresse, self.combo_sexe, self.edit_date):
                 self._clear_widget_style(w, c)
+
+        # ── Boutons ──────────────────────────────────────────────────────────
         if hasattr(self, 'btn_cancel'):
+            self.btn_cancel.setIcon(qta.icon("fa5s.times", color=c['text_secondary']))
             self.btn_cancel.setStyleSheet(f"""
                 QPushButton {{
                     background-color: {c['bg_main']};
@@ -533,6 +622,7 @@ class PatientFormWidget(QWidget):
                     border: 1.5px solid {c['border']};
                     border-radius: 10px;
                     font-size: 13px;
+                    font-weight: 500;
                 }}
                 QPushButton:hover {{ background-color: {c['hover']}; }}
             """)

@@ -95,6 +95,10 @@ class ActeMedicalControleur:
         """Retourne tous les actes d'un statut donné."""
         return self.service_acte.lister_par_statut(statut)
 
+    def lister_tous(self, limit: int = 1000) -> list:
+        """Retourne tous les actes (limités pour la performance)."""
+        return self.service_acte.lister_tous(limit)
+
     # =========================================================================
     # SECTION 3 — WORKFLOW / TRANSITIONS D'ÉTATS (ActeMedicalService)
     # =========================================================================
@@ -171,25 +175,7 @@ class ActeMedicalControleur:
 
     def obtenir_code_visite_par_consultation(self, code_consultation: str) -> str | None:
         """Retourne le code_visite associé à une consultation."""
-        from core.connexion_db import DBConnection
-        db = DBConnection()
-        conn = db.connect()
-        if not conn:
-            return None
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT code_visite FROM consultation WHERE code = %s LIMIT 1",
-                (code_consultation,)
-            )
-            row = cursor.fetchone()
-            if row:
-                return row[0] if isinstance(row, tuple) else row.get('code_visite')
-            return None
-        except Exception:
-            return None
-        finally:
-            db.close()
+        return self.service_acte.obtenir_code_visite_par_consultation(code_consultation)
 
     def valider_sejour_patient(self, code_visite: str) -> tuple:
         """Passe le patient en 'Attente payement' (fin de séance, décision médecin)."""
@@ -350,106 +336,16 @@ class ActeMedicalControleur:
     # =========================================================================
 
     def lister_consultations_form(self) -> list:
-        """Retourne les consultations pour les dropdowns du formulaire.
-        Affiche les consultations terminées (qui peuvent avoir des actes médicaux associés)."""
-        try:
-            from core.connexion_db import DBConnection
-            db = DBConnection()
-            conn = db.connect()
-            if not conn:
-                return []
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT c.code,
-                       CONCAT(c.code, ' — ', COALESCE(p.nom,'?'), ' ', COALESCE(p.prenom,''), 
-                              ' (', COALESCE(v.statut_patient, 'Inconnu'), ')') AS label
-                FROM consultation c
-                LEFT JOIN visite v   ON c.code_visite  = v.code_visite
-                LEFT JOIN patients p ON v.code_patient = p.code_patient
-                WHERE v.statut_patient IS NULL
-                   OR LOWER(v.statut_patient) NOT IN ('attente payement', 'payé', 'paye', 'termine', 'annulé')
-                ORDER BY c.code DESC
-                LIMIT 200
-            """)
-            results = cursor.fetchall() or []
-            self.logger.info(f"Consultations disponibles: {len(results)}")
-            return results
-        except Exception as e:
-            self.logger.warning("lister_consultations_form: %s", e)
-            return []
-        finally:
-            try:
-                db.close()
-            except Exception:
-                pass
+        """Retourne les consultations actives pour les dropdowns du formulaire."""
+        return self.service_acte.lister_consultations_form()
 
     def lister_sessions_form(self) -> list:
-        """Retourne les sessions depuis la table annee."""
-        try:
-            from core.connexion_db import DBConnection
-            db = DBConnection()
-            conn = db.connect()
-            if not conn:
-                return []
-            cursor = conn.cursor()
-            cursor.execute("SELECT code_session FROM annee ORDER BY code_session DESC LIMIT 50")
-            return cursor.fetchall() or []
-        except Exception as e:
-            self.logger.warning("lister_sessions_form: %s", e)
-            return []
-        finally:
-            try:
-                db.close()
-            except Exception:
-                pass
+        """Retourne les sessions disponibles pour les dropdowns du formulaire."""
+        return self.service_acte.lister_sessions_form()
 
-    def lister_personnel_form(self) -> list:
-        """Retourne le personnel pour les dropdowns du formulaire."""
-        try:
-            from core.connexion_db import DBConnection
-            db = DBConnection()
-            conn = db.connect()
-            if not conn:
-                return []
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT code,
-                       CONCAT(nom, ' ', prenom) AS label
-                FROM personnel
-                ORDER BY nom ASC
-                LIMIT 200
-            """)
-            return cursor.fetchall() or []
-        except Exception as e:
-            self.logger.warning("lister_personnel_form: %s", e)
-            return []
-        finally:
-            try:
-                db.close()
-            except Exception:
-                pass
-
-    def lister_actes_form(self) -> list:
-        """Retourne les codes actes existants pour le champ 'Code Acte lié'."""
-        try:
-            from core.connexion_db import DBConnection
-            db = DBConnection()
-            conn = db.connect()
-            if not conn:
-                return []
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT code_acte FROM acte_medical ORDER BY code_acte DESC LIMIT 200"
-            )
-            return cursor.fetchall() or []
-        except Exception as e:
-            self.logger.warning("lister_actes_form: %s", e)
-            return []
-        finally:
-            try:
-                db.close()
-            except Exception:
-                pass
+    def lister_personnel_form(self, roles: list = None) -> list:
+        """Retourne le personnel pour les dropdowns, filtré par rôles si fournis."""
+        return self.service_acte.lister_personnel_form(roles)
 
     # =========================================================================
     # SECTION VISITE / CONSULTATION (délégation via services)
@@ -467,3 +363,59 @@ class ActeMedicalControleur:
         if not consultation:
             return None
         return consultation.code if hasattr(consultation, 'code') else consultation.get('code')
+
+    # =========================================================================
+    # EXPORT / IMPORT ACTES
+    # =========================================================================
+
+    def obtenir_donnees_export(self, type_acte: str) -> list:
+        from service_metier.acte_import_export_service import obtenir_donnees_export
+        return obtenir_donnees_export(type_acte)
+
+    def export_examens_excel(self, chemin: str) -> tuple:
+        from service_metier.acte_import_export_service import export_examens_excel
+        return export_examens_excel(chemin)
+
+    def export_examens_csv(self, chemin: str) -> tuple:
+        from service_metier.acte_import_export_service import export_examens_csv
+        return export_examens_csv(chemin)
+
+    def export_chirurgies_excel(self, chemin: str) -> tuple:
+        from service_metier.acte_import_export_service import export_chirurgies_excel
+        return export_chirurgies_excel(chemin)
+
+    def export_chirurgies_csv(self, chemin: str) -> tuple:
+        from service_metier.acte_import_export_service import export_chirurgies_csv
+        return export_chirurgies_csv(chemin)
+
+    def export_lunettes_excel(self, chemin: str) -> tuple:
+        from service_metier.acte_import_export_service import export_lunettes_excel
+        return export_lunettes_excel(chemin)
+
+    def export_lunettes_csv(self, chemin: str) -> tuple:
+        from service_metier.acte_import_export_service import export_lunettes_csv
+        return export_lunettes_csv(chemin)
+
+    def export_prescriptions_excel(self, chemin: str) -> tuple:
+        from service_metier.acte_import_export_service import export_prescriptions_excel
+        return export_prescriptions_excel(chemin)
+
+    def export_prescriptions_csv(self, chemin: str) -> tuple:
+        from service_metier.acte_import_export_service import export_prescriptions_csv
+        return export_prescriptions_csv(chemin)
+
+    def import_examens(self, chemin: str, format_fichier: str) -> tuple:
+        from service_metier.acte_import_export_service import import_examens
+        return import_examens(chemin, format_fichier)
+
+    def import_chirurgies(self, chemin: str, format_fichier: str) -> tuple:
+        from service_metier.acte_import_export_service import import_chirurgies
+        return import_chirurgies(chemin, format_fichier)
+
+    def import_lunettes(self, chemin: str, format_fichier: str) -> tuple:
+        from service_metier.acte_import_export_service import import_lunettes
+        return import_lunettes(chemin, format_fichier)
+
+    def import_prescriptions(self, chemin: str, format_fichier: str) -> tuple:
+        from service_metier.acte_import_export_service import import_prescriptions
+        return import_prescriptions(chemin, format_fichier)

@@ -1,5 +1,5 @@
 import qtawesome as qta
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt, QSize, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
@@ -12,6 +12,8 @@ from views.settings.settings_form import SettingsForm
 
 
 class ParametreView(QWidget):
+
+    session_changed = Signal(str)
     """
     Interface Paramètres du cabinet ophtalmologique.
     Layout : panel catégories (gauche) + contenu principal (droite).
@@ -121,7 +123,7 @@ class ParametreView(QWidget):
             ("Stats & KPI",   "fa5s.chart-bar"),
             ("Sécurité",      "fa5s.shield-alt"),
             ("Apparence",     "fa5s.paint-brush"),
-            ("Autres",        "fa5s.ellipsis-h"),
+            ("Session",       "fa5s.history"),
         ]
 
         self.cat_buttons = []
@@ -235,11 +237,173 @@ class ParametreView(QWidget):
             ("fa5s.chart-bar",   "Statistiques & KPI",     "Indicateurs clés de performance du cabinet."),
             ("fa5s.shield-alt",  "Sécurité & Sauvegarde",  "Sauvegardes automatiques et journaux de sécurité."),
             ("fa5s.paint-brush", "Interface & Apparence",  "Personnalisez l'apparence de l'application."),
-            ("fa5s.ellipsis-h",  "Autres paramètres",      "Paramètres avancés et options supplémentaires."),
         ]
         for icone, titre, sous_titre in placeholders:
             page = self._creer_page_placeholder(icone, titre, sous_titre)
             self.content_stack.addWidget(page)
+
+        # Page 11 : Sélection de session
+        self.page_session = self._creer_page_session()
+        self.content_stack.addWidget(self.page_session)
+
+    # =========================================================================
+    # PAGE SESSION
+    # =========================================================================
+
+    def _creer_page_session(self) -> QWidget:
+        """
+        Page d'accès sécurisé à la sélection de session.
+        Le Directeur Général s'authentifie via e-mail + OTP avant de choisir
+        la session à consulter dans le tableau de bord et les analyses.
+        """
+        c = theme_manager.colors()
+        page = QWidget()
+        page.setStyleSheet("background-color: #FFFFFF;")
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 4, 0, 4)
+        layout.setSpacing(0)
+
+        # ── Titre ────────────────────────────────────────────────────────────
+        lbl_titre = QLabel("Sélection de session")
+        lbl_titre.setStyleSheet(
+            f"color: {c['primary']}; font-size: 16px; font-weight: 700; border: none; padding-bottom: 2px;"
+        )
+        layout.addWidget(lbl_titre)
+
+        lbl_desc = QLabel(
+            "Consultez les données d'une session passée. Cette action est réservée au "
+            "Directeur Général et nécessite une vérification par code e-mail."
+        )
+        lbl_desc.setWordWrap(True)
+        lbl_desc.setStyleSheet(
+            f"color: {c['text_muted']}; font-size: 12px; border: none; padding-bottom: 10px;"
+        )
+        layout.addWidget(lbl_desc)
+
+        sep = QFrame()
+        sep.setFixedHeight(1)
+        sep.setStyleSheet(f"background: {c['border']}; border: none;")
+        layout.addWidget(sep)
+        layout.addSpacing(12)
+
+        # ── Carte session active ─────────────────────────────────────────────
+        card_active = QFrame()
+        card_active.setObjectName("session_active_card")
+        card_active.setStyleSheet(f"""
+            QFrame#session_active_card {{
+                background-color: {c['bg_card']};
+                border-radius: 12px;
+                border: 1px solid {c['border']};
+            }}
+        """)
+        ca_layout = QVBoxLayout(card_active)
+        ca_layout.setContentsMargins(16, 14, 16, 14)
+        ca_layout.setSpacing(8)
+
+        row_titre = QHBoxLayout()
+        ic_hist = QLabel()
+        ic_hist.setPixmap(qta.icon("fa5s.history", color=c['primary']).pixmap(QSize(16, 16)))
+        ic_hist.setStyleSheet("border: none; background: transparent;")
+        lbl_active_titre = QLabel("Session actuellement consultée")
+        lbl_active_titre.setStyleSheet(
+            f"color: {c['text_primary']}; font-size: 13px; font-weight: 600; border: none;"
+        )
+        row_titre.addWidget(ic_hist)
+        row_titre.addSpacing(6)
+        row_titre.addWidget(lbl_active_titre)
+        row_titre.addStretch()
+        ca_layout.addLayout(row_titre)
+
+        self._lbl_session_courante = QLabel("Session active (base de données)")
+        self._lbl_session_courante.setObjectName("lbl_session_courante")
+        self._lbl_session_courante.setStyleSheet(
+            f"color: {c['primary']}; font-size: 14px; font-weight: 700; border: none; padding: 4px 0;"
+        )
+        ca_layout.addWidget(self._lbl_session_courante)
+
+        self._lbl_session_info = QLabel("")
+        self._lbl_session_info.setStyleSheet(
+            f"color: {c['text_muted']}; font-size: 11px; border: none;"
+        )
+        self._lbl_session_info.hide()
+        ca_layout.addWidget(self._lbl_session_info)
+
+        layout.addWidget(card_active)
+        layout.addSpacing(14)
+
+        # ── Bouton Changer de session ────────────────────────────────────────
+        self._btn_changer_session = QPushButton()
+        self._btn_changer_session.setFixedHeight(42)
+        self._btn_changer_session.setCursor(Qt.PointingHandCursor)
+        self._btn_changer_session.setObjectName("btn_changer_session")
+        bl = QHBoxLayout(self._btn_changer_session)
+        bl.setContentsMargins(20, 0, 20, 0)
+        bl.setSpacing(8)
+        _ic_btn = QLabel()
+        _ic_btn.setPixmap(qta.icon("fa5s.shield-alt", color="#FFFFFF").pixmap(QSize(14, 14)))
+        _ic_btn.setStyleSheet("border: none; background: transparent;")
+        _lbl_btn = QLabel("Changer de session (accès DG)")
+        _lbl_btn.setStyleSheet(
+            f"color: #FFFFFF; font-size: 13px; font-weight: 600; border: none; background: transparent;"
+        )
+        bl.addStretch()
+        bl.addWidget(_ic_btn)
+        bl.addWidget(_lbl_btn)
+        bl.addStretch()
+        self._btn_changer_session.setStyleSheet(f"""
+            QPushButton#btn_changer_session {{
+                background-color: {c['primary']};
+                border: none;
+                border-radius: 10px;
+            }}
+            QPushButton#btn_changer_session:hover {{
+                background-color: {c.get('primary_dark', c['primary'])};
+            }}
+        """)
+        self._btn_changer_session.clicked.connect(self._ouvrir_dialog_session)
+        layout.addWidget(self._btn_changer_session)
+
+        layout.addStretch()
+
+        # Afficher la session courante au chargement
+        self._maj_affichage_session_courante()
+
+        return page
+
+    def _maj_affichage_session_courante(self, code_session: str = ""):
+        """Met à jour le label indiquant la session actuellement consultée."""
+        from core import session_manager
+        override = session_manager.get_override()
+        if code_session:
+            override = code_session
+        if override:
+            self._lbl_session_courante.setText(override)
+            self._lbl_session_info.setText("Session sélectionnée par le Directeur Général")
+            self._lbl_session_info.show()
+        else:
+            self._lbl_session_courante.setText("Session active (base de données)")
+            self._lbl_session_info.hide()
+
+    def _ouvrir_dialog_session(self):
+        """Ouvre le modal d'autorisation DG → sélection de session."""
+        from views.settings.dialog_autorisation_session import DialogAutorisationSession
+        dlg = DialogAutorisationSession(self)
+        dlg.session_confirmee.connect(self._on_session_confirmee)
+        dlg.exec()
+
+    def _on_session_confirmee(self, code_session: str):
+        """Appelé quand le DG a validé son OTP et confirmé une session."""
+        from core import session_manager
+        session_manager.set_session_override(code_session)
+        self._maj_affichage_session_courante(code_session)
+        self.session_changed.emit(code_session)
+
+    def rafraichir_sessions(self):
+        """Rafraîchit l'indicateur de session (appelable depuis l'extérieur)."""
+        if hasattr(self, '_lbl_session_courante'):
+            self._maj_affichage_session_courante()
+
+    # =========================================================================
 
     def _creer_page_placeholder(self, icone: str, titre: str, sous_titre: str) -> QWidget:
         c = theme_manager.colors()

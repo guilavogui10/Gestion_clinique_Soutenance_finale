@@ -23,39 +23,39 @@ from PySide6.QtCore import QObject, Signal
 
 THEMES = {
 
-    # ── Thème CLAIR (Teal Medical - professionnel clinique) ──────────────
+    # ── Thème CLAIR (Medical Teal - palette login) ───────────────────────
     "clair": {
-        # Couleurs principales — teal médical + bleu secondaire
-        "primary":       "#0F7B6C",    # Teal profond (accent principal)
-        "primary_hover": "#0A5F53",    # Teal foncé au survol
-        "primary_light": "#E6F5F2",    # Teal très clair (hover sidebar)
-        "secondary":     "#3B82F6",    # Bleu (variété / liens)
-        "accent":        "#F59E0B",    # Ambre chaud (highlights / stat cards)
+        # Couleurs principales — teal lumineux du login
+        "primary":       "#3ECFCF",    # Teal vif (boutons login)
+        "primary_hover": "#35B8B8",    # Teal hover
+        "primary_light": "#E6FAFA",    # Teal très clair (hover sidebar)
+        "secondary":     "#3D9B9B",    # Teal lien (liens login)
+        "accent":        "#F59E0B",    # Ambre chaud (stat cards)
         "accent_light":  "#FEF3C7",    # Ambre pâle
 
-        # Arrière-plans — nuances de gris-vert très doux
-        "bg_main":       "#F0F4F3",    # Fond principal
-        "bg_sidebar":    "#FFFFFF",    # Sidebar
-        "bg_card":       "#FFFFFF",    # Cartes
-        "bg_header":     "#FFFFFF",    # Header
-        "bg_input":      "#FAFBFC",    # Champs de saisie
-        "bg_table":      "#FFFFFF",    # Tableau
-        "bg_table_alt":  "#F7FAF9",    # Ligne alternée
+        # Arrière-plans — homogènes teal très pâle
+        "bg_main":       "#F4FAFA",    # Fond principal (teal très pâle)
+        "bg_sidebar":    "#0d5f5a",    # Sidebar — teal profond
+        "bg_card":       "#F4FAFA",    # Cartes (identique)
+        "bg_header":     "#F4FAFA",    # Header (identique)
+        "bg_input":      "#F8F9FA",    # Champs de saisie
+        "bg_table":      "#F4FAFA",    # Tableau (identique)
+        "bg_table_alt":  "#F0FAFA",    # Ligne alternée teal pâle
 
-        # Textes — gamme du sombre au clair
-        "text_primary":  "#1A2E35",    # Texte principal (sombre)
-        "text_secondary":"#5F7A84",    # Sous-titres
+        # Textes — palette login
+        "text_primary":  "#2C3E50",    # Texte principal (titre login)
+        "text_secondary":"#7F8C8D",    # Sous-titres (sous-titre login)
         "text_inverse":  "#FFFFFF",    # Sur fond coloré
-        "text_muted":    "#94A3B8",    # Légendes discrètes
+        "text_muted":    "#95A5A6",    # Légendes (placeholder login)
 
         # Bordures
-        "border":        "#D8E2E0",
-        "border_light":  "#E8EDEC",
-        "border_focus":  "#0F7B6C",
+        "border":        "#B0B8C0",    # Bordure grise visible
+        "border_light":  "#D0D4D8",    # Bordure légère
+        "border_focus":  "#3ECFCF",    # Focus = teal vif login
 
         # États interactifs
-        "hover":         "#EFF5F4",
-        "selected":      "#0F7B6C",
+        "hover":         "#E6FAFA",
+        "selected":      "#3ECFCF",
         "danger":        "#EF4444",
         "warning":       "#F59E0B",
         "success":       "#10B981",
@@ -68,14 +68,18 @@ THEMES = {
         "info_bg":       "#EFF6FF",
 
         # Ombres
-        "shadow":        "rgba(15, 123, 108, 0.08)",
-        "shadow_hover":  "rgba(15, 123, 108, 0.15)",
+        "shadow":        "rgba(62, 207, 207, 0.08)",
+        "shadow_hover":  "rgba(62, 207, 207, 0.18)",
 
         # Tableau
-        "table_header_bg":    "#F8FAF9",
-        "table_header_border":"#0F7B6C",
-        "table_selection":    "#E6F5F2",
-        "table_gridline":     "#F0F4F3",
+        "table_header_bg":    "#F0FAFA",
+        "table_header_border":"#3ECFCF",
+        "table_selection":    "#E6FAFA",
+        "table_gridline":     "#F4FAFA",
+
+        # Texte sidebar (blanc car bg_sidebar est sombre)
+        "text_sidebar":  "#FFFFFF",
+        "hover_sidebar": "rgba(255,255,255,0.12)",
 
         # Métadonnées
         "_name":  "Clair",
@@ -91,7 +95,7 @@ THEMES = {
         "accent":        "#FBBF24",    # Or chaud
         "accent_light":  "#3D3520",
 
-        "bg_main":       "#0F1419",
+        "bg_main":       "#1C2330",    # Fond principal (identique aux cards pour homogénéité)
         "bg_sidebar":    "#151C24",
         "bg_card":       "#1C2430",
         "bg_header":     "#151C24",
@@ -128,55 +132,71 @@ THEMES = {
         "table_selection":    "#1A3038",
         "table_gridline":     "#2A3645",
 
+        # Texte sidebar (clair car bg_sidebar est sombre)
+        "text_sidebar":  "#E8EDF2",
+        "hover_sidebar": "rgba(255,255,255,0.08)",
+
         "_name":  "Sombre",
         "_icon":  "fa5s.moon",
     },
 
-    # ── Thème OCEAN (Bleu Royal médical) ─────────────────────────────────
+    # ── Thème OCEAN (Tech Blue — Génie Informatique) ─────────────────────
     "ocean": {
-        "primary":       "#1D6FD6",    # Bleu royal
-        "primary_hover": "#1557B0",
-        "primary_light": "#EBF4FF",
-        "secondary":     "#0EA5E9",    # Bleu ciel
-        "accent":        "#8B5CF6",    # Violet doux
-        "accent_light":  "#F0EBFF",
+        # Bleu électrique tech — signature génie informatique (Azure, GitHub, Bootstrap)
+        "primary":       "#2563EB",    # Bleu tech vif (Tailwind blue-600)
+        "primary_hover": "#1D4ED8",    # Bleu plus sombre au survol
+        "primary_light": "#DBEAFE",    # Bleu très clair (hover, sélection)
+        "secondary":     "#0EA5E9",    # Cyan tech (variété / liens)
+        "accent":        "#7C3AED",    # Violet code (accent tech)
+        "accent_light":  "#EDE9FE",    # Violet pâle
 
-        "bg_main":       "#EFF5FB",
-        "bg_sidebar":    "#FFFFFF",
-        "bg_card":       "#FFFFFF",
-        "bg_header":     "#FFFFFF",
-        "bg_input":      "#F8FAFD",
-        "bg_table":      "#FFFFFF",
-        "bg_table_alt":  "#F5F9FD",
+        # Arrière-plans — homogènes
+        "bg_main":       "#F0F7FF",    # Fond principal (identique aux cards)
+        "bg_sidebar":    "#0F1F3D",    # Sidebar navy profond
+        "bg_card":       "#F0F7FF",    # Cartes
+        "bg_header":     "#FFFFFF",    # Header blanc (contraste propre)
+        "bg_input":      "#FAFCFF",    # Champs — quasi-blanc teinté bleu
+        "bg_table":      "#F0F7FF",    # Tableau
+        "bg_table_alt":  "#E5EFFF",    # Ligne alternée — bleu légèrement plus marqué
 
-        "text_primary":  "#1A2744",
-        "text_secondary":"#4A6284",
-        "text_inverse":  "#FFFFFF",
-        "text_muted":    "#8FA3BF",
+        # Textes
+        "text_primary":  "#1E3A5F",    # Navy profond (lisible sur fond clair)
+        "text_secondary":"#4A6080",    # Bleu-gris secondaire
+        "text_inverse":  "#FFFFFF",    # Sur fond coloré
+        "text_muted":    "#8BA3C0",    # Bleu pâle discret
 
-        "border":        "#D2E3F3",
-        "border_light":  "#E3EDF7",
-        "border_focus":  "#1D6FD6",
+        # Bordures
+        "border":        "#C7D9F0",    # Bordure bleutée
+        "border_light":  "#DDE9F8",    # Bordure légère
+        "border_focus":  "#2563EB",    # Focus bleu tech
 
-        "hover":         "#E3EEFB",
-        "selected":      "#1D6FD6",
+        # États interactifs
+        "hover":         "#DBEAFE",    # Hover bleu clair
+        "selected":      "#2563EB",
         "danger":        "#DC2626",
-        "warning":       "#F59E0B",
+        "warning":       "#D97706",
         "success":       "#059669",
-        "info":          "#0284C7",
+        "info":          "#0EA5E9",
 
+        # Fonds légers pour badges
         "danger_bg":     "#FEF2F2",
         "warning_bg":    "#FFFBEB",
         "success_bg":    "#ECFDF5",
         "info_bg":       "#E0F2FE",
 
-        "shadow":        "rgba(29, 111, 214, 0.08)",
-        "shadow_hover":  "rgba(29, 111, 214, 0.15)",
+        # Ombres
+        "shadow":        "rgba(37, 99, 235, 0.10)",
+        "shadow_hover":  "rgba(37, 99, 235, 0.20)",
 
-        "table_header_bg":    "#F5F9FD",
-        "table_header_border":"#1D6FD6",
-        "table_selection":    "#EBF4FF",
-        "table_gridline":     "#EDF2F7",
+        # Tableau
+        "table_header_bg":    "#E5EFFF",    # En-tête — bleu légèrement plus marqué
+        "table_header_border":"#2563EB",
+        "table_selection":    "#DBEAFE",
+        "table_gridline":     "#D5E8FF",    # Grille bleutée visible
+
+        # Texte sidebar (clair car bg_sidebar est navy foncé)
+        "text_sidebar":  "#B8CEED",    # Bleu-blanc sur fond navy
+        "hover_sidebar": "rgba(37, 99, 235, 0.20)",
 
         "_name":  "Océan",
         "_icon":  "fa5s.water",

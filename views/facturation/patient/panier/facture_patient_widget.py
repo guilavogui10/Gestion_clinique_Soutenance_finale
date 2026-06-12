@@ -22,6 +22,8 @@ from .handlers.facture_patient_data_loader import FacturePatientDataLoader
 from .handlers.facture_patient_operations import FacturePatientOperations
 from .styles.facture_patient_styles import FacturePatientStyles
 from views.shared.modal_theme import MC
+from views.shared.theme_manager import theme_manager
+from views.shared.theme_fix import force_theme_recursive, fix_black_widgets
 
 
 class FacturePatientWidget(AnimatedFrame):
@@ -30,15 +32,23 @@ class FacturePatientWidget(AnimatedFrame):
     paiement_effectue = Signal()
     facture_mise_a_jour = Signal()
 
-    # Palette de couleurs fixes
-    BLEU        = "#2563EB"
-    VERT        = "#10B981"
-    ROUGE       = "#EF4444"
-    BG_PAGE     = "#F8FAFC"
-    BG_CARD     = "#FFFFFF"
-    BORDER      = "#E2E8F0"
-    TXT_PRIMARY = "#0F172A"
-    TXT_SEC     = "#64748B"
+    # Couleurs dynamiques liées au thème
+    @property
+    def BLEU(self):        return theme_manager.colors()['primary']
+    @property
+    def VERT(self):        return theme_manager.colors()['success']
+    @property
+    def ROUGE(self):       return theme_manager.colors()['danger']
+    @property
+    def BG_PAGE(self):     return theme_manager.colors()['bg_main']
+    @property
+    def BG_CARD(self):     return theme_manager.colors()['bg_card']
+    @property
+    def BORDER(self):      return theme_manager.colors()['border']
+    @property
+    def TXT_PRIMARY(self): return theme_manager.colors()['text_primary']
+    @property
+    def TXT_SEC(self):     return theme_manager.colors()['text_secondary']
 
     def __init__(self, facture_ctrl=None, panier_ctrl=None, parent=None):
         super().__init__(parent)
@@ -59,16 +69,13 @@ class FacturePatientWidget(AnimatedFrame):
 
         self._init_ui()
         self._connecter_signaux()
+        theme_manager.theme_changed.connect(self.apply_theme)
 
     # =========================================================================
     # UI PRINCIPALE
     # =========================================================================
 
     def _init_ui(self) -> None:
-        self.setStyleSheet(
-            f"background-color: {self.BG_PAGE}; border-radius: 0px; border: none;"
-        )
-
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
@@ -80,9 +87,16 @@ class FacturePatientWidget(AnimatedFrame):
         body = QHBoxLayout()
         body.setContentsMargins(16, 12, 16, 12)
         body.setSpacing(16)
-        body.addWidget(self._build_left_panel(), 6)
-        body.addWidget(self._build_right_panel(), 4)
+        self._left_panel  = self._build_left_panel()
+        self._right_panel = self._build_right_panel()
+        body.addWidget(self._left_panel,  6)
+        body.addWidget(self._right_panel, 4)
         root.addLayout(body, 1)
+
+        # Appliquer le thème après que tous les widgets sont créés
+        self.apply_theme()
+        # Forcer le thème récursivement pour éliminer les widgets noirs
+        force_theme_recursive(self, force_bg=True)
 
     # ─── En-tête ──────────────────────────────────────────────────────────
 
@@ -139,9 +153,11 @@ class FacturePatientWidget(AnimatedFrame):
 
     def _build_patient_bar(self) -> QFrame:
         bar = QFrame()
+        bar.setObjectName("PatientBar")
         bar.setStyleSheet(
-            f"background: {self.BG_CARD}; border-bottom: 1px solid {self.BORDER}; border-radius: 0;"
+            f"QFrame#PatientBar {{ background: {self.BG_CARD}; border-bottom: 1px solid {self.BORDER}; border-radius: 0; }}"
         )
+        self._patient_bar = bar
         lay = QHBoxLayout(bar)
         lay.setContentsMargins(20, 10, 20, 10)
         lay.setSpacing(16)
@@ -164,7 +180,7 @@ class FacturePatientWidget(AnimatedFrame):
         self.lbl_patient_id = QLabel("—")
         self.lbl_badge_urgent = QLabel("URGENT")
         self.lbl_badge_urgent.setStyleSheet(
-            f"background:#FEE2E2; color:{self.ROUGE}; border-radius:8px; padding:2px 8px;"
+            f"background:{theme_manager.colors()['danger_bg']}; color:{self.ROUGE}; border-radius:8px; padding:2px 8px;"
             " font-size:10px; font-weight:bold;"
         )
         self.lbl_badge_urgent.setVisible(False)
@@ -205,10 +221,11 @@ class FacturePatientWidget(AnimatedFrame):
         lay.addWidget(self.combo_visite)
         lay.addStretch()
 
-        # KPI chips
-        self.kpi_total = self._make_kpi("Total des services", "0 GNF", self.BLEU, "#EFF6FF")
-        self.kpi_paye = self._make_kpi("Déjà payé", "0 GNF", self.VERT, "#ECFDF5")
-        self.kpi_reste = self._make_kpi("Reste à payer", "0 GNF", self.ROUGE, "#FEF2F2")
+        # KPI chips — backgrounds dérivés du thème
+        _c = theme_manager.colors()
+        self.kpi_total = self._make_kpi("Total des services", "0 GNF", self.BLEU, _c['primary_light'])
+        self.kpi_paye  = self._make_kpi("Déjà payé",          "0 GNF", self.VERT, _c['success_bg'])
+        self.kpi_reste = self._make_kpi("Reste à payer",      "0 GNF", self.ROUGE, _c['danger_bg'])
 
         for kpi in (self.kpi_total, self.kpi_paye, self.kpi_reste):
             lay.addWidget(kpi)
@@ -248,8 +265,8 @@ class FacturePatientWidget(AnimatedFrame):
             f"background: {self.BG_CARD}; border-radius: 16px; border: 1px solid {self.BORDER};"
         )
         lay = QVBoxLayout(panel)
-        lay.setContentsMargins(16, 16, 16, 16)
-        lay.setSpacing(12)
+        lay.setContentsMargins(12, 12, 12, 12)
+        lay.setSpacing(8)
 
         # Section header
         sec_row = QHBoxLayout()
@@ -269,22 +286,22 @@ class FacturePatientWidget(AnimatedFrame):
         sec_info.addWidget(sec_sub)
 
         self.btn_add_service = QPushButton(
-            qta.icon("fa5s.plus", color="white"), " Ajouter un service"
+            qta.icon("fa5s.plus", color=theme_manager.colors()['text_inverse']), " Ajouter un service"
         )
-        self.btn_add_service.setFixedHeight(36)
+        self.btn_add_service.setFixedHeight(32)
         self.btn_add_service.setCursor(Qt.PointingHandCursor)
         self.btn_add_service.setEnabled(False)
         self.btn_add_service.setStyleSheet(f"""
             QPushButton {{
                 background: {self.BLEU};
-                color: white;
+                color: {theme_manager.colors()['text_inverse']};
                 border-radius: 10px;
                 font-weight: bold;
                 font-size: 12px;
                 padding: 0 16px;
             }}
-            QPushButton:hover {{ background: #1D4ED8; }}
-            QPushButton:disabled {{ background: #94A3B8; }}
+            QPushButton:hover {{ background: {theme_manager.colors()['primary_hover']}; }}
+            QPushButton:disabled {{ background: {theme_manager.colors()['border']}; }}
         """)
 
         sec_row.addWidget(icon_lbl)
@@ -295,7 +312,7 @@ class FacturePatientWidget(AnimatedFrame):
 
         # Sélecteur de service (pour choisir quoi ajouter)
         self.combo_service = QComboBox()
-        self.combo_service.setFixedHeight(36)
+        self.combo_service.setFixedHeight(32)
         self.combo_service.setStyleSheet(f"""
             QComboBox {{
                 background: {self.BG_CARD};
@@ -313,7 +330,7 @@ class FacturePatientWidget(AnimatedFrame):
         btn_add_all = QPushButton(
             qta.icon("fa5s.layer-group", color=self.BLEU), " Ajouter tous"
         )
-        btn_add_all.setFixedHeight(36)
+        btn_add_all.setFixedHeight(32)
         btn_add_all.setCursor(Qt.PointingHandCursor)
         btn_add_all.setObjectName("btn_add_all")
         btn_add_all.setStyleSheet(f"""
@@ -326,7 +343,7 @@ class FacturePatientWidget(AnimatedFrame):
                 font-size: 12px;
                 padding: 0 14px;
             }}
-            QPushButton:hover {{ background: #EFF6FF; }}
+            QPushButton:hover {{ background: {theme_manager.colors()['primary_light']}; }}
         """)
         self.btn_add_all = btn_add_all
 
@@ -339,7 +356,11 @@ class FacturePatientWidget(AnimatedFrame):
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        _bg = theme_manager.colors()['bg_card']
+        self.scroll.setStyleSheet(
+            f"QScrollArea {{ border: none; background: {_bg}; }}"
+            f"QScrollArea > QWidget {{ background: {_bg}; }}"
+        )
         self.scroll.verticalScrollBar().setStyleSheet(FacturePatientStyles.scrollbar())
 
         self.container_lignes = QWidget()
@@ -350,34 +371,34 @@ class FacturePatientWidget(AnimatedFrame):
         self.layout_lignes.addStretch()
 
         self.scroll.setWidget(self.container_lignes)
-        self.scroll.setMinimumHeight(200)
+        self.scroll.setMinimumHeight(150)
         lay.addWidget(self.scroll, 1)
 
         # Info hint
-        hint = QFrame()
-        hint.setStyleSheet(
-            "background: #EFF6FF; border-radius: 8px; border: none;"
+        self._hint_frame = QFrame()
+        self._hint_frame.setStyleSheet(
+            f"background: {self.BG_PAGE}; border-radius: 8px; border: 1px solid {self.BORDER};"
         )
-        hint_lay = QHBoxLayout(hint)
+        hint_lay = QHBoxLayout(self._hint_frame)
         hint_lay.setContentsMargins(12, 6, 12, 6)
         info_ico = QLabel()
         info_ico.setPixmap(qta.icon("fa5s.info-circle", color=self.BLEU).pixmap(14, 14))
-        hint_txt = QLabel("Décochez un service pour le retirer du panier")
-        hint_txt.setStyleSheet(
+        self._hint_txt = QLabel("Décochez un service pour le retirer du panier")
+        self._hint_txt.setStyleSheet(
             f"font-size:11px; color:{self.BLEU}; border:none; background:transparent;"
         )
         hint_lay.addWidget(info_ico)
         hint_lay.addSpacing(6)
-        hint_lay.addWidget(hint_txt)
+        hint_lay.addWidget(self._hint_txt)
         hint_lay.addStretch()
-        lay.addWidget(hint)
+        lay.addWidget(self._hint_frame)
 
         # Total + vider panier
         bottom_row = QHBoxLayout()
         self.btn_vider = QPushButton(
             qta.icon("fa5s.trash-alt", color=self.ROUGE), " Vider le panier"
         )
-        self.btn_vider.setFixedHeight(36)
+        self.btn_vider.setFixedHeight(32)
         self.btn_vider.setCursor(Qt.PointingHandCursor)
         self.btn_vider.setStyleSheet(f"""
             QPushButton {{
@@ -389,7 +410,7 @@ class FacturePatientWidget(AnimatedFrame):
                 font-size: 12px;
                 padding: 0 16px;
             }}
-            QPushButton:hover {{ background: #FEF2F2; }}
+            QPushButton:hover {{ background: {theme_manager.colors()['danger_bg']}; }}
         """)
         self.lbl_total_panier = QLabel("Total à payer : 0 GNF")
         self.lbl_total_panier.setStyleSheet(
@@ -400,18 +421,16 @@ class FacturePatientWidget(AnimatedFrame):
         bottom_row.addWidget(self.lbl_total_panier)
         lay.addLayout(bottom_row)
 
-        # ── Résumé de la facture ──────────────────────────────────────────
-        lay.addWidget(self._build_resume_section())
-
         return panel
 
     def _build_resume_section(self) -> QFrame:
-        frame = QFrame()
+        self._resume_frame = QFrame()
+        frame = self._resume_frame
         frame.setStyleSheet(
             f"background: {self.BG_PAGE}; border-radius: 12px; border: 1px solid {self.BORDER};"
         )
         lay = QHBoxLayout(frame)
-        lay.setContentsMargins(16, 12, 16, 12)
+        lay.setContentsMargins(12, 8, 12, 8)
         lay.setSpacing(0)
 
         # Chiffres
@@ -447,7 +466,7 @@ class FacturePatientWidget(AnimatedFrame):
 
         # Icône illustrative
         ico_lbl = QLabel()
-        ico_lbl.setPixmap(qta.icon("fa5s.receipt", color=self.TXT_SEC).pixmap(60, 60))
+        ico_lbl.setPixmap(qta.icon("fa5s.receipt", color=self.TXT_SEC).pixmap(48, 48))
         ico_lbl.setAlignment(Qt.AlignCenter)
         lay.addWidget(ico_lbl)
 
@@ -461,8 +480,8 @@ class FacturePatientWidget(AnimatedFrame):
             f"background: {self.BG_CARD}; border-radius: 16px; border: 1px solid {self.BORDER};"
         )
         lay = QVBoxLayout(panel)
-        lay.setContentsMargins(16, 16, 16, 16)
-        lay.setSpacing(14)
+        lay.setContentsMargins(12, 12, 12, 12)
+        lay.setSpacing(8)
 
         # Mode de paiement
         mode_title = QLabel("Mode de paiement")
@@ -497,8 +516,8 @@ class FacturePatientWidget(AnimatedFrame):
                     qta.icon(icon_name, color=self.BLEU if idx == 0 else self.TXT_SEC),
                     f"  {label}"
                 )
-            btn.setIconSize(QSize(32, 20))
-            btn.setFixedHeight(48)
+            btn.setIconSize(QSize(28, 16))
+            btn.setFixedHeight(40)
             btn.setCheckable(True)
             btn.setCursor(Qt.PointingHandCursor)
             btn.setChecked(idx == 0)
@@ -510,11 +529,26 @@ class FacturePatientWidget(AnimatedFrame):
 
         self._mode_group.idClicked.connect(self._on_mode_change)
         lay.addLayout(mode_row)
-        lay.addSpacing(12)
+        lay.addSpacing(6)
+
+        # Téléphone
+        self.lbl_telephone_paiement = self._field_label("Téléphone")
+        self.input_telephone_paiement = QLineEdit()
+        self.input_telephone_paiement.setPlaceholderText("Ex: 628123456")
+        self.input_telephone_paiement.setFixedHeight(32)
+        self.input_telephone_paiement.setStyleSheet(self._input_style())
+        self.input_telephone_paiement.setEnabled(True)
+        
+        phone_lay = QVBoxLayout()
+        phone_lay.setSpacing(4)
+        phone_lay.addWidget(self.lbl_telephone_paiement)
+        phone_lay.addWidget(self.input_telephone_paiement)
+        lay.addLayout(phone_lay)
+        lay.addSpacing(6)
 
         # Montant à payer | Montant payé | Monnaie à rendre — sur la même ligne
         amounts_row = QHBoxLayout()
-        amounts_row.setSpacing(10)
+        amounts_row.setSpacing(6)
 
         def _amount_col(label_text: str, readonly: bool = False):
             col = QVBoxLayout()
@@ -522,7 +556,7 @@ class FacturePatientWidget(AnimatedFrame):
             col.addWidget(self._field_label(label_text))
             inp = QLineEdit("0")
             inp.setReadOnly(readonly)
-            inp.setFixedHeight(36)
+            inp.setFixedHeight(32)
             inp.setStyleSheet(self._input_style(readonly=readonly))
             col.addWidget(inp)
             return col, inp
@@ -539,56 +573,12 @@ class FacturePatientWidget(AnimatedFrame):
         lay.addLayout(amounts_row)
 
         # Séparateur
-        sep = QFrame()
-        sep.setFixedHeight(1)
-        sep.setStyleSheet(f"background: {self.BORDER}; border: none;")
-        lay.addWidget(sep)
+        self._sep_paiement = QFrame()
+        self._sep_paiement.setFixedHeight(1)
+        self._sep_paiement.setStyleSheet(f"background: {self.BORDER}; border: none;")
+        lay.addWidget(self._sep_paiement)
 
-        # Paiement partiel
-        partial_title_row = QHBoxLayout()
-        p_ico = QLabel()
-        p_ico.setPixmap(qta.icon("fa5s.hand-holding-usd", color=self.TXT_SEC).pixmap(16, 16))
-        p_title = QLabel("Paiement partiel")
-        p_title.setStyleSheet(
-            f"font-size:13px; font-weight:bold; color:{self.TXT_PRIMARY}; border:none; background:transparent;"
-        )
-        partial_title_row.addWidget(p_ico)
-        partial_title_row.addSpacing(6)
-        partial_title_row.addWidget(p_title)
-        partial_title_row.addStretch()
-        p_sub = QLabel("Le patient ne peut pas payer la totalité")
-        p_sub.setStyleSheet(
-            f"font-size:10px; color:{self.TXT_SEC}; border:none; background:transparent;"
-        )
-        lay.addLayout(partial_title_row)
-        lay.addWidget(p_sub)
-
-        # Lignes résumé partiel
-        self.lbl_partial_total = self._partial_row("Montant à payer :", "0 GNF", self.BLEU)
-        self.lbl_partial_paye  = self._partial_row("Montant payé :",    "Saisir le montant payé", self.TXT_SEC)
-        self.lbl_partial_reste = self._partial_row("Reste à payer :",   "0 GNF", self.ROUGE)
-        lay.addWidget(self.lbl_partial_total)
-        lay.addWidget(self.lbl_partial_paye)
-        lay.addWidget(self.lbl_partial_reste)
-
-        # Checkbox dette
-        self.chk_dette = QCheckBox("Enregistrer comme dette")
-        self.chk_dette.setStyleSheet(
-            f"font-size:12px; color:{self.TXT_PRIMARY}; border:none; background:transparent;"
-        )
-        self.chk_dette.toggled.connect(self._on_dette_toggle)
-        lay.addWidget(self.chk_dette)
-
-        # Date d'échéance
-        lay.addWidget(self._field_label("Date d'échéance"))
-        self.date_echeance = QDateEdit()
-        self.date_echeance.setCalendarPopup(True)
-        self.date_echeance.setDate(QDate.currentDate().addDays(30))
-        self.date_echeance.setFixedHeight(38)
-        self.date_echeance.setVisible(False)
-        self.date_echeance.setStyleSheet(self._input_style())
-        self.lbl_echeance = lay.itemAt(lay.count() - 1)
-        lay.addWidget(self.date_echeance)
+        # (Paiement partiel et option dette retirés)
 
         lay.addStretch()
 
@@ -597,7 +587,7 @@ class FacturePatientWidget(AnimatedFrame):
         footer.setSpacing(8)
 
         self.btn_annuler = QPushButton("✕  Annuler")
-        self.btn_annuler.setFixedHeight(40)
+        self.btn_annuler.setFixedHeight(34)
         self.btn_annuler.setCursor(Qt.PointingHandCursor)
         self.btn_annuler.setStyleSheet(f"""
             QPushButton {{
@@ -612,41 +602,23 @@ class FacturePatientWidget(AnimatedFrame):
             QPushButton:hover {{ background: {self.BG_PAGE}; }}
         """)
 
-        self.btn_enregistrer_dette = QPushButton("📄  Enregistrer dette")
-        self.btn_enregistrer_dette.setFixedHeight(40)
-        self.btn_enregistrer_dette.setCursor(Qt.PointingHandCursor)
-        self.btn_enregistrer_dette.setVisible(False)
-        self.btn_enregistrer_dette.setStyleSheet(f"""
-            QPushButton {{
-                background: {self.BG_CARD};
-                color: {self.BLEU};
-                border: 1.5px solid {self.BLEU};
-                border-radius: 10px;
-                font-weight: bold;
-                font-size: 12px;
-                padding: 0 14px;
-            }}
-            QPushButton:hover {{ background: #EFF6FF; }}
-        """)
-
         self.btn_payer = QPushButton("✓  Encaisser le paiement")
-        self.btn_payer.setFixedHeight(40)
+        self.btn_payer.setFixedHeight(34)
         self.btn_payer.setCursor(Qt.PointingHandCursor)
         self.btn_payer.setStyleSheet(f"""
             QPushButton {{
                 background: {self.VERT};
-                color: white;
+                color: {theme_manager.colors()['text_inverse']};
                 border: none;
                 border-radius: 10px;
                 font-weight: bold;
                 font-size: 12px;
                 padding: 0 16px;
             }}
-            QPushButton:hover {{ background: #059669; }}
+            QPushButton:hover {{ background: {theme_manager.colors()['primary_hover']}; }}
         """)
 
         footer.addWidget(self.btn_annuler)
-        footer.addWidget(self.btn_enregistrer_dette)
         footer.addWidget(self.btn_payer, 1)
         lay.addLayout(footer)
 
@@ -724,7 +696,7 @@ class FacturePatientWidget(AnimatedFrame):
         if selected:
             btn.setStyleSheet(f"""
                 QPushButton {{
-                    background: #EFF6FF;
+                    background: {theme_manager.colors()['primary_light']};
                     color: {self.BLEU};
                     border: 2px solid {self.BLEU};
                     border-radius: 10px;
@@ -840,11 +812,11 @@ class FacturePatientWidget(AnimatedFrame):
         btn_del.setCursor(Qt.PointingHandCursor)
         btn_del.setStyleSheet(f"""
             QPushButton {{
-                background: #FEF2F2;
+                background: {theme_manager.colors()['danger_bg']};
                 border: none;
                 border-radius: 8px;
             }}
-            QPushButton:hover {{ background: #FEE2E2; }}
+            QPushButton:hover {{ background: {theme_manager.colors()['danger']}20; }}
         """)
         btn_del.clicked.connect(lambda: self._supprimer_ligne(row))
 
@@ -871,7 +843,6 @@ class FacturePatientWidget(AnimatedFrame):
         self.btn_annuler.clicked.connect(self._annuler_facture)
         self.btn_payer.clicked.connect(self._payer_facture)
         self.btn_vider.clicked.connect(self._vider_panier)
-        self.btn_enregistrer_dette.clicked.connect(self._enregistrer_dette)
         self.combo_service.currentIndexChanged.connect(self._toggle_add_button)
 
     # =========================================================================
@@ -990,19 +961,40 @@ class FacturePatientWidget(AnimatedFrame):
     def _payer_facture(self) -> None:
         if not self.code_facture:
             return
-        ok, msg = self.operations.encaisser_facture(
-            self.code_facture, self, patient_info=self._patient_data
+            
+        checked_id = self._mode_group.checkedId()
+        mode_label = self._mode_group.button(checked_id).property("mode_label") if checked_id >= 0 else "Espèces"
+        telephone = self.input_telephone_paiement.text().strip() if hasattr(self, 'input_telephone_paiement') else ""
+
+        ok, msg = self.operations.encaisser_facture_direct(
+            self.code_facture, mode_label, telephone
         )
         if ok:
-            CustomMessageBox.success(self, "Succes", msg)
+            CustomMessageBox.success(self, "Succes", "Paiement enregistré avec succès.")
+            
+            # Demander l'impression
+            if CustomMessageBox.confirm(self, "Impression", "Voulez-vous imprimer la facture ?"):
+                import os
+                import tempfile
+                from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+                
+                info_cabinet = self.facture_ctrl.get_cabinet_info() if self.facture_ctrl else {}
+                fd, path = tempfile.mkstemp(suffix=".pdf", prefix=f"facture_{self.code_facture}_")
+                os.close(fd)
+                
+                pdf_ok, pdf_msg = self.facture_ctrl.generer_facture_pdf(self.code_facture, path)
+                if pdf_ok and os.path.exists(path):
+                    ApercuPDFDialog(path, f"Aperçu - Facture {self.code_facture}", self).exec()
+                else:
+                    CustomMessageBox.error(self, "Erreur PDF", f"Erreur de génération du PDF :\n{pdf_msg}")
+            
             self._reset_view()
             if self.code_session:
                 self.charger_donnees(self.code_session)
             self.paiement_effectue.emit()
             self.facture_mise_a_jour.emit()
         else:
-            if msg != "Paiement annule":
-                CustomMessageBox.error(self, "Erreur", msg)
+            CustomMessageBox.error(self, "Erreur", msg)
 
     def _annuler_facture(self) -> None:
         if not self.code_facture:
@@ -1018,12 +1010,6 @@ class FacturePatientWidget(AnimatedFrame):
             if msg != "Annulation annulee":
                 CustomMessageBox.error(self, "Erreur", msg)
 
-    def _enregistrer_dette(self) -> None:
-        """Enregistre le paiement partiel comme dette."""
-        if not self.code_facture:
-            return
-        # Déléguer à la même action de paiement - le mode dette sera pris en charge par le dialog
-        self._payer_facture()
 
     # =========================================================================
     # ÉVÉNEMENTS UI
@@ -1054,17 +1040,6 @@ class FacturePatientWidget(AnimatedFrame):
 
         self.input_monnaie.setText(f"{monnaie:,.0f}".replace(",", " "))
 
-        # Mettre à jour résumé partiel
-        paye_lbl = self.lbl_partial_paye.findChild(QLabel, "partial_value")
-        reste_lbl = self.lbl_partial_reste.findChild(QLabel, "partial_value")
-        if paye_lbl:
-            paye_lbl.setText(f"{paye:,.0f} GNF".replace(",", " "))
-        if reste_lbl:
-            reste_lbl.setText(f"{reste:,.0f} GNF".replace(",", " "))
-
-    def _on_dette_toggle(self, checked: bool) -> None:
-        self.date_echeance.setVisible(checked)
-        self.btn_enregistrer_dette.setVisible(checked)
 
     # =========================================================================
     # UI HELPERS
@@ -1079,6 +1054,8 @@ class FacturePatientWidget(AnimatedFrame):
         self.lbl_telephone.setText(tel)
         urgent = bool(data.get("urgent"))
         self.lbl_badge_urgent.setVisible(urgent)
+        if hasattr(self, 'input_telephone_paiement'):
+            self.input_telephone_paiement.setText(data.get("telephone", "") or "")
 
     def _charger_date_facture(self) -> None:
         self._date_facture_str = "—"
@@ -1113,6 +1090,8 @@ class FacturePatientWidget(AnimatedFrame):
         self.combo_visite.setCurrentIndex(0)
         self.combo_visite.blockSignals(False)
         self.input_montant_paye.setText("0")
+        if hasattr(self, 'input_telephone_paiement'):
+            self.input_telephone_paiement.clear()
 
     def _remplir_combo_services_visite(self, services: List[Dict[str, Any]]) -> None:
         self.combo_service.clear()
@@ -1152,18 +1131,19 @@ class FacturePatientWidget(AnimatedFrame):
         self._toggle_add_button()
 
     def _icone_service(self, designation: str):
+        _c = theme_manager.colors()
         d = (designation or "").lower()
         if "consult" in d:
-            return qta.icon("fa5s.stethoscope", color=self.BLEU)
+            return qta.icon("fa5s.stethoscope", color=_c['primary'])
         if "examen" in d or "exam" in d:
-            return qta.icon("fa5s.microscope", color="#8B5CF6")
+            return qta.icon("fa5s.microscope",  color=_c['info'])
         if "chirurg" in d:
-            return qta.icon("fa5s.procedures", color="#F59E0B")
+            return qta.icon("fa5s.procedures",  color=_c['warning'])
         if "lunette" in d:
-            return qta.icon("fa5s.glasses", color="#06B6D4")
+            return qta.icon("fa5s.glasses",     color=_c['success'])
         if "pharma" in d or "medic" in d:
-            return qta.icon("fa5s.pills", color=self.VERT)
-        return qta.icon("fa5s.file-medical", color=self.BLEU)
+            return qta.icon("fa5s.pills",       color=_c['accent'])
+        return qta.icon("fa5s.file-medical",    color=_c['primary'])
 
     def _charger_services_visite(self) -> None:
         services = []
@@ -1188,10 +1168,6 @@ class FacturePatientWidget(AnimatedFrame):
 
         total_str = f"{total:,.0f} GNF".replace(",", " ")
         self.lbl_total_panier.setText(f"Total à payer : {total_str}")
-        self.lbl_nb_services.setText(f"Nombre de services : {len(self.lignes_panier)}")
-        self.lbl_total_services.setText(f"Total des services : {total_str}")
-        self.lbl_deja_paye.setText("Déjà payé : 0 GNF")
-        self.lbl_reste_a_payer.setText(f"Reste à payer : {total_str}")
         self.input_montant_total.setText(f"{total:,.0f}".replace(",", " "))
 
         # KPI
@@ -1203,13 +1179,228 @@ class FacturePatientWidget(AnimatedFrame):
         if paye_kpi:
             paye_kpi.setText("0 GNF")
 
-        # Résumé partiel
-        total_lbl = self.lbl_partial_total.findChild(QLabel, "partial_value")
-        if total_lbl:
-            total_lbl.setText(total_str)
-        reste_lbl = self.lbl_partial_reste.findChild(QLabel, "partial_value")
-        if reste_lbl:
-            reste_lbl.setText(total_str)
+
+    # =========================================================================
+    # THÈME
+    # =========================================================================
+
+    def apply_theme(self) -> None:
+        c = theme_manager.colors()
+        
+        # CORRECTIF : Forcer le thème sur tous les widgets pour éliminer le noir
+        from views.shared.theme_fix import fix_black_widgets
+        fix_black_widgets(self)
+
+        # ── Cascade globale sur le widget racine ────────────────────────────
+        self.setStyleSheet(f"""
+            FacturePatientWidget {{
+                background-color: {c['bg_main']};
+                border-radius: 0px; border: none;
+            }}
+            QLabel {{
+                background: transparent;
+                color: {c['text_primary']};
+                border: none;
+            }}
+            QScrollArea {{
+                border: none;
+                background: {c['bg_card']};
+            }}
+            QScrollArea > QWidget {{
+                background: {c['bg_card']};
+            }}
+            QScrollBar:vertical {{
+                border: none; background: {c['bg_main']};
+                width: 6px; border-radius: 3px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: {c['border']}; min-height: 20px; border-radius: 3px;
+            }}
+        """)
+
+        # ── Scroll area + conteneur lignes ─────────────────────────────────
+        from PySide6.QtWidgets import QScrollArea as _QSA
+        if hasattr(self, 'scroll') and isinstance(self.scroll, _QSA):
+            self.scroll.setStyleSheet(
+                f"QScrollArea {{ border: none; background: {c['bg_card']}; }}"
+                f"QScrollArea > QWidget {{ background: {c['bg_card']}; }}"
+            )
+        if hasattr(self, 'container_lignes'):
+            self.container_lignes.setStyleSheet(f"background: {c['bg_card']};")
+
+        # ── Panels principaux ───────────────────────────────────────────────
+        _panel = f"background: {c['bg_card']}; border-radius: 16px; border: 1px solid {c['border']};"
+        if hasattr(self, '_left_panel'):   self._left_panel.setStyleSheet(_panel)
+        if hasattr(self, '_right_panel'):  self._right_panel.setStyleSheet(_panel)
+
+        # ── Barre patient ───────────────────────────────────────────────────
+        if hasattr(self, '_patient_bar'):
+            self._patient_bar.setStyleSheet(
+                f"QFrame#PatientBar {{ background: {c['bg_card']}; border-bottom: 1px solid {c['border']}; border-radius: 0; }}"
+            )
+        if hasattr(self, 'lbl_patient_nom'):
+            self.lbl_patient_nom.setStyleSheet(
+                f"font-size:15px; font-weight:bold; color:{c['text_primary']}; border:none; background:transparent;")
+        if hasattr(self, 'lbl_badge_urgent'):
+            self.lbl_badge_urgent.setStyleSheet(
+                f"background:{c['danger_bg']}; color:{c['danger']}; border-radius:8px; padding:2px 8px; font-size:10px; font-weight:bold;")
+        for attr in ('lbl_telephone', 'lbl_patient_id'):
+            lbl = getattr(self, attr, None)
+            if lbl:
+                lbl.setStyleSheet(f"font-size:11px; color:{c['text_secondary']}; border:none; background:transparent;")
+
+        # ── KPI chips ───────────────────────────────────────────────────────
+        if hasattr(self, 'kpi_total'):
+            self.kpi_total.setStyleSheet(f"background:{c['primary_light']}; border-radius:12px; border:1.5px solid {c['primary']}30;")
+        if hasattr(self, 'kpi_paye'):
+            self.kpi_paye.setStyleSheet(f"background:{c['success_bg']}; border-radius:12px; border:1.5px solid {c['success']}30;")
+        if hasattr(self, 'kpi_reste'):
+            self.kpi_reste.setStyleSheet(f"background:{c['danger_bg']}; border-radius:12px; border:1.5px solid {c['danger']}30;")
+
+        # ── Combo patient ────────────────────────────────────────────────────
+        _combo = f"""
+            QComboBox {{
+                background: {c['bg_card']}; color: {c['text_primary']};
+                border: 1.5px solid {c['border']}; border-radius: 10px; padding-left: 12px; font-size: 13px;
+            }}
+            QComboBox:focus {{ border: 1.5px solid {c['border_focus']}; }}
+            QComboBox::drop-down {{ border: none; width: 28px; }}
+        """
+        if hasattr(self, 'combo_visite'):  self.combo_visite.setStyleSheet(_combo)
+
+        # ── Panneau gauche ───────────────────────────────────────────────────
+        _combo_sm = f"""
+            QComboBox {{
+                background: {c['bg_card']}; color: {c['text_primary']};
+                border: 1.5px solid {c['border']}; border-radius: 10px; padding-left: 12px; font-size: 12px;
+            }}
+            QComboBox:focus {{ border: 1.5px solid {c['primary']}; }}
+            QComboBox::drop-down {{ border: none; width: 28px; }}
+        """
+        if hasattr(self, 'combo_service'):  self.combo_service.setStyleSheet(_combo_sm)
+
+        if hasattr(self, 'btn_add_service'):
+            self.btn_add_service.setStyleSheet(f"""
+                QPushButton {{
+                    background: {c['primary']}; color: {c['text_inverse']};
+                    border-radius: 10px; font-weight: bold; font-size: 12px; padding: 0 16px;
+                }}
+                QPushButton:hover {{ background: {c['primary_hover']}; }}
+                QPushButton:disabled {{ background: {c['border']}; color: {c['text_muted']}; }}
+            """)
+        if hasattr(self, 'btn_add_all'):
+            self.btn_add_all.setStyleSheet(f"""
+                QPushButton {{
+                    background: {c['bg_card']}; color: {c['primary']};
+                    border: 1.5px solid {c['primary']}; border-radius: 10px;
+                    font-weight: bold; font-size: 12px; padding: 0 14px;
+                }}
+                QPushButton:hover {{ background: {c['primary_light']}; }}
+            """)
+        if hasattr(self, 'btn_vider'):
+            self.btn_vider.setStyleSheet(f"""
+                QPushButton {{
+                    background: {c['bg_card']}; color: {c['danger']};
+                    border: 1.5px solid {c['danger']}; border-radius: 10px;
+                    font-weight: bold; font-size: 12px; padding: 0 16px;
+                }}
+                QPushButton:hover {{ background: {c['danger_bg']}; }}
+            """)
+
+        # ── Labels totaux ────────────────────────────────────────────────────
+        if hasattr(self, 'lbl_total_panier'):
+            self.lbl_total_panier.setStyleSheet(
+                f"font-size:15px; font-weight:bold; color:{c['primary']}; border:none; background:transparent;")
+        if hasattr(self, 'lbl_nb_services'):
+            self.lbl_nb_services.setStyleSheet(
+                f"font-size:12px; color:{c['text_secondary']}; border:none; background:transparent;")
+        if hasattr(self, 'lbl_total_services'):
+            self.lbl_total_services.setStyleSheet(
+                f"font-size:12px; color:{c['primary']}; font-weight:bold; border:none; background:transparent;")
+        if hasattr(self, 'lbl_deja_paye'):
+            self.lbl_deja_paye.setStyleSheet(
+                f"font-size:12px; color:{c['success']}; border:none; background:transparent;")
+        if hasattr(self, 'lbl_reste_a_payer'):
+            self.lbl_reste_a_payer.setStyleSheet(
+                f"font-size:13px; color:{c['danger']}; font-weight:bold; border:none; background:transparent;")
+
+        # ── Panneau droit ────────────────────────────────────────────────────
+        _input_edit = f"""
+            QLineEdit {{
+                background: {c['bg_card']}; color: {c['text_primary']};
+                border: 1.5px solid {c['border']}; border-radius: 8px; padding-left: 12px; font-size: 13px;
+            }}
+            QLineEdit:focus {{ border: 1.5px solid {c['border_focus']}; }}
+        """
+        _input_ro = f"""
+            QLineEdit {{
+                background: {c['bg_input']}; color: {c['text_primary']};
+                border: 1.5px solid {c['border']}; border-radius: 8px; padding-left: 12px; font-size: 13px;
+            }}
+        """
+        for attr in ('input_montant_paye', 'input_telephone_paiement'):
+            w = getattr(self, attr, None)
+            if w: w.setStyleSheet(_input_edit)
+        for attr in ('input_montant_total', 'input_monnaie'):
+            w = getattr(self, attr, None)
+            if w: w.setStyleSheet(_input_ro)
+        if hasattr(self, 'btn_annuler'):
+            self.btn_annuler.setStyleSheet(f"""
+                QPushButton {{
+                    background: {c['bg_card']}; color: {c['text_secondary']};
+                    border: 1.5px solid {c['border']}; border-radius: 10px;
+                    font-weight: bold; font-size: 12px; padding: 0 14px;
+                }}
+                QPushButton:hover {{ background: {c['hover']}; }}
+            """)
+
+        if hasattr(self, 'btn_payer'):
+            self.btn_payer.setStyleSheet(f"""
+                QPushButton {{
+                    background: {c['success']}; color: {c['text_inverse']};
+                    border: none; border-radius: 10px;
+                    font-weight: bold; font-size: 12px; padding: 0 16px;
+                }}
+                QPushButton:hover {{ background: {c['primary']}; }}
+            """)
+
+        # ── Résumé section frame ─────────────────────────────────────────────
+        if hasattr(self, '_resume_frame'):
+            self._resume_frame.setStyleSheet(
+                f"background: {c['bg_card']}; border-radius: 12px; border: 1px solid {c['border']};")
+
+        # ── Hint + séparateur ───────────────────────────────────────────────
+        if hasattr(self, '_hint_frame'):
+            self._hint_frame.setStyleSheet(
+                f"background: {c['bg_card']}; border-radius: 8px; border: 1px solid {c['border']};")
+        if hasattr(self, '_hint_txt'):
+            self._hint_txt.setStyleSheet(
+                f"font-size:11px; color:{c['primary']}; border:none; background:transparent;")
+        if hasattr(self, '_sep_paiement'):
+            self._sep_paiement.setStyleSheet(f"background: {c['border']}; border: none;")
+
+
+        # ── Boutons mode paiement ────────────────────────────────────────────
+        if hasattr(self, '_mode_buttons') and hasattr(self, '_mode_group'):
+            checked_id = self._mode_group.checkedId()
+            for idx, btn in enumerate(self._mode_buttons):
+                self._update_mode_btn_style(btn, idx == checked_id)
+
+        # ── Lignes du panier (rows dynamiques) ──────────────────────────────
+        if hasattr(self, 'layout_lignes'):
+            for i in range(self.layout_lignes.count()):
+                item = self.layout_lignes.itemAt(i)
+                if item and item.widget():
+                    row = item.widget()
+                    row.setStyleSheet(f"""
+                        QFrame {{
+                            background: {c['bg_card']};
+                            border-radius: 10px;
+                            border: 1px solid {c['border']};
+                        }}
+                        QFrame:hover {{ border: 1px solid {c['primary']}30; }}
+                        QLabel {{ border: none; background: transparent; color: {c['text_primary']}; }}
+                    """)
 
     # =========================================================================
     # API PUBLIQUE

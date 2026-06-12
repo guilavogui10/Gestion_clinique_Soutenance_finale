@@ -43,8 +43,9 @@ class CircularProgress(QWidget):
         self.pourcentage = pourcentage
         self.couleur = QColor(couleur)
         self.taille = taille
-        
+
         self.setFixedSize(taille, taille)
+        theme_manager.theme_changed.connect(self.update)
     
     def set_value(self, pourcentage: int):
         """

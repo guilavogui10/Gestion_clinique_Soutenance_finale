@@ -22,7 +22,9 @@ class PanierPrescriptionWidget(QWidget):
         super().__init__(parent)
         self.prescription_ctrl = prescription_ctrl
         self.lignes = []
+        self.setObjectName("PanierWidget")
         self._init_ui()
+        theme_manager.theme_changed.connect(self.apply_theme)
 
     def _init_ui(self):
         """Initialise l'interface"""
@@ -49,6 +51,7 @@ class PanierPrescriptionWidget(QWidget):
             qta.icon("fa5s.shopping-basket", color=theme_manager.colors()['primary']).pixmap(20, 20)
         )
         icon_lbl.setStyleSheet("border: none; background: transparent;")
+        self._header_icon_lbl = icon_lbl
 
         title_lbl = QLabel("Panier de Prescription")
         title_lbl.setStyleSheet(f"""
@@ -58,6 +61,7 @@ class PanierPrescriptionWidget(QWidget):
             border: none;
             background: transparent;
         """)
+        self._header_title_lbl = title_lbl
 
         header_layout.addWidget(icon_lbl)
         header_layout.addWidget(title_lbl)
@@ -75,7 +79,7 @@ class PanierPrescriptionWidget(QWidget):
         # Style du tableau
         self.table.setStyleSheet(f"""
             QTableWidget {{
-                background: white;
+                background: {theme_manager.colors()['bg_table']};
                 border: 1px solid {theme_manager.colors()['border']};
                 border-radius: 8px;
                 gridline-color: {theme_manager.colors()['border_light']};
@@ -116,12 +120,13 @@ class PanierPrescriptionWidget(QWidget):
         footer_frame = QFrame()
         footer_frame.setStyleSheet(f"""
             QFrame {{
-                background: white;
+                background: {theme_manager.colors()['bg_card']};
                 border: 1px solid {theme_manager.colors()['border']};
                 border-radius: 8px;
                 padding: 8px;
             }}
         """)
+        self._footer_frame = footer_frame
         footer_layout = QHBoxLayout(footer_frame)
         footer_layout.setContentsMargins(12, 8, 12, 8)
         footer_layout.setSpacing(10)
@@ -132,6 +137,7 @@ class PanierPrescriptionWidget(QWidget):
             qta.icon("fa5s.shopping-cart", color=theme_manager.colors()['success']).pixmap(20, 20)
         )
         icon_lbl.setStyleSheet("border: none; background: transparent;")
+        self._footer_icon_lbl = icon_lbl
 
         # Texte total
         total_text = QLabel("Total:")
@@ -142,6 +148,7 @@ class PanierPrescriptionWidget(QWidget):
             border: none;
             background: transparent;
         """)
+        self._footer_total_text = total_text
 
         # Montant total
         self.lbl_total = QLabel("0 GNF")
@@ -159,6 +166,64 @@ class PanierPrescriptionWidget(QWidget):
         footer_layout.addWidget(self.lbl_total)
 
         layout.addWidget(footer_frame)
+
+    def apply_theme(self):
+        """Met à jour tous les styles avec le thème courant."""
+        c = theme_manager.colors()
+        self.setStyleSheet(f"QWidget#PanierWidget {{ background: {c['bg_card']}; border-radius: 12px; }}")
+
+        if hasattr(self, '_header_icon_lbl'):
+            self._header_icon_lbl.setPixmap(
+                qta.icon("fa5s.shopping-basket", color=c['primary']).pixmap(20, 20)
+            )
+        if hasattr(self, '_header_title_lbl'):
+            self._header_title_lbl.setStyleSheet(
+                f"font-size: 16px; font-weight: bold; color: {c['text_primary']}; border: none; background: transparent;"
+            )
+
+        self.table.setStyleSheet(f"""
+            QTableWidget {{
+                background: {c['bg_table']};
+                border: 1px solid {c['border']};
+                border-radius: 8px;
+                gridline-color: {c['border_light']};
+                color: {c['text_primary']};
+            }}
+            QTableWidget::item {{
+                padding: 8px;
+                border-bottom: 1px solid {c['border_light']};
+            }}
+            QHeaderView::section {{
+                background: {c['table_header_bg']};
+                color: {c['text_primary']};
+                font-weight: bold;
+                font-size: 11px;
+                padding: 10px;
+                border: none;
+                border-bottom: 2px solid {c['primary']};
+            }}
+        """)
+
+        if hasattr(self, '_footer_frame'):
+            self._footer_frame.setStyleSheet(f"""
+                QFrame {{
+                    background: {c['bg_card']};
+                    border: 1px solid {c['border']};
+                    border-radius: 8px;
+                    padding: 8px;
+                }}
+            """)
+        if hasattr(self, '_footer_icon_lbl'):
+            self._footer_icon_lbl.setPixmap(
+                qta.icon("fa5s.shopping-cart", color=c['success']).pixmap(20, 20)
+            )
+        if hasattr(self, '_footer_total_text'):
+            self._footer_total_text.setStyleSheet(
+                f"font-size: 13px; font-weight: bold; color: {c['text_primary']}; border: none; background: transparent;"
+            )
+        self.lbl_total.setStyleSheet(
+            f"font-size: 14px; font-weight: bold; color: {c['success']}; border: none; background: transparent;"
+        )
 
     def ajouter_ligne(self, form_data: dict):
         """Ajoute une ligne au tableau"""

@@ -54,13 +54,15 @@ class ResultatMedicalService:
         if not data:
             return None, None, "Impossible de calculer l'integrite d'un contenu vide"
 
-        if not self.vault.est_connecte():
-            return None, None, "Vault est indisponible : impossible de signer l'empreinte du fichier."
-
         empreinte_sha256 = hashlib.sha256(data).hexdigest()
+
+        if not self.vault.est_connecte():
+            self.logger.warning("Vault indisponible: enregistrement en mode dégradé (SHA-256 uniquement).")
+            return empreinte_sha256, None, None
+
         hmac_integrite = self.vault.calculer_hmac(empreinte_sha256.encode("utf-8"))
         if not hmac_integrite:
-            return None, None, "Vault n'a pas pu produire la signature d'integrite du fichier."
+            return empreinte_sha256, None, None
 
         return empreinte_sha256, hmac_integrite, None
 
@@ -211,6 +213,61 @@ class ResultatMedicalService:
             return True, "Resultat mis a jour"
         return False, "Erreur lors de la mise a jour"
 
+    def modifier_resultat_complet(
+        self,
+        id_resultat: str,
+        type_source: str,
+        type_fichier: str,
+        chemin_local: str = None,
+        code_acte_medical: str = None,
+        code_consultation: str = None,
+        description: str = None,
+        niveau_confidentialite: str = NiveauConfidentialite.MOYEN,
+    ) -> tuple:
+        resultat = self.dao.obtenir_par_id(id_resultat)
+        if not resultat:
+            return False, "Resultat introuvable"
+
+        if chemin_local and chemin_local.strip():
+            try:
+                with open(chemin_local.strip(), "rb") as fichier:
+                    donnees = fichier.read()
+            except Exception as e:
+                return False, f"Lecture du fichier impossible : {e}"
+            
+            empreinte_sha256, hmac_integrite, erreur_integrite = self._calculer_preuve_integrite(donnees)
+            if erreur_integrite:
+                return False, erreur_integrite
+            
+            new_object_name = self.minio.upload_fichier(chemin_local.strip(), type_fichier, id_resultat)
+            if not new_object_name:
+                return False, "Echec de l'upload vers MinIO"
+            
+            if resultat.chemin_fichier:
+                self.minio.supprimer_fichier(resultat.chemin_fichier)
+                
+            resultat.chemin_fichier = new_object_name
+            resultat.empreinte_sha256 = empreinte_sha256
+            resultat.hmac_integrite = hmac_integrite
+
+        resultat.type_source = type_source
+        resultat.type_fichier = type_fichier
+        resultat.code_acte_medical = code_acte_medical
+        resultat.code_consultation = code_consultation
+        resultat.description = description
+        if niveau_confidentialite in NiveauConfidentialite.VALEURS:
+            resultat.niveau_confidentialite = niveau_confidentialite
+
+        if hasattr(self.dao, "modifier_complet"):
+            success = self.dao.modifier_complet(resultat)
+        else:
+            success = self.dao.modifier(resultat)
+
+        if success:
+            self.logger.info("Resultat %s mis a jour completement", id_resultat)
+            return True, "Resultat mis a jour avec succès"
+        return False, "Erreur lors de la mise a jour en base"
+
     def supprimer_resultat(self, id_resultat: str) -> tuple:
         """Supprime un resultat medical : fichier MinIO + metadonnees BD."""
         resultat = self.dao.obtenir_par_id(id_resultat)
@@ -241,8 +298,8 @@ class ResultatMedicalService:
         if not resultat or not resultat.chemin_fichier:
             return False, "Resultat introuvable."
 
-        if not resultat.empreinte_sha256 or not resultat.hmac_integrite:
-            return True, "Aucune signature d'integrite n'est enregistree pour ce fichier."
+        if not resultat.empreinte_sha256:
+            return True, "Aucune signature d'integrite n'est enregistree pour ce fichier (ancien format)."
 
         donnees = self.minio.lire_bytes(resultat.chemin_fichier)
         if donnees is None:
@@ -254,7 +311,11 @@ class ResultatMedicalService:
                 "Integrite compromise pour %s : empreinte differente.",
                 id_resultat,
             )
-            return False, "Le contenu du fichier a ete modifie ou corrompu."
+            return False, "Ce resultat a été falcifié par une personne tierce, l'impression n'est pas possible."
+
+        # SHA-256 OK — vérification HMAC Vault (couche optionnelle)
+        if not resultat.hmac_integrite:
+            return True, "Integrite verifiee (SHA-256 OK, aucune signature Vault enregistree)."
 
         # SHA-256 OK — vérification HMAC Vault (couche optionnelle, non bloquante)
         # Le SHA-256 suffit à garantir que le contenu du fichier n'a pas changé.

@@ -150,30 +150,186 @@ class VueFournisseur(QWidget):
         self.tabs.setCurrentIndex(1)
     
     def on_export(self):
-        chemin, _ = QFileDialog.getSaveFileName(
-            self, "Exporter fournisseurs", "", "Excel Files (*.xlsx);;CSV Files (*.csv)"
-        )
-        if not chemin:
-            return
-        if chemin.lower().endswith(".csv"):
-            ok, msg = self.ctrl.exporter_fournisseurs_to_csv(chemin)
-        else:
-            if not chemin.lower().endswith(".xlsx"):
-                chemin = chemin + ".xlsx"
-            ok, msg = self.ctrl.exporter_fournisseurs_to_excel(chemin)
-        self.show_message(ok, msg)
-    
+        """Menu export — même pattern que examen/chirurgie."""
+        from PySide6.QtWidgets import QMenu
+        from PySide6.QtGui import QCursor
+        from PySide6.QtCore import QPoint
+        import qtawesome as qta
+        c = theme_manager.colors()
+
+        menu = QMenu(self)
+        menu.setStyleSheet(f"""
+            QMenu {{
+                background: {c['bg_card']};
+                border: 1px solid {c['border']};
+                border-radius: 10px;
+                padding: 6px 4px;
+            }}
+            QMenu::item {{
+                padding: 9px 20px 9px 12px;
+                border-radius: 6px;
+                font-size: 13px;
+                color: {c['text_primary']};
+                min-width: 220px;
+            }}
+            QMenu::item:selected {{
+                background: {c.get('primary_light', c['hover'])};
+                color: {c['primary']};
+            }}
+            QMenu::separator {{
+                height: 1px;
+                background: {c['border']};
+                margin: 4px 10px;
+            }}
+        """)
+        act_xl = menu.addAction(qta.icon("fa5s.file-excel", color=c['success']), "  Exporter Excel (.xlsx)")
+        act_cs = menu.addAction(qta.icon("fa5s.file-csv",   color=c['info']),    "  Exporter CSV (.csv)")
+        menu.addSeparator()
+        act_print = menu.addAction(qta.icon("fa5s.print", color=c['danger']), "  Imprimer Tout")
+
+        act_xl.triggered.connect(lambda: self._apercu_export("excel"))
+        act_cs.triggered.connect(lambda: self._apercu_export("csv"))
+        act_print.triggered.connect(self._print_all)
+
+        menu.adjustSize()
+        pos = QCursor.pos()
+        menu.exec(QPoint(pos.x(), pos.y() - menu.sizeHint().height() - 6))
+
+    def _print_all(self):
+        """Génère et affiche l'aperçu PDF de tous les fournisseurs."""
+        from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+        from views.shared.message_box import CustomMessageBox
+        try:
+            pdf_path = self.ctrl.generer_rapport_fournisseurs()
+            ApercuPDFDialog(pdf_path, "Rapport — Liste des fournisseurs", self).exec()
+        except Exception as e:
+            CustomMessageBox("Erreur", f"Impossible de générer le rapport :\n{e}",
+                             msg_type="error", parent=self).exec()
+
     def on_import(self):
-        chemin, _ = QFileDialog.getOpenFileName(
-            self, "Importer fournisseurs", "", "Excel Files (*.xlsx);;CSV Files (*.csv)"
+        """Menu import — même pattern que examen/chirurgie."""
+        from PySide6.QtWidgets import QMenu
+        from PySide6.QtGui import QCursor
+        from PySide6.QtCore import QPoint
+        import qtawesome as qta
+        c = theme_manager.colors()
+
+        menu = QMenu(self)
+        menu.setStyleSheet(f"""
+            QMenu {{
+                background: {c['bg_card']};
+                border: 1px solid {c['border']};
+                border-radius: 10px;
+                padding: 6px 4px;
+            }}
+            QMenu::item {{
+                padding: 9px 20px 9px 12px;
+                border-radius: 6px;
+                font-size: 13px;
+                color: {c['text_primary']};
+                min-width: 220px;
+            }}
+            QMenu::item:selected {{
+                background: {c.get('primary_light', c['hover'])};
+                color: {c['primary']};
+            }}
+        """)
+        act_xl = menu.addAction(qta.icon("fa5s.upload", color=c['success']), "  Depuis Excel (.xlsx)")
+        act_cs = menu.addAction(qta.icon("fa5s.upload", color=c['info']),    "  Depuis CSV (.csv)")
+
+        act_xl.triggered.connect(lambda: self._apercu_import("excel"))
+        act_cs.triggered.connect(lambda: self._apercu_import("csv"))
+
+        menu.adjustSize()
+        pos = QCursor.pos()
+        menu.exec(QPoint(pos.x(), pos.y() - menu.sizeHint().height() - 6))
+
+    def _apercu_export(self, format_fichier: str):
+        """Export fournisseurs avec aperçu avant enregistrement (ApercuActeModal)."""
+        from views.acte_medical.export_import_acte import ApercuActeModal
+        from views.shared.message_box import CustomMessageBox
+
+        donnees_dicts = self.ctrl.obtenir_donnees_export()
+        if not donnees_dicts:
+            CustomMessageBox("Export Fournisseurs", "Aucun fournisseur à exporter.",
+                             msg_type="info", parent=self).exec()
+            return
+
+        colonnes = ['email_fournisseur', 'nom_entreprise', 'telephone', 'adresse']
+        donnees  = [[str(d.get(col, "")) for col in colonnes] for d in donnees_dicts]
+        ext      = "xlsx" if format_fichier == "excel" else "csv"
+
+        modal = ApercuActeModal(
+            self,
+            f"Aperçu export {ext.upper()} — Fournisseurs",
+            f"{len(donnees)} fournisseur(s) prêt(s) à exporter",
+            colonnes, donnees, mode="export"
+        )
+        if not (modal.exec() and modal._confirme):
+            return
+
+        filtre = "Excel Files (*.xlsx)" if format_fichier == "excel" else "CSV Files (*.csv)"
+        chemin, _ = QFileDialog.getSaveFileName(
+            self, f"Enregistrer — {ext.upper()}", f"fournisseurs_export.{ext}", filtre
         )
         if not chemin:
             return
-        if chemin.lower().endswith(".csv"):
-            ok, msg = self.ctrl.importer_fournisseurs_from_csv(chemin)
-        else:
-            ok, msg = self.ctrl.importer_fournisseurs_from_excel(chemin)
-        self.show_message(ok, msg)
+
+        ok, msg = self.ctrl.export_to_excel(chemin) \
+                  if format_fichier == "excel" \
+                  else self.ctrl.export_to_csv(chemin)
+        CustomMessageBox(
+            "Export réussi" if ok else "Erreur export",
+            msg, msg_type="success" if ok else "error", parent=self
+        ).exec()
+
+    def _apercu_import(self, format_fichier: str):
+        """Import fournisseurs avec aperçu du fichier avant import (ApercuActeModal)."""
+        from views.acte_medical.export_import_acte import ApercuActeModal
+        from views.shared.message_box import CustomMessageBox
+
+        ext    = "xlsx" if format_fichier == "excel" else "csv"
+        filtre = "Excel Files (*.xlsx)" if format_fichier == "excel" else "CSV Files (*.csv)"
+
+        chemin, _ = QFileDialog.getOpenFileName(
+            self, f"Sélectionner le fichier {ext.upper()} — Fournisseurs", "", filtre
+        )
+        if not chemin:
+            return
+
+        try:
+            import pandas as pd
+            df = pd.read_excel(chemin, dtype=str) \
+                 if format_fichier == "excel" \
+                 else pd.read_csv(chemin, dtype=str, sep=None, engine='python', encoding="utf-8-sig")
+            df = df.fillna("")
+            if df.empty:
+                CustomMessageBox("Import", "Le fichier ne contient aucune donnée.",
+                                 msg_type="warning", parent=self).exec()
+                return
+            colonnes = list(df.columns)
+            donnees  = [[str(v) for v in row] for _, row in df.iterrows()]
+        except Exception as e:
+            CustomMessageBox("Erreur de lecture", f"Impossible de lire le fichier :\n{e}",
+                             msg_type="error", parent=self).exec()
+            return
+
+        modal = ApercuActeModal(
+            self,
+            f"Aperçu import {ext.upper()} — Fournisseurs",
+            f"{len(donnees)} ligne(s) détectée(s) dans le fichier",
+            colonnes, donnees, mode="import"
+        )
+        if not (modal.exec() and modal._confirme):
+            return
+
+        ok, msg = self.ctrl.importer_fournisseurs_from_excel(chemin) \
+                  if format_fichier == "excel" \
+                  else self.ctrl.importer_fournisseurs_from_csv(chemin)
+        CustomMessageBox(
+            "Import réussi" if ok else "Import — résultat",
+            msg, msg_type="success" if ok else "warning", parent=self
+        ).exec()
         if ok:
             self.charger_donnees()
     
@@ -181,7 +337,15 @@ class VueFournisseur(QWidget):
         print("Notifications")
     
     def on_reports(self):
-        print("Rapports & exports")
+        """Affiche le rapport PDF global des activités de tous les fournisseurs."""
+        from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+        from views.shared.message_box import CustomMessageBox
+        try:
+            pdf_path = self.ctrl.generer_rapport_toutes_activites_fournisseurs(self.code_session)
+            ApercuPDFDialog(pdf_path, "Rapport Global — Activités des Fournisseurs", self).exec()
+        except Exception as e:
+            CustomMessageBox("Erreur", f"Impossible de générer le rapport :\n{e}",
+                             msg_type="error", parent=self).exec()
     
     def on_search(self):
         print("Recherche avancée")
@@ -198,6 +362,11 @@ class VueFournisseur(QWidget):
             main_frame = self.findChild(QFrame, "MainWhiteFrame")
             if main_frame:
                 self._apply_main_frame_style(main_frame)
+        bg = f"background: {c['bg_card']};"
+        for attr in ('tab_stats', 'tab_nouveau', 'tab_liste', 'tab_activites'):
+            tab_w = getattr(self, attr, None)
+            if tab_w:
+                tab_w.setStyleSheet(bg)
     
     def _get_icon(self, icon_name):
         """Récupère une icône Font Awesome ou standard"""
@@ -222,9 +391,10 @@ class VueFournisseur(QWidget):
     def _create_nouveau_tab(self):
         """Crée l'onglet Nouveau avec le formulaire de fournisseur"""
         from .fournisseur_form_widget import FournisseurFormWidget
-        
+
+        c = theme_manager.colors()
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
+        tab.setStyleSheet(f"background: {c['bg_card']};")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -252,8 +422,9 @@ class VueFournisseur(QWidget):
     
     def _create_stats_tab(self):
         """Crée l'onglet Statistiques"""
+        c = theme_manager.colors()
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
+        tab.setStyleSheet(f"background: {c['bg_card']};")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(12, 8, 12, 12)
         layout.setSpacing(8)
@@ -271,8 +442,9 @@ class VueFournisseur(QWidget):
     
     def _create_liste_tab(self):
         """Crée l'onglet Liste des fournisseurs"""
+        c = theme_manager.colors()
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
+        tab.setStyleSheet(f"background: {c['bg_card']};")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(12, 8, 12, 12)
         
@@ -289,9 +461,10 @@ class VueFournisseur(QWidget):
     def _create_activites_tab(self):
         """Crée l'onglet Activités"""
         from .activites_fournisseur_view import ActivitesFournisseurView
-        
+
+        c = theme_manager.colors()
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
+        tab.setStyleSheet(f"background: {c['bg_card']};")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -310,7 +483,7 @@ class VueFournisseur(QWidget):
         c = theme_manager.colors()
         frame.setStyleSheet(f"""
             QFrame#MainWhiteFrame {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 16px;
             }}

@@ -62,14 +62,9 @@ class PermissionHelper:
         )
         
         if result["autorise"]:
-            # Action autorisée directement
-            # Pour la consultation de résultats, demander confirmation avec OTP même pour le responsable
-            if action == self.permission_ctrl.ACTION_CONSULTATION and self.est_responsable:
-                return self._demander_confirmation_otp(action, contexte, callback_success, callback_cancel)
-            else:
-                # Exécuter directement
-                callback_success()
-                return True
+            # Responsable → accès direct, pas de confirmation supplémentaire
+            callback_success()
+            return True
         else:
             # Action non autorisée
             message = result["message"]

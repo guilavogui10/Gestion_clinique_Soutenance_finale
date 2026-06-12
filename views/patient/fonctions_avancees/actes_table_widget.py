@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                                 QTableWidgetItem, QPushButton, QLabel, QHeaderView,
                                 QFrame, QLineEdit)
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor
 import qtawesome as qta
 from views.shared.theme_manager import theme_manager
 
@@ -21,7 +22,8 @@ class ActesTableWidget(QWidget):
         self.controleur = controleur_acte
         self.actes = []
         self._init_ui()
-    
+        theme_manager.theme_changed.connect(self.apply_theme)
+
     def _init_ui(self):
         """Initialise l'interface"""
         layout = QVBoxLayout(self)
@@ -154,14 +156,15 @@ class ActesTableWidget(QWidget):
             # Type acte
             type_acte = acte.get('type_acte', 'N/A')
             item_type = QTableWidgetItem(type_acte.capitalize())
+            _c = theme_manager.colors()
             if type_acte.lower() == 'examen':
-                item_type.setForeground(Qt.blue)
+                item_type.setForeground(QColor(_c['info']))
             elif type_acte.lower() == 'chirurgie':
-                item_type.setForeground(Qt.red)
+                item_type.setForeground(QColor(_c['danger']))
             elif type_acte.lower() == 'lunette':
-                item_type.setForeground(Qt.darkGreen)
+                item_type.setForeground(QColor(_c['success']))
             elif type_acte.lower() == 'prescription':
-                item_type.setForeground(Qt.darkMagenta)
+                item_type.setForeground(QColor(_c['accent']))
             self.table.setItem(row, 1, item_type)
             
             # Décision médicale
@@ -174,22 +177,22 @@ class ActesTableWidget(QWidget):
             choix = acte.get('choix_patient', 'N/A')
             item_choix = QTableWidgetItem(choix.capitalize() if choix else 'N/A')
             if choix and choix.lower() == 'maintenant':
-                item_choix.setForeground(Qt.darkGreen)
+                item_choix.setForeground(QColor(_c['success']))
             elif choix and choix.lower() == 'plus_tard':
-                item_choix.setForeground(Qt.blue)
+                item_choix.setForeground(QColor(_c['info']))
             elif choix and choix.lower() == 'ailleurs':
-                item_choix.setForeground(Qt.red)
+                item_choix.setForeground(QColor(_c['danger']))
             self.table.setItem(row, 3, item_choix)
-            
+
             # Statut
             statut = acte.get('statut_acte', 'N/A')
             item_statut = QTableWidgetItem(statut.replace('_', ' ').capitalize() if statut else 'N/A')
             if statut and statut.lower() == 'termine':
-                item_statut.setForeground(Qt.darkGreen)
+                item_statut.setForeground(QColor(_c['success']))
             elif statut and statut.lower() == 'en_cours':
-                item_statut.setForeground(Qt.blue)
+                item_statut.setForeground(QColor(_c['info']))
             elif statut and statut.lower() in ['annule', 'refuse']:
-                item_statut.setForeground(Qt.red)
+                item_statut.setForeground(QColor(_c['danger']))
             self.table.setItem(row, 4, item_statut)
             
             # Boutons Actions (Info + Résultats)
@@ -239,7 +242,7 @@ class ActesTableWidget(QWidget):
         # Style du menu
         menu.setStyleSheet(f"""
             QMenu {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 8px;
                 padding: 8px 0;
@@ -492,7 +495,10 @@ class ActesTableWidget(QWidget):
     def apply_theme(self):
         """Applique le thème (identique au tableau patients)"""
         c = theme_manager.colors()
-        
+
+        if self.actes:
+            self._populate_table()
+
         self.setStyleSheet(f"""
             QFrame#TopBar {{
                 background: {c['bg_card']};
@@ -509,7 +515,7 @@ class ActesTableWidget(QWidget):
             }}
             
             QPushButton#BtnRetour {{
-                background: white;
+                background: {c['bg_card']};
                 color: {c['primary']};
                 border: 1.5px solid {c['primary']};
                 border-radius: 8px;
@@ -537,7 +543,7 @@ class ActesTableWidget(QWidget):
             }}
             
             QTableWidget {{
-                background: white;
+                background: {c['bg_table']};
                 border: 1.5px solid {c['border_light']};
                 border-radius: 10px;
                 gridline-color: transparent;

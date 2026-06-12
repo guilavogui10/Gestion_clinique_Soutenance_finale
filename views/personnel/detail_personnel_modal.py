@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QFrame, QPushButton, QGraphicsDropShadowEffect
 )
 from views.shared.modal_theme import MC
+from views.shared.theme_manager import theme_manager
 
 
 class DetailsPersonnelModal(QDialog):
@@ -25,6 +26,33 @@ class DetailsPersonnelModal(QDialog):
         self.setAttribute(Qt.WA_TranslucentBackground)
 
         self._init_ui()
+        theme_manager.theme_changed.connect(self._on_theme_changed)
+
+    def _on_theme_changed(self):
+        """Reconstruit l'UI quand le thème change."""
+        # Vider le container et reconstruire
+        old_layout = self.container.layout()
+        if old_layout:
+            while old_layout.count():
+                item = old_layout.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
+        c = theme_manager.colors()
+        self.container.setStyleSheet(f"""
+            QFrame#RootCard {{
+                background-color: {c['bg_card']};
+                border-radius: 24px;
+                border: 1px solid {c['border_light']};
+            }}
+            QLabel {{
+                background: transparent;
+                border: none;
+            }}
+        """)
+        main = old_layout
+        self._setup_badge_face(main)
+        self._setup_info_zone(main)
+        self._setup_footer(main)
 
     def _apply_dialog_size(self):
         width, height = 720, 460
@@ -54,7 +82,7 @@ class DetailsPersonnelModal(QDialog):
                 width, height, Qt.KeepAspectRatio, Qt.SmoothTransformation
             ))
         else:
-            label.setPixmap(qta.icon("fa5s.id-badge", color="#00A6E7").pixmap(56, 56))
+            label.setPixmap(qta.icon("fa5s.id-badge", color=MC.PRIMARY).pixmap(56, 56))
         return label
 
     def _init_ui(self):
@@ -69,7 +97,7 @@ class DetailsPersonnelModal(QDialog):
             QFrame#RootCard {{
                 background-color: {MC.BG_CARD};
                 border-radius: 24px;
-                border: 1px solid #D9E8F2;
+                border: 1px solid {MC.BORDER_LIGHT};
             }}
             QLabel {{
                 background: transparent;
@@ -92,18 +120,13 @@ class DetailsPersonnelModal(QDialog):
 
     def _setup_badge_face(self, layout):
         face = QFrame()
-        face.setFixedHeight(210)
+        face.setMinimumHeight(210)
         face.setStyleSheet(f"""
             QFrame {{
                 border-top-left-radius: 24px;
                 border-top-right-radius: 24px;
                 border: none;
-                background: qlineargradient(
-                    x1:0, y1:0, x2:1, y2:1,
-                    stop:0 #D7F6FF,
-                    stop:0.45 #F8FCFF,
-                    stop:1 {MC.BG_CARD}
-                );
+                background: {MC.BG_CARD};
             }}
         """)
         root = QVBoxLayout(face)
@@ -123,13 +146,13 @@ class DetailsPersonnelModal(QDialog):
         lbl_cabinet = QLabel(nom_cabinet)
         lbl_cabinet.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         lbl_cabinet.setStyleSheet(
-            "color: #C22E4A; font-size: 12px; font-weight: 900; letter-spacing: 0.4px;"
+            f"color: {MC.DANGER}; font-size: 12px; font-weight: 900; letter-spacing: 0.4px;"
         )
         brand_col.addWidget(lbl_cabinet)
 
         lbl_sub = QLabel("ASSOCIATION / ETABLISSEMENT")
         lbl_sub.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        lbl_sub.setStyleSheet("color: #68819A; font-size: 8px; font-weight: 600;")
+        lbl_sub.setStyleSheet(f"color: {MC.TEXT_SECONDARY}; font-size: 8px; font-weight: 600;")
         brand_col.addWidget(lbl_sub)
 
         header.addLayout(brand_col, 1)
@@ -141,7 +164,7 @@ class DetailsPersonnelModal(QDialog):
         lbl_title = QLabel("CARTE DE MEMBRE")
         lbl_title.setAlignment(Qt.AlignCenter)
         lbl_title.setStyleSheet(
-            "color: #1558B0; font-size: 20px; font-weight: 900; letter-spacing: 0.6px;"
+            f"color: {MC.PRIMARY}; font-size: 20px; font-weight: 900; letter-spacing: 0.6px;"
         )
         root.addWidget(lbl_title)
 
@@ -149,7 +172,7 @@ class DetailsPersonnelModal(QDialog):
         lbl_code = QLabel(code)
         lbl_code.setAlignment(Qt.AlignCenter)
         lbl_code.setStyleSheet(
-            "color: #1384B6; font-size: 11px; font-weight: 800; margin-top: 2px;"
+            f"color: {MC.INFO}; font-size: 11px; font-weight: 800; margin-top: 2px;"
         )
         root.addWidget(lbl_code)
 
@@ -161,12 +184,12 @@ class DetailsPersonnelModal(QDialog):
 
         photo_box = QFrame()
         photo_box.setFixedSize(92, 112)
-        photo_box.setStyleSheet("""
-            QFrame {
-                background: rgba(255,255,255,0.88);
-                border: 2px solid #71D6F3;
+        photo_box.setStyleSheet(f"""
+            QFrame {{
+                background: {MC.BG_CARD};
+                border: 2px solid {MC.PRIMARY};
                 border-radius: 14px;
-            }
+            }}
         """)
         photo_layout = QVBoxLayout(photo_box)
         photo_layout.setContentsMargins(6, 6, 6, 6)
@@ -181,19 +204,19 @@ class DetailsPersonnelModal(QDialog):
                 78, 98, Qt.KeepAspectRatio, Qt.SmoothTransformation
             ))
         else:
-            photo_lbl.setPixmap(qta.icon("fa5s.user-circle", color="#B0BAC5").pixmap(46, 46))
+            photo_lbl.setPixmap(qta.icon("fa5s.user-circle", color=MC.TEXT_MUTED).pixmap(46, 46))
         photo_layout.addWidget(photo_lbl)
 
         infos.addWidget(photo_box, 0, Qt.AlignTop)
 
         identite_box = QFrame()
         identite_box.setMinimumHeight(96)
-        identite_box.setStyleSheet("""
-            QFrame {
-                background: rgba(255,255,255,0.72);
-                border: 1px solid #D6EEF8;
+        identite_box.setStyleSheet(f"""
+            QFrame {{
+                background: {MC.BG_CARD};
+                border: 1px solid {MC.BORDER_LIGHT};
                 border-radius: 16px;
-            }
+            }}
         """)
         identite_layout = QVBoxLayout(identite_box)
         identite_layout.setContentsMargins(12, 8, 12, 8)
@@ -202,22 +225,22 @@ class DetailsPersonnelModal(QDialog):
         nom_complet = f"{self.data.get('nom', '')} {self.data.get('prenom', '')}".strip().upper()
         lbl_nom = QLabel(nom_complet or "INCONNU")
         lbl_nom.setWordWrap(True)
-        lbl_nom.setStyleSheet("color: #0E2133; font-size: 12px; font-weight: 900;")
+        lbl_nom.setStyleSheet(f"color: {MC.TEXT_PRIMARY}; font-size: 12px; font-weight: 900;")
         identite_layout.addWidget(lbl_nom)
 
         lbl_fonction = QLabel(self.data.get("fonction", ""))
         lbl_fonction.setWordWrap(True)
-        lbl_fonction.setStyleSheet("color: #1E5EA8; font-size: 9px; font-weight: 800;")
+        lbl_fonction.setStyleSheet(f"color: {MC.PRIMARY}; font-size: 9px; font-weight: 800;")
         identite_layout.addWidget(lbl_fonction)
 
         lbl_contact = QLabel(f"Contact : {self.data.get('contact', '')}")
         lbl_contact.setWordWrap(True)
-        lbl_contact.setStyleSheet("color: #42576B; font-size: 8px; font-weight: 600;")
+        lbl_contact.setStyleSheet(f"color: {MC.TEXT_SECONDARY}; font-size: 8px; font-weight: 600;")
         identite_layout.addWidget(lbl_contact)
 
         lbl_mail = QLabel(self.data.get("mail", ""))
         lbl_mail.setWordWrap(True)
-        lbl_mail.setStyleSheet("color: #5B7288; font-size: 8px;")
+        lbl_mail.setStyleSheet(f"color: {MC.TEXT_MUTED}; font-size: 8px;")
         identite_layout.addWidget(lbl_mail)
 
         infos.addWidget(identite_box, 1, Qt.AlignTop)
@@ -225,27 +248,27 @@ class DetailsPersonnelModal(QDialog):
 
         strip = QFrame()
         strip.setFixedHeight(10)
-        strip.setStyleSheet("background: #66D0F2; border: none;")
+        strip.setStyleSheet(f"background: {MC.PRIMARY}; border: none;")
         root.addWidget(strip)
 
         layout.addWidget(face)
 
     def _setup_info_zone(self, layout):
         body = QFrame()
-        body.setStyleSheet("background: #F7FBFE; border: none;")
+        body.setStyleSheet(f"background: {MC.BG_MAIN}; border: none;")
         root = QVBoxLayout(body)
         root.setContentsMargins(18, 10, 18, 10)
         root.setSpacing(6)
 
         title = QLabel("Informations du personnel")
-        title.setStyleSheet("color: #143659; font-size: 11px; font-weight: 900;")
+        title.setStyleSheet(f"color: {MC.TEXT_PRIMARY}; font-size: 11px; font-weight: 900;")
         root.addWidget(title)
 
         grid_card = QFrame()
         grid_card.setStyleSheet(f"""
             QFrame {{
                 background: {MC.BG_CARD};
-                border: 1px solid #E0EEF7;
+                border: 1px solid {MC.BORDER_LIGHT};
                 border-radius: 18px;
             }}
         """)
@@ -281,31 +304,31 @@ class DetailsPersonnelModal(QDialog):
 
     def _info_cell(self, label, value, icon_name):
         cell = QFrame()
-        cell.setStyleSheet("""
-            QFrame {
-                background: #F9FCFF;
-                border: 1px solid #E6F2F9;
+        cell.setStyleSheet(f"""
+            QFrame {{
+                background: {MC.BG_INPUT};
+                border: 1px solid {MC.BORDER_LIGHT};
                 border-radius: 12px;
-            }
+            }}
         """)
         layout = QHBoxLayout(cell)
         layout.setContentsMargins(7, 5, 7, 5)
         layout.setSpacing(7)
 
         icon = QLabel()
-        icon.setPixmap(qta.icon(icon_name, color="#1492C6").pixmap(14, 14))
+        icon.setPixmap(qta.icon(icon_name, color=MC.PRIMARY).pixmap(14, 14))
         layout.addWidget(icon, 0, Qt.AlignTop)
 
         texts = QVBoxLayout()
         texts.setSpacing(1)
 
         lbl = QLabel(label)
-        lbl.setStyleSheet("color: #6B8398; font-size: 8px; font-weight: 700;")
+        lbl.setStyleSheet(f"color: {MC.TEXT_SECONDARY}; font-size: 8px; font-weight: 700;")
         texts.addWidget(lbl)
 
         val = QLabel(str(value or ""))
         val.setWordWrap(True)
-        val.setStyleSheet("color: #102536; font-size: 9px; font-weight: 800;")
+        val.setStyleSheet(f"color: {MC.TEXT_PRIMARY}; font-size: 9px; font-weight: 800;")
         texts.addWidget(val)
 
         layout.addLayout(texts, 1)
@@ -319,30 +342,62 @@ class DetailsPersonnelModal(QDialog):
                 background: {MC.BG_CARD};
                 border-bottom-left-radius: 24px;
                 border-bottom-right-radius: 24px;
-                border-top: 1px solid #EDF4F8;
+                border-top: 1px solid {MC.BORDER_LIGHT};
             }}
         """)
         f = QHBoxLayout(footer)
         f.setContentsMargins(20, 0, 20, 0)
 
         footer_left = QLabel("CARTE DE MEMBRE / VUE DETAILLEE")
-        footer_left.setStyleSheet("color: #C22E4A; font-size: 8px; font-weight: 900;")
+        footer_left.setStyleSheet(f"color: {MC.DANGER}; font-size: 8px; font-weight: 900;")
         f.addWidget(footer_left)
         f.addStretch()
 
-        btn_close = QPushButton(qta.icon("fa5s.times", color="white"), " Fermer")
-        btn_close.setFixedHeight(30)
-        btn_close.setStyleSheet(f"""
+        btn_imprimer = QPushButton(qta.icon("fa5s.print", color=MC.TEXT_INVERSE), " Imprimer la carte")
+        btn_imprimer.setFixedHeight(30)
+        btn_imprimer.setStyleSheet(f"""
             QPushButton {{
-                background-color: {MC.PRIMARY};
-                color: white;
+                background-color: {MC.INFO};
+                color: {MC.TEXT_INVERSE};
                 border-radius: 10px;
                 font-weight: bold;
                 padding: 0 14px;
             }}
-            QPushButton:hover {{ background-color: #005a2e; }}
+            QPushButton:hover {{ background-color: {MC.PRIMARY_HOVER}; }}
+        """)
+        btn_imprimer.clicked.connect(self._imprimer)
+        f.addWidget(btn_imprimer)
+        f.addSpacing(10)
+
+        btn_close = QPushButton(qta.icon("fa5s.times", color=MC.TEXT_INVERSE), " Fermer")
+        btn_close.setFixedHeight(30)
+        btn_close.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {MC.PRIMARY};
+                color: {MC.TEXT_INVERSE};
+                border-radius: 10px;
+                font-weight: bold;
+                padding: 0 14px;
+            }}
+            QPushButton:hover {{ background-color: {MC.PRIMARY_HOVER}; }}
         """)
         btn_close.clicked.connect(self.accept)
         f.addWidget(btn_close)
 
         layout.addWidget(footer)
+
+    def _imprimer(self):
+        from views.shared.message_box import CustomMessageBox
+        from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+        from services.pdf_personnel.personnel_pdf import PersonnelPDFService
+        try:
+            pdf_path = PersonnelPDFService.generer_carte_membre(
+                personnel_data = self.data,
+                cabinet_info   = self.info_cabinet,
+                photo_path     = self._photo_absolue(),
+            )
+            code = self.data.get("code", "")
+            ApercuPDFDialog(pdf_path, f"Carte Membre — {code}", self).exec()
+        except Exception as e:
+            CustomMessageBox("Erreur", f"Impossible de générer la carte :\n{e}",
+                             is_success=False, parent=self).exec()

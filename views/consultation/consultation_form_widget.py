@@ -58,8 +58,18 @@ class ConsultationFormWidget(QWidget):
             self._visites_attente = self.controleur.obtenir_patients_attente(self.code_session) or []
         except Exception:
             self._visites_attente = []
+        # Index pour retrouver rapidement le type_visite depuis le code_visite
+        self._visite_par_code = {
+            v.get('code_visite', ''): v
+            for v in self._visites_attente
+            if v.get('code_visite')
+        }
         try:
-            if hasattr(self.controleur, 'lister_personnel'):
+            if hasattr(self.controleur, 'lister_personnel_par_roles'):
+                self._personnels = self.controleur.lister_personnel_par_roles(
+                    ['Médecin', 'Directeur Général']
+                ) or []
+            elif hasattr(self.controleur, 'lister_personnel'):
                 self._personnels = self.controleur.lister_personnel() or []
         except Exception:
             self._personnels = []
@@ -85,45 +95,32 @@ class ConsultationFormWidget(QWidget):
     # =========================================================================
 
     def _setup_header(self, parent_layout):
+        c = theme_manager.colors()
         self.header_frame = QFrame()
         self.header_frame.setFixedHeight(72)
-        c = theme_manager.colors()
-        self.header_frame.setStyleSheet(f"""
-            background-color: {c['bg_card']};
-            border-radius: 14px;
-            border: none;
-        """)
 
         layout = QHBoxLayout(self.header_frame)
         layout.setContentsMargins(20, 0, 20, 0)
         layout.setSpacing(14)
 
-        # Icône stéthoscope
-        icon_box = QFrame()
-        icon_box.setFixedSize(46, 46)
-        icon_box.setStyleSheet(f"""
-            background-color: {c['bg_main']};
-            border-radius: 10px;
-            border: 1px solid {c['border_light']};
-        """)
-        ib_layout = QHBoxLayout(icon_box)
+        # Icône stéthoscope — stockée pour apply_theme
+        self._icon_box = QFrame()
+        self._icon_box.setFixedSize(46, 46)
+        ib_layout = QHBoxLayout(self._icon_box)
         ib_layout.setContentsMargins(0, 0, 0, 0)
-        ico_lbl = QLabel()
-        ico_lbl.setPixmap(qta.icon("fa5s.stethoscope", color=c['primary']).pixmap(22, 22))
-        ico_lbl.setAlignment(Qt.AlignCenter)
-        ib_layout.addWidget(ico_lbl, alignment=Qt.AlignCenter)
+        self._ico_header = QLabel()
+        self._ico_header.setAlignment(Qt.AlignCenter)
+        ib_layout.addWidget(self._ico_header, alignment=Qt.AlignCenter)
 
-        # Titre + sous-titre
+        # Titre + sous-titre — stockés pour apply_theme
         title_col = QVBoxLayout()
         title_col.setSpacing(2)
-        lbl_main = QLabel("Enregistrement d'une consultation")
-        lbl_main.setStyleSheet(f"font-size: 17px; font-weight: bold; color: {c['text_primary']}; background: transparent; border: none;")
-        lbl_sub = QLabel("Saisissez les informations de la consultation")
-        lbl_sub.setStyleSheet(f"font-size: 12px; color: {c['text_muted']}; background: transparent; border: none;")
-        title_col.addWidget(lbl_main)
-        title_col.addWidget(lbl_sub)
+        self._lbl_main = QLabel("Enregistrement d'une consultation")
+        self._lbl_sub  = QLabel("Saisissez les informations de la consultation")
+        title_col.addWidget(self._lbl_main)
+        title_col.addWidget(self._lbl_sub)
 
-        layout.addWidget(icon_box)
+        layout.addWidget(self._icon_box)
         layout.addLayout(title_col)
         layout.addStretch()
 
@@ -145,7 +142,7 @@ class ConsultationFormWidget(QWidget):
 
         # Bouton Enregistrer
         label_save = " Enregistrer" if not self.consultation_obj else " Mettre à jour"
-        self.btn_save = QPushButton(qta.icon("fa5s.save", color="#ffffff"), label_save)
+        self.btn_save = QPushButton(qta.icon("fa5s.save", color=c['text_inverse']), label_save)
         self.btn_save.setFixedSize(140, 40)
         self.btn_save.setEnabled(False)
         self._apply_save_btn_style()
@@ -168,7 +165,7 @@ class ConsultationFormWidget(QWidget):
             }}
             QPushButton:enabled {{
                 background-color: {c['primary']};
-                color: #ffffff;
+                color: {c['text_inverse']};
             }}
             QPushButton:enabled:hover {{ background-color: {c['primary_hover']}; }}
         """)
@@ -177,18 +174,14 @@ class ConsultationFormWidget(QWidget):
     # HELPERS : CHAMP AVEC ICÔNE
     # =========================================================================
 
-    def _make_field(self, label_text: str, widget, icon_name: str, icon_color: str,
+    def _make_field(self, label_text: str, widget, icon_name: str, color_key: str,
                     height: int = 42, align_top: bool = False):
-        """Retourne (QVBoxLayout, wrapper_QFrame) : label + cadre [badge-icône + widget]."""
+        """Retourne (QVBoxLayout, wrapper_QFrame). Enregistre dans _field_registry."""
         c = theme_manager.colors()
         vbox = QVBoxLayout()
         vbox.setSpacing(4)
 
         lbl = QLabel(label_text)
-        lbl.setStyleSheet(
-            f"font-size: 11px; font-weight: 600; color: {c['text_secondary']};"
-            " background: transparent; border: none;"
-        )
         vbox.addWidget(lbl)
 
         wrapper = QFrame()
@@ -206,11 +199,9 @@ class ConsultationFormWidget(QWidget):
 
         badge = QFrame()
         badge.setFixedSize(28, 28)
-        badge.setStyleSheet(f"background-color: {icon_color}20; border-radius: 7px; border: none;")
         bl = QHBoxLayout(badge)
         bl.setContentsMargins(0, 0, 0, 0)
         ico_lbl = QLabel()
-        ico_lbl.setPixmap(qta.icon(icon_name, color=icon_color).pixmap(14, 14))
         ico_lbl.setAlignment(Qt.AlignCenter)
         ico_lbl.setStyleSheet("border: none; background: transparent;")
         bl.addWidget(ico_lbl, alignment=Qt.AlignCenter)
@@ -219,7 +210,34 @@ class ConsultationFormWidget(QWidget):
         hbox.addWidget(badge, 0, v_align)
         hbox.addWidget(widget, 1)
         vbox.addWidget(wrapper)
+
+        if not hasattr(self, '_field_registry'):
+            self._field_registry = []
+        self._field_registry.append({
+            'wrapper':   wrapper,
+            'badge':     badge,
+            'ico_lbl':   ico_lbl,
+            'lbl':       lbl,
+            'icon_name': icon_name,
+            'color_key': color_key,
+        })
+        self._refresh_field(self._field_registry[-1], c)
+
         return vbox, wrapper
+
+    def _refresh_field(self, entry: dict, c: dict):
+        icon_color = c[entry['color_key']]
+        entry['badge'].setStyleSheet(
+            f"background-color: {icon_color}20; border-radius: 7px; border: none;"
+        )
+        entry['ico_lbl'].setPixmap(
+            qta.icon(entry['icon_name'], color=icon_color).pixmap(14, 14)
+        )
+        entry['lbl'].setStyleSheet(
+            f"font-size: 11px; font-weight: 600; color: {c['text_secondary']};"
+            " background: transparent; border: none;"
+        )
+        self._apply_wrapper_style(entry['wrapper'])
 
     def _apply_wrapper_style(self, wrapper: QFrame, border_color: str = None):
         c = theme_manager.colors()
@@ -233,14 +251,17 @@ class ConsultationFormWidget(QWidget):
         """)
 
     def _clear_widget_style(self, widget, c):
-        """Enlève bordure et fond du widget interne — le wrapper reste visible."""
-        base = (
-            f"border: none; background: transparent;"
-            f" font-size: 12px; color: {c['text_primary']};"
-        )
+        """Applique fond + couleur du thème au widget interne."""
         if isinstance(widget, QComboBox):
             widget.setStyleSheet(f"""
-                QComboBox {{ {base} padding: 0; min-height: 28px; }}
+                QComboBox {{
+                    border: none;
+                    background-color: {c['bg_input']};
+                    color: {c['text_primary']};
+                    font-size: 12px;
+                    padding: 0;
+                    min-height: 28px;
+                }}
                 QComboBox::drop-down {{ border: none; width: 20px; }}
                 QComboBox QAbstractItemView {{
                     background-color: {c['bg_card']};
@@ -257,43 +278,55 @@ class ConsultationFormWidget(QWidget):
                 }}
             """)
         elif isinstance(widget, QDateTimeEdit):
-            widget.setStyleSheet(f"QDateTimeEdit {{ {base} padding: 0; }}")
+            widget.setStyleSheet(f"""
+                QDateTimeEdit {{
+                    border: none;
+                    background-color: {c['bg_input']};
+                    color: {c['text_primary']};
+                    font-size: 12px;
+                    padding: 0;
+                }}
+                QDateTimeEdit::drop-down {{ border: none; width: 20px; }}
+            """)
         elif isinstance(widget, QTextEdit):
-            widget.setStyleSheet(f"QTextEdit {{ {base} padding: 4px 0; }}")
+            widget.setStyleSheet(f"""
+                QTextEdit {{
+                    border: none;
+                    background: transparent;
+                    font-size: 12px;
+                    color: {c['text_primary']};
+                    padding: 4px 0;
+                }}
+            """)
         else:
-            widget.setStyleSheet(f"QLineEdit {{ {base} padding: 0; }}")
+            widget.setStyleSheet(f"""
+                QLineEdit {{
+                    border: none;
+                    background: transparent;
+                    font-size: 12px;
+                    color: {c['text_primary']};
+                    padding: 0;
+                }}
+            """)
 
     # =========================================================================
     # SECTION INFORMATIONS
     # =========================================================================
 
     def _section_infos(self, parent_layout):
-        c = theme_manager.colors()
-        card = QFrame()
-        card.setStyleSheet(f"""
-            QFrame {{
-                background-color: {c['bg_card']};
-                border: 1.5px solid {c['border_light']};
-                border-radius: 14px;
-            }}
-        """)
-        vbox = QVBoxLayout(card)
+        self._card_infos = QFrame()
+        vbox = QVBoxLayout(self._card_infos)
         vbox.setContentsMargins(22, 18, 22, 18)
         vbox.setSpacing(18)
 
-        # Titre section
+        # Titre section — stockés pour apply_theme
         hdr = QHBoxLayout()
-        ico = QLabel()
-        ico.setPixmap(qta.icon("fa5s.clipboard-list", color=c['primary']).pixmap(16, 16))
-        ico.setStyleSheet("border: none; background: transparent;")
-        lbl_t = QLabel("Informations de la consultation")
-        lbl_t.setStyleSheet(
-            f"font-size: 14px; font-weight: bold; color: {c['primary']};"
-            " background: transparent; border: none;"
-        )
-        hdr.addWidget(ico)
+        self._ico_section = QLabel()
+        self._ico_section.setStyleSheet("border: none; background: transparent;")
+        self._lbl_section = QLabel("Informations de la consultation")
+        hdr.addWidget(self._ico_section)
         hdr.addSpacing(8)
-        hdr.addWidget(lbl_t)
+        hdr.addWidget(self._lbl_section)
         hdr.addStretch()
         vbox.addLayout(hdr)
 
@@ -305,7 +338,7 @@ class ConsultationFormWidget(QWidget):
         self.edit_code = QLineEdit()
         self.edit_code.setPlaceholderText("Ex: CON001")
         self.edit_code.setEnabled(False)
-        vb_code, _ = self._make_field("Code", self.edit_code, "fa5s.hashtag", "#9b59b6")
+        vb_code, _ = self._make_field("Code", self.edit_code, "fa5s.hashtag", 'accent')
         row1.addWidget(self._field_widget(vb_code), 1, Qt.AlignTop)
 
         self.edit_diagnostique = QTextEdit()
@@ -313,16 +346,17 @@ class ConsultationFormWidget(QWidget):
         self.edit_diagnostique.setFixedHeight(80)
         vb_diag, self._wrap_diag = self._make_field(
             "Diagnostique", self.edit_diagnostique,
-            "fa5s.clipboard", "#1abc9c", height=84, align_top=True
+            "fa5s.clipboard", 'primary', height=84, align_top=True
         )
         self._err_diagnostique = self._err_label()
         vb_diag.addWidget(self._err_diagnostique)
         row1.addWidget(self._field_widget(vb_diag), 1, Qt.AlignTop)
 
         self.edit_frais = QLineEdit()
-        self.edit_frais.setPlaceholderText("Ex: 5000.00")
+        self.edit_frais.setPlaceholderText("Auto — sélectionner une visite")
+        self.edit_frais.setReadOnly(True)
         vb_frais, self._wrap_frais = self._make_field(
-            "Frais consultation", self.edit_frais, "fa5s.dollar-sign", "#27ae60"
+            "Frais consultation", self.edit_frais, "fa5s.dollar-sign", 'success'
         )
         self._err_frais = self._err_label()
         vb_frais.addWidget(self._err_frais)
@@ -332,7 +366,7 @@ class ConsultationFormWidget(QWidget):
         self.combo_statut.setEnabled(False)
         self.combo_statut.addItem("Sélectionner le statut")
         vb_statut, _ = self._make_field(
-            "Statut facture", self.combo_statut, "fa5s.file-invoice", "#e67e22"
+            "Statut facture", self.combo_statut, "fa5s.file-invoice", 'warning'
         )
         row1.addWidget(self._field_widget(vb_statut), 1, Qt.AlignTop)
 
@@ -348,7 +382,7 @@ class ConsultationFormWidget(QWidget):
         self.edit_date.setDateTime(QDateTime.currentDateTime())
         self.edit_date.setDisplayFormat("dd/MM/yyyy")
         vb_date, _ = self._make_field(
-            "Date consultation", self.edit_date, "fa5s.calendar-alt", "#3498db"
+            "Date consultation", self.edit_date, "fa5s.calendar-alt", 'info'
         )
         row2.addWidget(self._field_widget(vb_date), 1, Qt.AlignTop)
 
@@ -359,7 +393,7 @@ class ConsultationFormWidget(QWidget):
                   f"{v.get('nom', '')} {v.get('prenom', '')}")
             self.combo_visite.addItem(lv, v.get('code_visite', ''))
         vb_visite, self._wrap_visite = self._make_field(
-            "Code visite", self.combo_visite, "fa5s.shopping-bag", "#e74c3c"
+            "Code visite", self.combo_visite, "fa5s.shopping-bag", 'danger'
         )
         self._err_visite = self._err_label()
         vb_visite.addWidget(self._err_visite)
@@ -369,7 +403,7 @@ class ConsultationFormWidget(QWidget):
         self.edit_session.setPlaceholderText("Ex: SES001")
         self.edit_session.setEnabled(False)
         vb_sess, _ = self._make_field(
-            "Code session", self.edit_session, "fa5s.graduation-cap", "#9b59b6"
+            "Code session", self.edit_session, "fa5s.graduation-cap", 'accent'
         )
         row2.addWidget(self._field_widget(vb_sess), 1, Qt.AlignTop)
 
@@ -380,57 +414,48 @@ class ConsultationFormWidget(QWidget):
                   f"{p.get('nom', '')} {p.get('prenom', '')}")
             self.combo_personnel.addItem(lp, p.get('code', ''))
         vb_perso, self._wrap_personnel = self._make_field(
-            "Code personne", self.combo_personnel, "fa5s.user", "#1abc9c"
+            "Code personne", self.combo_personnel, "fa5s.user", 'primary'
         )
         self._err_personnel = self._err_label()
         vb_perso.addWidget(self._err_personnel)
         row2.addWidget(self._field_widget(vb_perso), 1, Qt.AlignTop)
 
         vbox.addLayout(row2)
-        parent_layout.addWidget(card)
+        parent_layout.addWidget(self._card_infos)
 
     # =========================================================================
     # SECTION INFO BAS
     # =========================================================================
 
     def _section_info_bas(self, parent_layout):
-        c = theme_manager.colors()
-        card = QFrame()
-        card.setFixedHeight(80)
-        card.setStyleSheet(f"""
-            QFrame {{
-                background-color: {c['primary_light']};
-                border: 1.5px solid {c['border_light']};
-                border-radius: 14px;
-            }}
-        """)
-        hbox = QHBoxLayout(card)
+        # Tous les éléments stockés comme instance variables pour apply_theme
+        self._card_bas = QFrame()
+        self._card_bas.setFixedHeight(80)
+        hbox = QHBoxLayout(self._card_bas)
         hbox.setContentsMargins(20, 0, 20, 0)
         hbox.setSpacing(14)
 
-        ico_frame = QFrame()
-        ico_frame.setFixedSize(36, 36)
-        ico_frame.setStyleSheet(f"background-color: {c['primary']}; border-radius: 18px;")
-        ifi = QHBoxLayout(ico_frame)
+        self._ico_bas_frame = QFrame()
+        self._ico_bas_frame.setFixedSize(36, 36)
+        ifi = QHBoxLayout(self._ico_bas_frame)
         ifi.setContentsMargins(0, 0, 0, 0)
-        il = QLabel()
-        il.setPixmap(qta.icon("fa5s.info", color="#ffffff").pixmap(14, 14))
-        il.setAlignment(Qt.AlignCenter)
-        ifi.addWidget(il, alignment=Qt.AlignCenter)
+        self._ico_bas_lbl = QLabel()
+        self._ico_bas_lbl.setAlignment(Qt.AlignCenter)
+        ifi.addWidget(self._ico_bas_lbl, alignment=Qt.AlignCenter)
 
         txt = QVBoxLayout()
         txt.setSpacing(2)
-        t1 = QLabel("Informations")
-        t1.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {c['primary']}; background: transparent;")
-        t2 = QLabel("Veuillez remplir tous les champs obligatoires avant d'enregistrer la consultation.")
-        t2.setStyleSheet(f"font-size: 11px; color: {c['text_secondary']}; background: transparent;")
-        txt.addWidget(t1)
-        txt.addWidget(t2)
+        self._lbl_bas_title = QLabel("Informations")
+        self._lbl_bas_desc  = QLabel(
+            "Veuillez remplir tous les champs obligatoires avant d'enregistrer la consultation."
+        )
+        txt.addWidget(self._lbl_bas_title)
+        txt.addWidget(self._lbl_bas_desc)
 
-        hbox.addWidget(ico_frame)
+        hbox.addWidget(self._ico_bas_frame)
         hbox.addLayout(txt)
         hbox.addStretch()
-        parent_layout.addWidget(card)
+        parent_layout.addWidget(self._card_bas)
 
     # =========================================================================
     # UTILITAIRES
@@ -463,8 +488,34 @@ class ConsultationFormWidget(QWidget):
     def _connecter_validations(self):
         self.edit_diagnostique.textChanged.connect(self._valider_formulaire)
         self.edit_frais.textChanged.connect(self._valider_formulaire)
+        self.combo_visite.currentIndexChanged.connect(self._on_visite_changed)
         self.combo_visite.currentIndexChanged.connect(self._valider_formulaire)
         self.combo_personnel.currentIndexChanged.connect(self._valider_formulaire)
+
+    def _on_visite_changed(self):
+        """Auto-remplit le champ Frais selon le type_visite de la visite sélectionnée."""
+        # Ne pas écraser le prix en mode modification
+        if self.consultation_obj:
+            return
+
+        code_visite = self.combo_visite.currentData() or ''
+        if not code_visite:
+            return
+
+        visite = getattr(self, '_visite_par_code', {}).get(code_visite)
+        if not visite:
+            return
+
+        type_visite = visite.get('type_visite', '')
+        if not type_visite:
+            return
+
+        tarif = self.controleur.get_tarif_par_type_visite(type_visite)
+        if tarif is not None:
+            # Bloquer le signal textChanged pour ne pas déclencher la validation deux fois
+            self.edit_frais.blockSignals(True)
+            self.edit_frais.setText(str(int(tarif)) if tarif == int(tarif) else str(tarif))
+            self.edit_frais.blockSignals(False)
 
     def _valider_formulaire(self):
         tout_valide = True
@@ -665,22 +716,94 @@ class ConsultationFormWidget(QWidget):
 
     def apply_theme(self):
         c = theme_manager.colors()
-        self.setStyleSheet(f"""
-            QWidget {{
-                background: {c['bg_main']};
-                color: {c['text_primary']};
-            }}
-        """)
-        # Re-appliquer les styles des wrappers et widgets internes après un changement de thème
-        if hasattr(self, '_wrap_diag'):
-            for w in (self._wrap_diag, self._wrap_frais, self._wrap_visite, self._wrap_personnel):
-                self._apply_wrapper_style(w)
+        self.setStyleSheet(f"QWidget {{ background: {c['bg_main']}; color: {c['text_primary']}; }}")
+
+        # ── Header frame ─────────────────────────────────────────────────────
+        if hasattr(self, 'header_frame'):
+            self.header_frame.setStyleSheet(f"""
+                background-color: {c['bg_card']};
+                border-radius: 14px; border: none;
+            """)
+        if hasattr(self, '_icon_box'):
+            self._icon_box.setStyleSheet(f"""
+                background-color: {c['bg_main']};
+                border-radius: 10px;
+                border: 1px solid {c['border_light']};
+            """)
+        if hasattr(self, '_ico_header'):
+            self._ico_header.setPixmap(
+                qta.icon("fa5s.stethoscope", color=c['primary']).pixmap(22, 22)
+            )
+        if hasattr(self, '_lbl_main'):
+            self._lbl_main.setStyleSheet(
+                f"font-size: 17px; font-weight: bold; color: {c['text_primary']};"
+                " background: transparent; border: none;"
+            )
+        if hasattr(self, '_lbl_sub'):
+            self._lbl_sub.setStyleSheet(
+                f"font-size: 12px; color: {c['text_muted']}; background: transparent; border: none;"
+            )
+
+        # ── Card infos section ────────────────────────────────────────────────
+        if hasattr(self, '_card_infos'):
+            self._card_infos.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {c['bg_card']};
+                    border: 1.5px solid {c['border_light']};
+                    border-radius: 14px;
+                }}
+            """)
+        if hasattr(self, '_ico_section'):
+            self._ico_section.setPixmap(
+                qta.icon("fa5s.clipboard-list", color=c['primary']).pixmap(16, 16)
+            )
+        if hasattr(self, '_lbl_section'):
+            self._lbl_section.setStyleSheet(
+                f"font-size: 14px; font-weight: bold; color: {c['primary']};"
+                " background: transparent; border: none;"
+            )
+
+        # ── Card bas (zone d'information) ─────────────────────────────────────
+        if hasattr(self, '_card_bas'):
+            self._card_bas.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {c['primary_light']};
+                    border: 1.5px solid {c['border_light']};
+                    border-radius: 14px;
+                }}
+            """)
+        if hasattr(self, '_ico_bas_frame'):
+            self._ico_bas_frame.setStyleSheet(
+                f"background-color: {c['primary']}; border-radius: 18px;"
+            )
+        if hasattr(self, '_ico_bas_lbl'):
+            self._ico_bas_lbl.setPixmap(
+                qta.icon("fa5s.info", color=c['text_inverse']).pixmap(14, 14)
+            )
+        if hasattr(self, '_lbl_bas_title'):
+            self._lbl_bas_title.setStyleSheet(
+                f"font-size: 13px; font-weight: bold; color: {c['primary']}; background: transparent;"
+            )
+        if hasattr(self, '_lbl_bas_desc'):
+            self._lbl_bas_desc.setStyleSheet(
+                f"font-size: 11px; color: {c['text_secondary']}; background: transparent;"
+            )
+
+        # ── Registre champs (badge + icône + label + wrapper) ────────────────
+        if hasattr(self, '_field_registry'):
+            for entry in self._field_registry:
+                self._refresh_field(entry, c)
+
+        # ── Widgets internes ─────────────────────────────────────────────────
         if hasattr(self, 'edit_diagnostique'):
             for w in (self.edit_diagnostique, self.edit_frais, self.combo_visite,
                       self.combo_personnel, self.edit_code, self.edit_session,
                       self.edit_date, self.combo_statut):
                 self._clear_widget_style(w, c)
+
+        # ── Boutons ──────────────────────────────────────────────────────────
         if hasattr(self, 'btn_cancel'):
+            self.btn_cancel.setIcon(qta.icon("fa5s.times", color=c['text_secondary']))
             self.btn_cancel.setStyleSheet(f"""
                 QPushButton {{
                     background-color: {c['bg_main']};
@@ -688,6 +811,7 @@ class ConsultationFormWidget(QWidget):
                     border: 1.5px solid {c['border']};
                     border-radius: 10px;
                     font-size: 13px;
+                    font-weight: 500;
                 }}
                 QPushButton:hover {{ background-color: {c['hover']}; }}
             """)

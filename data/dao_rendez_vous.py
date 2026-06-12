@@ -43,6 +43,64 @@ class RendezVousDAO:
     # METHODES CRUD
     # =========================================================================
 
+    def ajouter_import(self, rdv: RendezVous) -> tuple:
+        """
+        Crée un rendez-vous lors d'un import de données.
+        - Pas de contrôle doublon visite (visite vient d'être créée).
+        - Contrôle disponibilité personnel MAINTENU : un conflit de planning
+          est une erreur de données, pas un bypass acceptable.
+        Retourne (bool, str) pour remonter le motif de rejet à l'import.
+        """
+        conn = self.db.connect()
+        if not conn:
+            return False, "Erreur de connexion à la base de données"
+        try:
+            cursor = conn.cursor()
+
+            if not self._personnel_est_disponible(
+                cursor, rdv.code_personnel, rdv.date_rendez_vous
+            ):
+                return (
+                    False,
+                    f"Le personnel '{rdv.code_personnel}' a déjà un rendez-vous "
+                    f"à cette date/heure ({rdv.date_rendez_vous})"
+                )
+
+            rdv.code_rendez_vous = self._generer_code(cursor)
+            statut_normalise = self._normaliser_statut(rdv.statut_rendez_vous)
+            query = """
+                INSERT INTO rendez_vous (
+                    code_rendez_vous,
+                    code_visite,
+                    code_personnel,
+                    code_session,
+                    date_rendez_vous,
+                    statut_rendez_vous,
+                    code_acte
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """
+            cursor.execute(query, (
+                rdv.code_rendez_vous,
+                rdv.code_visite,
+                rdv.code_personnel,
+                rdv.code_session,
+                rdv.date_rendez_vous,
+                statut_normalise,
+                getattr(rdv, 'code_acte', None)
+            ))
+            conn.commit()
+            rdv.statut_rendez_vous = statut_normalise
+            return True, "Rendez-vous créé avec succès"
+        except Exception as e:
+            conn.rollback()
+            err_str = str(e)
+            # Erreur FK : code_personnel introuvable dans la table personnel
+            if "1452" in err_str or "foreign key" in err_str.lower():
+                return False, f"Code personnel '{rdv.code_personnel}' introuvable dans la table personnel."
+            return False, f"Erreur création rendez-vous : {err_str[:120]}"
+        finally:
+            self.db.close()
+
     def ajouter(self, rdv: RendezVous) -> bool:
         conn = self.db.connect()
         if not conn:
@@ -1411,6 +1469,41 @@ class RendezVousDAO:
             conn.rollback()
             print(f"[RendezVousDAO] Erreur traiter_rdv_du_jour: {e}")
             return 0
+        finally:
+            self.db.close()
+
+    def rdv_du_jour_sans_acte(self, code_session: str) -> list:
+        """
+        Retourne les RDV arrivés aujourd'hui, sans acte médical (première visite patient),
+        dont le statut est 'en_cours' (marqués par traiter_rdv_du_jour).
+        """
+        conn = self.db.connect()
+        if not conn:
+            return []
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT
+                    r.code_rendez_vous,
+                    r.code_visite,
+                    r.date_rendez_vous,
+                    r.statut_rendez_vous,
+                    p.nom,
+                    p.prenom,
+                    p.telephone
+                FROM rendez_vous r
+                INNER JOIN visite v ON r.code_visite = v.code_visite
+                INNER JOIN patients p ON v.code_patient = p.code_patient
+                WHERE r.code_session = %s
+                  AND r.code_acte IS NULL
+                  AND LOWER(r.statut_rendez_vous) = 'en_cours'
+                  AND DATE(r.date_rendez_vous) = CURDATE()
+                ORDER BY r.date_rendez_vous ASC
+            """, (code_session,))
+            return cursor.fetchall() or []
+        except Exception as e:
+            print(f"[RendezVousDAO] Erreur rdv_du_jour_sans_acte: {e}")
+            return []
         finally:
             self.db.close()
 

@@ -88,7 +88,7 @@ class VuePatient(QWidget):
     def _create_stats_tab(self):
         """Crée l'onglet Statistiques"""
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
+        tab.setStyleSheet(f"background: {theme_manager.colors()['bg_card']};")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(20)  # Augmenter l'espacement
@@ -107,26 +107,23 @@ class VuePatient(QWidget):
     def _create_nouveau_tab(self):
         """Crée l'onglet Nouveau Patient"""
         from .patient_form_widget import PatientFormWidget
-        
+
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        
-        # Scroll area pour le formulaire
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        
-        # Widget formulaire
+
+        self._scroll_nouveau = QScrollArea()
+        self._scroll_nouveau.setWidgetResizable(True)
+        self._scroll_nouveau.setFrameShape(QFrame.NoFrame)
+        self._scroll_nouveau.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
         self.form_widget = PatientFormWidget(self.controleur)
         self.form_widget.patient_saved.connect(self._on_patient_saved)
-        scroll.setWidget(self.form_widget)
-        
-        layout.addWidget(scroll)
-        
+        self._scroll_nouveau.setWidget(self.form_widget)
+
+        layout.addWidget(self._scroll_nouveau)
+
         return tab
     
     def _on_patient_saved(self):
@@ -138,7 +135,7 @@ class VuePatient(QWidget):
     def _create_liste_tab(self):
         """Crée l'onglet Liste des Patients"""
         tab = QWidget()
-        tab.setStyleSheet("background: white;")
+        tab.setStyleSheet(f"background: {theme_manager.colors()['bg_card']};")
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(12, 8, 12, 12)
         
@@ -275,63 +272,109 @@ class VuePatient(QWidget):
         popover.exec()
     
     def on_imprimer_dossier_patient(self, patient):
-        """Imprime le dossier complet d'un patient"""
-        CustomMessageBox(
-            "Information",
-            f"Impression du dossier\n\n"
-            f"Patient : {patient.get_nom()} {patient.get_prenom()}\n"
-            f"Code : {patient.get_code_patient()}\n\n"
-            f"Fonctionnalité en cours d'implémentation.",
-            is_success=False,
-            parent=self
-        ).exec()
+        """Génère et affiche l'aperçu du dossier médical PDF complet du patient."""
+        import os
+        from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+
+        try:
+            code_patient = patient.get_code_patient()
+            chemin_pdf   = self.controleur.generer_dossier_medical(code_patient)
+            if chemin_pdf and os.path.exists(chemin_pdf):
+                nom = f"{patient.get_prenom()} {patient.get_nom()}".strip()
+                dlg = ApercuPDFDialog(
+                    chemin_pdf,
+                    titre=f"Dossier médical — {nom}",
+                    parent=self
+                )
+                dlg.exec()
+        except Exception as e:
+            CustomMessageBox(
+                "Erreur",
+                f"Impossible de générer le dossier médical :\n{e}",
+                is_success=False,
+                parent=self
+            ).exec()
     
     def _show_export_menu(self):
-        """Affiche le menu d'export"""
-        from PySide6.QtWidgets import QMenu, QFileDialog
+        """Affiche le menu export/import avec aperçu visuel au-dessus du bouton."""
+        from PySide6.QtWidgets import QMenu
+        from PySide6.QtCore import QPoint
+        from .export_import_patient import ApercuPatientModal
         import qtawesome as qta
-        
-        menu = QMenu(self)
+
         c = theme_manager.colors()
-        
-        # Actions d'export
-        action_excel = menu.addAction(qta.icon("fa5s.file-excel", color=c['success']), "Exporter Excel")
-        action_csv = menu.addAction(qta.icon("fa5s.file-csv", color=c['primary']), "Exporter CSV")
+        menu = QMenu(self)
+        menu.setStyleSheet(f"""
+            QMenu {{
+                background: {c['bg_card']};
+                border: 1px solid {c['border']};
+                border-radius: 10px;
+                padding: 6px 4px;
+            }}
+            QMenu::item {{
+                padding: 9px 20px 9px 12px;
+                border-radius: 6px;
+                font-size: 13px;
+                color: {c['text_primary']};
+                min-width: 210px;
+            }}
+            QMenu::item:selected {{
+                background: {c['primary_light']};
+                color: {c['primary']};
+            }}
+            QMenu::separator {{
+                height: 1px;
+                background: {c['border']};
+                margin: 4px 10px;
+            }}
+        """)
+
+        act_export_excel = menu.addAction(
+            qta.icon("fa5s.file-excel", color="#217346"), "  Exporter en Excel (.xlsx)"
+        )
+        act_export_csv = menu.addAction(
+            qta.icon("fa5s.file-csv", color="#0070c0"), "  Exporter en CSV (.csv)"
+        )
         menu.addSeparator()
-        action_print = menu.addAction(qta.icon("fa5s.print", color=c['danger']), "Imprimer Tout")
-        
-        # Connexions
-        action_excel.triggered.connect(self._export_excel)
-        action_csv.triggered.connect(self._export_csv)
-        action_print.triggered.connect(self._print_all)
-        
-        # Afficher le menu à la position du curseur
-        from PySide6.QtGui import QCursor
-        menu.exec(QCursor.pos())
-    
-    def _export_excel(self):
-        """Exporte vers Excel"""
-        from PySide6.QtWidgets import QFileDialog
-        chemin, _ = QFileDialog.getSaveFileName(self, "Exporter en Excel", "", "Excel Files (*.xlsx)")
-        if chemin:
-            reussite, message = self.controleur.export_to_excel(chemin)
-            CustomMessageBox("Succès" if reussite else "Erreur", message, is_success=reussite, parent=self).exec()
-    
-    def _export_csv(self):
-        """Exporte vers CSV"""
-        from PySide6.QtWidgets import QFileDialog
-        chemin, _ = QFileDialog.getSaveFileName(self, "Exporter en CSV", "", "CSV Files (*.csv)")
-        if chemin:
-            reussite, message = self.controleur.export_to_csv(chemin)
-            CustomMessageBox("Succès" if reussite else "Erreur", message, is_success=reussite, parent=self).exec()
-    
+        act_import_excel = menu.addAction(
+            qta.icon("fa5s.upload", color="#217346"), "  Importer depuis Excel (.xlsx)"
+        )
+        act_import_csv = menu.addAction(
+            qta.icon("fa5s.upload", color="#0070c0"), "  Importer depuis CSV (.csv)"
+        )
+        menu.addSeparator()
+        act_print = menu.addAction(
+            qta.icon("fa5s.print", color=c['danger']), "  Imprimer Tout"
+        )
+
+        # Positionner le menu au-dessus du bouton export
+        btn = self.quick_actions.btn_export
+        menu.adjustSize()
+        menu_h = menu.sizeHint().height()
+        pos_global = btn.mapToGlobal(QPoint(0, 0))
+        target = QPoint(pos_global.x(), pos_global.y() - menu_h - 6)
+        action = menu.exec(target)
+
+        if action == act_export_excel:
+            ApercuPatientModal.ouvrir_export(self, self.controleur, "excel")
+        elif action == act_export_csv:
+            ApercuPatientModal.ouvrir_export(self, self.controleur, "csv")
+        elif action == act_import_excel:
+            ApercuPatientModal.ouvrir_import(self, self.controleur, "excel")
+        elif action == act_import_csv:
+            ApercuPatientModal.ouvrir_import(self, self.controleur, "csv")
+        elif action == act_print:
+            self._print_all()
+
     def _print_all(self):
-        """Imprime tous les patients"""
-        from PySide6.QtWidgets import QFileDialog
-        dossier = QFileDialog.getExistingDirectory(self, "Choisir le dossier d'enregistrement")
-        if dossier:
-            success, message = self.controleur.generer_liste_total_patient(dossier)
-            CustomMessageBox("Succès" if success else "Erreur", message, is_success=success, parent=self).exec()
+        """Génère et affiche l'aperçu PDF de tous les patients (identique à consultation)."""
+        from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+        try:
+            pdf_path = self.controleur.generer_rapport_patients()
+            ApercuPDFDialog(pdf_path, "Rapport — Liste des patients", self).exec()
+        except Exception as e:
+            CustomMessageBox("Erreur", f"Impossible de générer le rapport :\n{e}",
+                             msg_type="error", parent=self).exec()
     
     def _get_icon(self, icon_name):
         """Récupère une icône Font Awesome"""
@@ -353,31 +396,53 @@ class VuePatient(QWidget):
         c = theme_manager.colors()
         frame.setStyleSheet(f"""
             QFrame#MainWhiteFrame {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 16px;
             }}
         """)
     
     def apply_theme(self):
-        """Applique le thème actuel"""
+        """Applique le thème actuel — cascade + propagation explicite à tous les enfants."""
         c = theme_manager.colors()
-        
-        self.setStyleSheet(f"""
-            QWidget {{
-                background: {c['bg_main']};
-            }}
-        """)
-        
-        # Style des onglets
+
+        # Fond du widget racine
+        self.setStyleSheet(f"background: {c['bg_main']};")
+
         if hasattr(self, 'tabs'):
             from .styles import PatientStyles
             self.tabs.setStyleSheet(PatientStyles.tab_widget())
-            
-            # Mettre à jour le frame principal
+
+            # Cascade via QWidget{} pour atteindre scroll areas et tous descendants
+            for tab in (getattr(self, 'tab_stats', None), getattr(self, 'tab_liste', None)):
+                if tab:
+                    tab.setStyleSheet(f"QWidget {{ background: {c['bg_card']}; }}")
+            if hasattr(self, 'tab_nouveau'):
+                self.tab_nouveau.setStyleSheet(f"QWidget {{ background: {c['bg_main']}; }}")
+            # Scroll area du formulaire
+            if hasattr(self, '_scroll_nouveau'):
+                self._scroll_nouveau.setStyleSheet(
+                    f"QScrollArea {{ background: {c['bg_main']}; border: none; }}"
+                )
+
             main_frame = self.findChild(QFrame, "MainWhiteFrame")
             if main_frame:
                 self._apply_main_frame_style(main_frame)
+
+        # Propagation explicite à chaque composant enfant (belt + suspenders)
+        for widget in (
+            getattr(self, 'kpi_cards', None),
+            getattr(self, 'charts', None),
+            getattr(self, 'table', None),
+            getattr(self, 'quick_actions', None),
+            getattr(self, 'form_widget', None),
+            getattr(self, 'historique_widget', None),
+        ):
+            if widget and hasattr(widget, 'apply_theme'):
+                try:
+                    widget.apply_theme()
+                except Exception:
+                    pass
         
         # Style du bouton dans l'onglet Nouveau - Plus nécessaire car formulaire intégré
         # if hasattr(self, 'btn_open_form'):

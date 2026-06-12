@@ -22,9 +22,10 @@ class ModernDatePicker(QWidget):
     # Signal émis quand la date change
     dateChanged = Signal(str)  # Format: JJ/MM/AAAA
     
-    def __init__(self, vert_principal: str = "#003f20", parent=None):
+    def __init__(self, vert_principal: str = None, parent=None):
         super().__init__(parent)
-        self.vert_principal = vert_principal
+        from views.shared.theme_manager import theme_manager
+        self.vert_principal = vert_principal or theme_manager.colors()['primary']
         self._selected_date = None
         self._calendar_popup = None
         
@@ -418,7 +419,7 @@ class ModernDatePicker(QWidget):
     
     def setStyleSheet(self, style: str):
         """Override pour gérer les styles de validation."""
-        if "border: 2px solid #27ae60" in style or f"border: 2px solid {MC.SUCCESS}" in style:
+        if f"border: 2px solid {MC.SUCCESS}" in style:
             super().setStyleSheet(f"""
                 QWidget {{
                     background: {MC.SUCCESS_BG};
@@ -426,7 +427,7 @@ class ModernDatePicker(QWidget):
                     border-radius: 10px;
                 }}
             """)
-        elif "border: 2px solid #e74c3c" in style or f"border: 2px solid {MC.DANGER}" in style:
+        elif f"border: 2px solid {MC.DANGER}" in style:
             super().setStyleSheet(f"""
                 QWidget {{
                     background: {MC.DANGER_BG};

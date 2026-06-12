@@ -11,13 +11,14 @@ Différences vs DataLoader panier :
 
 import qtawesome as qta
 from typing import Callable, Any
+from views.shared.theme_manager import theme_manager
 
 
 class PrescriptionDataLoader:
     """Gère le chargement des données depuis le contrôleur prescription."""
 
-    def __init__(self, bleu_principal: str):
-        self.bleu_principal = bleu_principal
+    def __init__(self):
+        pass
 
     # =========================================================================
     # PATIENTS
@@ -52,7 +53,7 @@ class PrescriptionDataLoader:
 
             combo_consultation.clear()
             combo_consultation.addItem(
-                qta.icon("fa5s.file-medical", color=self.bleu_principal),
+                qta.icon("fa5s.file-medical", color=theme_manager.colors()['primary']),
                 "  — Sélectionner une consultation —",
                 None
             )
@@ -65,7 +66,7 @@ class PrescriptionDataLoader:
                     f"{p.get('date_visite', '')}"
                 )
                 combo_consultation.addItem(
-                    qta.icon("fa5s.user-injured", color=self.bleu_principal),
+                    qta.icon("fa5s.user-injured", color=theme_manager.colors()['primary']),
                     label,
                     p   # dict complet comme userData
                 )
@@ -103,7 +104,7 @@ class PrescriptionDataLoader:
 
             combo_produit.clear()
             combo_produit.addItem(
-                qta.icon("fa5s.pills", color=self.bleu_principal),
+                qta.icon("fa5s.pills", color=theme_manager.colors()['primary']),
                 "  Choisir un produit...",
                 None
             )
@@ -114,7 +115,7 @@ class PrescriptionDataLoader:
                 code    = p.get('code_produit', None)
 
                 combo_produit.addItem(
-                    qta.icon("fa5s.capsules", color=self.bleu_principal),
+                    qta.icon("fa5s.capsules", color=theme_manager.colors()['primary']),
                     f"  {libelle}  ({type_p})",
                     p   # ✅ dict complet comme userData (libelle + prix_vente_unitaire)
                 )

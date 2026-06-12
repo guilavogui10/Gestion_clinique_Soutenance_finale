@@ -196,7 +196,7 @@ class ConsultationsTable(QWidget):
         self.container.setStyleSheet(
             f"""
             QFrame#ConsultationsTableCard {{
-                background: white;
+                background: {c['bg_card']};
                 border: none;
             }}
             QLineEdit#SearchInput {{
@@ -244,7 +244,7 @@ class ConsultationsTable(QWidget):
                 background: {c['primary_hover']};
             }}
             QTableWidget#ConsultationTable {{
-                background: white;
+                background: {c['bg_table']};
                 border: none;
                 gridline-color: {c['table_gridline']};
                 color: {c['text_primary']};
@@ -282,6 +282,8 @@ class ConsultationsTable(QWidget):
         self.btn_prev.setIcon(qta.icon("fa5s.chevron-left", color=c["text_secondary"]))
         self.btn_next.setIcon(qta.icon("fa5s.chevron-right", color=c["text_secondary"]))
         self._update_pagination()
+        if self.filtered_consultations:
+            self.update_table()
 
     def load_consultations(self, consultations, code_session: str = None):
         if code_session is not None:
@@ -618,7 +620,7 @@ class ConsultationsTable(QWidget):
         menu = QMenu(self)
         menu.setStyleSheet(f"""
             QMenu {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 8px;
                 padding: 6px 0;

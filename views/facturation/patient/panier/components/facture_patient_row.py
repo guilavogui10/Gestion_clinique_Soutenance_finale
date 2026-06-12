@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLay
 
 from ..styles.facture_patient_styles import FacturePatientStyles
 from views.shared.modal_theme import MC
+from views.shared.theme_manager import theme_manager
 
 
 class FacturePatientRowItem:
@@ -95,19 +96,20 @@ class FacturePatientRowItem:
         actions = QHBoxLayout()
         actions.setSpacing(6)
 
-        btn_remove = QPushButton(qta.icon("fa5s.trash", color="white"), "Retirer")
+        _c = theme_manager.colors()
+        btn_remove = QPushButton(qta.icon("fa5s.trash", color=_c['text_inverse']), "Retirer")
         btn_remove.setFixedHeight(30)
         btn_remove.setCursor(Qt.PointingHandCursor)
         btn_remove.setStyleSheet(f"""
             QPushButton {{
                 background: {self.rouge};
-                color: white;
+                color: {_c['text_inverse']};
                 border-radius: 8px;
                 font-size: 10px;
                 font-weight: bold;
                 padding: 4px 10px;
             }}
-            QPushButton:hover {{ background: #c0392b; }}
+            QPushButton:hover {{ background: {_c['danger']}; }}
         """)
         btn_remove.clicked.connect(lambda: on_delete_callback(ligne))
 

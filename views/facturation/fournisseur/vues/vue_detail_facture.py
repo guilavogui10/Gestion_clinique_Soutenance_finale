@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..styles.facture_styles import FactureStyles
+from views.shared.theme_manager import theme_manager
 
 
 class VueDetailFacture(QWidget):
@@ -51,6 +52,7 @@ class VueDetailFacture(QWidget):
 
         self.setStyleSheet("background:transparent;")
         self._setup_ui()
+        theme_manager.theme_changed.connect(self.apply_theme)
 
     # =========================================================================
     # CONSTRUCTION UI
@@ -65,8 +67,9 @@ class VueDetailFacture(QWidget):
         layout.addLayout(self._construire_header())
 
         self.container = QWidget()
+        _ci = theme_manager.colors()
         self.container.setStyleSheet(
-            f"background:{FactureStyles.BLANC}; border-radius:12px;"
+            f"background:{_ci['bg_card']}; border-radius:12px;"
         )
         self.container_layout = QVBoxLayout(self.container)
         self.container_layout.setContentsMargins(16, 16, 16, 16)
@@ -79,24 +82,25 @@ class VueDetailFacture(QWidget):
         """Construit l'en-tête avec bouton retour et titre."""
         lay = QHBoxLayout()
 
+        _c = theme_manager.colors()
         btn_retour = QPushButton(
-            qta.icon("fa5s.arrow-left", color=FactureStyles.VERT_PRINCIPAL),
+            qta.icon("fa5s.arrow-left", color=_c['primary']),
             "  Retour"
         )
         btn_retour.setFixedHeight(32)
         btn_retour.setCursor(Qt.PointingHandCursor)
         btn_retour.setStyleSheet(
-            f"QPushButton{{background:{FactureStyles.BLANC};"
-            f"color:{FactureStyles.VERT_PRINCIPAL};"
-            f"border:1px solid {FactureStyles.VERT_PRINCIPAL};"
+            f"QPushButton{{background:{_c['bg_card']};"
+            f"color:{_c['primary']};"
+            f"border:1px solid {_c['primary']};"
             f"border-radius:8px; font-size:11px; font-weight:600; padding:0 12px;}}"
-            f"QPushButton:hover{{background:{FactureStyles.VERT_CLAIR};}}"
+            f"QPushButton:hover{{background:{_c['primary_light']};}}"
         )
         btn_retour.clicked.connect(self.on_retour)
 
         titre = QLabel("Détail de la facture")
         titre.setStyleSheet(
-            f"color:#1F2937; font-size:14px; font-weight:700; background:transparent;"
+            f"color:{_c['text_primary']}; font-size:14px; font-weight:700; background:transparent;"
         )
 
         lay.addWidget(btn_retour)
@@ -243,29 +247,30 @@ class VueDetailFacture(QWidget):
         lay = QHBoxLayout()
         lay.setSpacing(10)
 
+        _cb = theme_manager.colors()
         btn_imprimer = QPushButton(
-            qta.icon("fa5s.print", color=FactureStyles.BLANC), "  Imprimer"
+            qta.icon("fa5s.print", color=_cb['text_inverse']), "  Imprimer"
         )
         btn_imprimer.setFixedHeight(40)
         btn_imprimer.setCursor(Qt.PointingHandCursor)
         btn_imprimer.setStyleSheet(
-            f"QPushButton{{background:{FactureStyles.BLEU_SOFT};"
-            f"color:{FactureStyles.BLANC}; border-radius:10px;"
+            f"QPushButton{{background:{_cb['info']};"
+            f"color:{_cb['text_inverse']}; border-radius:10px;"
             f"font-size:12px; font-weight:600; border:none;}}"
-            f"QPushButton:hover{{background:#2563EB;}}"
+            f"QPushButton:hover{{background:{_cb['primary']};}}"
         )
         btn_imprimer.clicked.connect(self._imprimer_facture)
 
         btn_supprimer = QPushButton(
-            qta.icon("fa5s.trash", color=FactureStyles.BLANC), "  Supprimer"
+            qta.icon("fa5s.trash", color=_cb['text_inverse']), "  Supprimer"
         )
         btn_supprimer.setFixedHeight(40)
         btn_supprimer.setCursor(Qt.PointingHandCursor)
         btn_supprimer.setStyleSheet(
-            f"QPushButton{{background:{FactureStyles.ROUGE_SOFT};"
-            f"color:{FactureStyles.BLANC}; border-radius:10px;"
+            f"QPushButton{{background:{_cb['danger']};"
+            f"color:{_cb['text_inverse']}; border-radius:10px;"
             f"font-size:12px; font-weight:600; border:none;}}"
-            f"QPushButton:hover{{background:#DC2626;}}"
+            f"QPushButton:hover{{background:{_cb['warning']};}}"
         )
         btn_supprimer.clicked.connect(self._supprimer_facture)
 
@@ -288,10 +293,11 @@ class VueDetailFacture(QWidget):
         Returns:
             QFrame: Cadre configuré avec layout vertical
         """
+        _cc = theme_manager.colors()
         cadre = QFrame()
         cadre.setStyleSheet(
-            f"QFrame{{background:{FactureStyles.GRIS_FOND}; border-radius:10px;"
-            f"border:1px solid {FactureStyles.GRIS_CLAIR};}}"
+            f"QFrame{{background:{_cc['bg_card']}; border-radius:10px;"
+            f"border:1px solid {_cc['border']};}}"
         )
         layout = QVBoxLayout(cadre)
         layout.setContentsMargins(12, 10, 12, 10)
@@ -299,15 +305,16 @@ class VueDetailFacture(QWidget):
 
         # Titre
         titre_lay = QHBoxLayout()
+        _ch = theme_manager.colors()
         ic = QLabel()
         ic.setPixmap(
-            qta.icon(icone, color=FactureStyles.VERT_PRINCIPAL).pixmap(QSize(14, 14))
+            qta.icon(icone, color=_ch['primary']).pixmap(QSize(14, 14))
         )
         ic.setStyleSheet("background:transparent;")
 
         lbl_titre = QLabel(titre)
         lbl_titre.setStyleSheet(
-            f"color:#1F2937; font-size:12px; font-weight:700; background:transparent;"
+            f"color:{_ch['text_primary']}; font-size:12px; font-weight:700; background:transparent;"
         )
 
         titre_lay.addWidget(ic)
@@ -368,10 +375,11 @@ class VueDetailFacture(QWidget):
         Args:
             ligne: Dictionnaire données d'une ligne panier
         """
+        _cp = theme_manager.colors()
         carte = QFrame()
         carte.setStyleSheet(
-            f"QFrame{{background:{FactureStyles.BLANC}; border-radius:8px;"
-            f"border:1px solid {FactureStyles.GRIS_CLAIR};}}"
+            f"QFrame{{background:{_cp['bg_card']}; border-radius:8px;"
+            f"border:1px solid {_cp['border']};}}"
         )
 
         layout = QVBoxLayout(carte)
@@ -383,7 +391,7 @@ class VueDetailFacture(QWidget):
         lbl_desig = QLabel(designation)
         lbl_desig.setWordWrap(True)
         lbl_desig.setStyleSheet(
-            f"color:#1F2937; font-size:11px; font-weight:700; background:transparent;"
+            f"color:{_cp['text_primary']}; font-size:11px; font-weight:700; background:transparent;"
         )
         layout.addWidget(lbl_desig)
 
@@ -503,16 +511,17 @@ class VueDetailFacture(QWidget):
                 for l in lignes
             ])
 
+            _pc = theme_manager.colors()
             html = f"""
-            <html><body style='font-family:Arial; font-size:12px;'>
-            <h2 style='color:#003f20;'>Facture Fournisseur — {entete.get('code_facture_four','')}</h2>
+            <html><body style='font-family:Arial; font-size:12px; color:{_pc["text_primary"]}; background:{_pc["bg_card"]};'>
+            <h2 style='color:{_pc["primary"]};'>Facture Fournisseur — {entete.get('code_facture_four','')}</h2>
             <p><b>Fournisseur :</b> {entete.get('fournisseur_nom','—')}</p>
             <p><b>Date :</b> {date_str} &nbsp;&nbsp;
                <b>Mode :</b> {(entete.get('mode_payement') or '—').capitalize()}</p>
             <hr/>
             <table width='100%' border='1' cellspacing='0' cellpadding='6'
                    style='border-collapse:collapse;'>
-              <thead style='background:#e8f5ee;'>
+              <thead style='background:{_pc["table_header_bg"]};'>
                 <tr>
                   <th align='left'>Produit</th>
                   <th>Qté</th>
@@ -569,6 +578,14 @@ class VueDetailFacture(QWidget):
     # =========================================================================
     # UTILITAIRES
     # =========================================================================
+
+    def apply_theme(self) -> None:
+        """Met à jour les couleurs selon le thème actif."""
+        c = theme_manager.colors()
+        if hasattr(self, 'container'):
+            self.container.setStyleSheet(
+                f"background:{c['bg_card']}; border-radius:12px;"
+            )
 
     def _vider_container(self) -> None:
         """Vide le conteneur principal avant rechargement."""

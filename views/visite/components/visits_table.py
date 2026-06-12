@@ -225,14 +225,15 @@ class VisitsTable(QWidget):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setAlignment(Qt.AlignCenter)
 
+        c = theme_manager.colors()
         status_colors = {
-            'Attente consultation':  ('#FF9800', '#FFF3E0'),
-            'Attente rendez-vous':   ('#FF9800', '#FFF3E0'),
-            'En consultation':       ('#2196F3', '#E3F2FD'),
-            'Examen en cours':       ('#9C27B0', '#F3E5F5'),
-            'Accueil':               ('#4CAF50', '#E8F5E9'),
+            'Attente consultation':  (c['warning'],   c['warning_bg']),
+            'Attente rendez-vous':   (c['warning'],   c['warning_bg']),
+            'En consultation':       (c['info'],      c['info_bg']),
+            'Examen en cours':       (c['accent'],    c['accent_light']),
+            'Accueil':               (c['success'],   c['success_bg']),
         }
-        text_color, bg_color = status_colors.get(status, ('#757575', '#F5F5F5'))
+        text_color, bg_color = status_colors.get(status, (c['text_secondary'], c['hover']))
 
         badge = QLabel(status or "—")
         badge.setAlignment(Qt.AlignCenter)
@@ -333,6 +334,9 @@ class VisitsTable(QWidget):
 
     def apply_theme(self):
         c = theme_manager.colors()
+        # Rafraîchir les cell-widgets existants avec les nouvelles couleurs
+        if self.all_visits:
+            self.update_table()
         self.setStyleSheet(f"""
             QLineEdit#SearchInput {{
                 background: {c['bg_card']};
@@ -369,7 +373,7 @@ class VisitsTable(QWidget):
                 border: none;
             }}
             QTableWidget#VisitsTable {{
-                background: white;
+                background: {c['bg_table']};
                 border: none;
                 gridline-color: {c['border_light']};
             }}

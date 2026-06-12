@@ -282,43 +282,31 @@ class PatientView(QWidget):
 
     # --- MÉTHODES D'EXPORTATION ---
     def export_to_excel(self):
-        # 1. Ouvrir la boîte pour choisir où enregistrer
-        chemin, _ = QFileDialog.getSaveFileName(self, "Exporter en Excel", "", "Excel Files (*.xlsx)")
-        if chemin:
-            reussite, message = self.controleur.export_to_excel(chemin)
-            self.show_message(reussite, message)
+        from .export_import_patient import ApercuPatientModal
+        ApercuPatientModal.ouvrir_export(self, self.controleur, "excel")
 
     def export_to_csv(self):
-        chemin, _ = QFileDialog.getSaveFileName(self, "Exporter en CSV", "", "CSV Files (*.csv)")
-        if chemin:
-            reussite, message = self.controleur.export_to_csv(chemin)
-            self.show_message(reussite, message)
+        from .export_import_patient import ApercuPatientModal
+        ApercuPatientModal.ouvrir_export(self, self.controleur, "csv")
 
     # --- MÉTHODES D'IMPORTATION ---
     def import_from_excel(self):
-        # 1. Ouvrir la boîte pour choisir le fichier à lire
-        chemin, _ = QFileDialog.getOpenFileName(self, "Importer Excel", "", "Excel Files (*.xlsx)")
-        if chemin:
-            reussite, message = self.controleur.import_from_excel(chemin)
-            self.show_message(reussite, message)
-            if reussite: self.load_all_data() # Rafraîchir le tableau
+        from .export_import_patient import ApercuPatientModal
+        ApercuPatientModal.ouvrir_import(self, self.controleur, "excel")
 
     def import_from_csv(self):
-        chemin, _ = QFileDialog.getOpenFileName(self, "Importer CSV", "", "CSV Files (*.csv)")
-        if chemin:
-            reussite, message = self.controleur.import_from_csv(chemin)
-            self.show_message(reussite, message)
-            if reussite: self.load_all_data()
+        from .export_import_patient import ApercuPatientModal
+        ApercuPatientModal.ouvrir_import(self, self.controleur, "csv")
             
     def imprimer_tout(self):
-        # 1. On demande où enregistrer le fichier
-        dossier = QFileDialog.getExistingDirectory(self, "Choisir le dossier d'enregistrement")
-        
-        if dossier:
-            # 2. On appelle le contrôleur
-            success, message = self.controleur.generer_liste_total_patient(dossier)
-            # 3. On affiche le résultat avec ta CustomMessageBox
-            self.show_message(success, message)
+        from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+        from views.shared.message_box import CustomMessageBox
+        try:
+            pdf_path = self.controleur.generer_rapport_patients()
+            ApercuPDFDialog(pdf_path, "Rapport — Liste des patients", self).exec()
+        except Exception as e:
+            CustomMessageBox("Erreur", f"Impossible de générer le rapport :\n{e}",
+                             msg_type="error", parent=self).exec()
             
     def imprimer_par_genre(self, genre):
         # 1. On demande où enregistrer le fichier

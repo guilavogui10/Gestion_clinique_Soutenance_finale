@@ -40,8 +40,8 @@ class ChartsSection(QWidget):
         self.chart2_graph = MontantChirurgiesGraph(self.chart2_frame, width=6, height=4, dpi=100)
         self.chart2_frame.layout().addWidget(self.chart2_graph)
         
-        # Graphique 3: Moyenne journalière par mois (barres)
-        self.chart3_frame = self._create_chart_frame("Moyenne journalière par mois")
+        # Graphique 3: Revenu moyen journalier
+        self.chart3_frame = self._create_chart_frame("Revenu moyen journalier")
         self.chart3_graph = MoyenneJournaliereChirurgiesGraph(self.chart3_frame, width=6, height=4, dpi=100)
         self.chart3_frame.layout().addWidget(self.chart3_graph)
         
@@ -87,7 +87,7 @@ class ChartsSection(QWidget):
             self.chart2_graph.update_graph({})
         
         try:
-            moyenne_data = self.ctrl.obtenir_moyenne_nombre_journalier_par_mois(code_session)
+            moyenne_data = self.ctrl.obtenir_revenu_moyen_par_mois(code_session)
             self.chart3_graph.update_graph(moyenne_data or {})
         except:
             self.chart3_graph.update_graph({})

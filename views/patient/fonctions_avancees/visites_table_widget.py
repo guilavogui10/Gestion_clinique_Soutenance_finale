@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                                 QTableWidgetItem, QPushButton, QLabel, QHeaderView,
                                 QFrame, QLineEdit)
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor
 import qtawesome as qta
 from views.shared.theme_manager import theme_manager
 
@@ -20,7 +21,8 @@ class VisitesTableWidget(QWidget):
         self.controleur = controleur_visite
         self.visites = []
         self._init_ui()
-    
+        theme_manager.theme_changed.connect(self.apply_theme)
+
     def _init_ui(self):
         """Initialise l'interface"""
         layout = QVBoxLayout(self)
@@ -147,10 +149,11 @@ class VisitesTableWidget(QWidget):
             # Statut
             statut = visite.get('statut_visite') or visite.get('statut', 'N/A')
             item_statut = QTableWidgetItem(statut)
+            c = theme_manager.colors()
             if statut.lower() in ['terminée', 'terminee']:
-                item_statut.setForeground(Qt.darkGreen)
+                item_statut.setForeground(QColor(c['success']))
             elif statut.lower() in ['en cours', 'en_cours']:
-                item_statut.setForeground(Qt.blue)
+                item_statut.setForeground(QColor(c['info']))
             self.table.setItem(row, 3, item_statut)
             
             # Session
@@ -196,7 +199,11 @@ class VisitesTableWidget(QWidget):
     def apply_theme(self):
         """Applique le thème (identique au tableau patients)"""
         c = theme_manager.colors()
-        
+
+        # Repopuler les lignes pour rafraîchir les cell-widgets (boutons colorés)
+        if self.visites:
+            self._populate_table()
+
         self.setStyleSheet(f"""
             QFrame#SearchBar {{
                 background: {c['bg_card']};
@@ -227,7 +234,7 @@ class VisitesTableWidget(QWidget):
             }}
             
             QTableWidget {{
-                background: white;
+                background: {c['bg_table']};
                 border: 1.5px solid {c['border_light']};
                 border-radius: 10px;
                 gridline-color: transparent;

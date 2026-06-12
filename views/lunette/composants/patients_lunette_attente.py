@@ -56,7 +56,7 @@ class PatientLunetteCard(QFrame):
         # Avatar
         self._avatar_lbl = QLabel()
         self._avatar_lbl.setAlignment(Qt.AlignCenter)
-        self._avatar_lbl.setStyleSheet("border: none; background: transparent;")
+        self._avatar_lbl.setStyleSheet(f"border: none; background: {theme_manager.colors()['bg_card']};")
         root.addWidget(self._avatar_lbl)
 
         # Nom
@@ -123,23 +123,23 @@ class PatientLunetteCard(QFrame):
 
     def _build_info_row(self, icon_name: str, label: str, value: str):
         container = QWidget()
-        container.setStyleSheet("background: transparent; border: none;")
+        container.setStyleSheet(f"background: {theme_manager.colors()['bg_card']}; border: none;")
         h = QHBoxLayout(container)
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(5)
 
         ic_lbl = QLabel()
         ic_lbl.setFixedSize(14, 14)
-        ic_lbl.setStyleSheet("border: none; background: transparent;")
+        ic_lbl.setStyleSheet(f"border: none; background: {theme_manager.colors()['bg_card']};")
 
         lbl_lbl = QLabel(f"{label}:")
         lbl_lbl.setFixedWidth(38)
-        lbl_lbl.setStyleSheet("border: none; background: transparent;")
+        lbl_lbl.setStyleSheet(f"border: none; background: {theme_manager.colors()['bg_card']};")
 
         val_lbl = QLabel(value)
         val_lbl.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         val_lbl.setWordWrap(True)
-        val_lbl.setStyleSheet("border: none; background: transparent;")
+        val_lbl.setStyleSheet(f"border: none; background: {theme_manager.colors()['bg_card']};")
 
         h.addWidget(ic_lbl)
         h.addWidget(lbl_lbl)
@@ -159,7 +159,7 @@ class PatientLunetteCard(QFrame):
 
     def _apply_theme(self):
         c = theme_manager.colors()
-        primary = c.get('primary', '#2ecc71')
+        primary = c['primary']
 
         self.setStyleSheet(f"""
             PatientLunetteCard {{
@@ -169,7 +169,7 @@ class PatientLunetteCard(QFrame):
             }}
             PatientLunetteCard:hover {{
                 border           : 1.5px solid {primary};
-                background-color : {c.get('bg_alt', c['bg_card'])};
+                background-color : {c['hover']};
             }}
         """)
 
@@ -203,36 +203,36 @@ class PatientLunetteCard(QFrame):
         # Style bouton statut : vert = Démarrer, orange = Fin
         statut = self._statut_patient.strip()
         if statut == "En lunette":
-            self._btn_statut.setStyleSheet("""
-                QPushButton {
-                    background: #e67e22; color: white; border: none;
+            self._btn_statut.setStyleSheet(f"""
+                QPushButton {{
+                    background: {c['warning']}; color: {c['text_inverse']}; border: none;
                     border-radius: 6px; font-size: 10px; font-weight: 600;
-                }
-                QPushButton:hover { background: #ca6f1e; }
+                }}
+                QPushButton:hover {{ background: {c['warning']}cc; }}
             """)
-            self._btn_statut.setIcon(qta.icon("fa5s.stop-circle", color="white"))
+            self._btn_statut.setIcon(qta.icon("fa5s.stop-circle", color=c['text_inverse']))
         else:
-            self._btn_statut.setStyleSheet("""
-                QPushButton {
-                    background: #27ae60; color: white; border: none;
+            self._btn_statut.setStyleSheet(f"""
+                QPushButton {{
+                    background: {c['success']}; color: {c['text_inverse']}; border: none;
                     border-radius: 6px; font-size: 10px; font-weight: 600;
-                }
-                QPushButton:hover { background: #1e8449; }
+                }}
+                QPushButton:hover {{ background: {c['success']}cc; }}
             """)
-            self._btn_statut.setIcon(qta.icon("fa5s.play-circle", color="white"))
+            self._btn_statut.setIcon(qta.icon("fa5s.play-circle", color=c['text_inverse']))
 
         self._btn.setStyleSheet(LunetteStyles.button_primary())
         self._btn.setIcon(
-            qta.icon("fa5s.glasses", color=c.get('text_inverse', '#ffffff'))
+            qta.icon("fa5s.glasses", color=c['text_inverse'])
         )
 
         # Style badge statut
         if statut == "En lunette":
-            self._badge_statut.setStyleSheet("""
+            self._badge_statut.setStyleSheet(f"""
                 font-size: 9px; font-weight: 600;
-                color: #e67e22; background: #e67e2222;
+                color: {c['warning']}; background: {c['warning']}22;
                 border-radius: 6px; padding: 1px 5px;
-                border: 1px solid #e67e2255;
+                border: 1px solid {c['warning']}55;
             """)
         else:
             self._badge_statut.setStyleSheet(f"""
@@ -277,7 +277,7 @@ class PatientsAttenteView(QWidget):
         hdr.setSpacing(8)
         self._h_icon = QLabel()
         self._h_icon.setFixedSize(20, 20)
-        self._h_icon.setStyleSheet("border:none; background:transparent;")
+        self._h_icon.setStyleSheet(f"border:none; background:{theme_manager.colors()['bg_card']};")
         self._h_title = QLabel("Patients en Attente de Lunettes")
         self._h_title.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._h_badge = QLabel("0 patient(s)")
@@ -316,7 +316,7 @@ class PatientsAttenteView(QWidget):
         lay.setSpacing(12)
         self._empty_icon = QLabel()
         self._empty_icon.setAlignment(Qt.AlignCenter)
-        self._empty_icon.setStyleSheet("border:none; background:transparent;")
+        self._empty_icon.setStyleSheet(f"border:none; background:{theme_manager.colors()['bg_card']};")
         self._empty_msg = QLabel("Aucun patient en attente de lunettes pour cette session.")
         self._empty_msg.setAlignment(Qt.AlignCenter)
         self._empty_msg.setWordWrap(True)
@@ -363,12 +363,12 @@ class PatientsAttenteView(QWidget):
 
     def _apply_theme(self):
         c = theme_manager.colors()
-        primary = c.get('primary', '#2ecc71')
+        primary = c['primary']
 
         self.setStyleSheet(f"background:{c['bg_main']};")
-        self._cards_container.setStyleSheet("background:transparent;")
+        self._cards_container.setStyleSheet(f"background:{theme_manager.colors()['bg_main']};")
         self._scroll.setStyleSheet(
-            "QScrollArea{background:transparent; border:none;}"
+            f"QScrollArea{{background:{theme_manager.colors()['bg_main']}; border:none;}}"
         )
         self._scroll.verticalScrollBar().setStyleSheet(LunetteStyles.scrollbar())
 
@@ -380,7 +380,7 @@ class PatientsAttenteView(QWidget):
         )
         self._h_badge.setStyleSheet(f"""
             font-size:11px; font-weight:600; color:{c['text_muted']};
-            background:{c.get('bg_alt', c['bg_card'])};
+            background:{c['bg_card']};
             border-radius:10px; padding:2px 10px;
             border:1px solid {c['border_light']};
         """)
@@ -427,7 +427,7 @@ class PatientsAttenteDialog(QDialog):
 
         self._title_icon = QLabel()
         self._title_icon.setFixedSize(22, 22)
-        self._title_icon.setStyleSheet("border:none; background:transparent;")
+        self._title_icon.setStyleSheet(f"border:none; background:{theme_manager.colors()['bg_card']};")
 
         self._title_lbl = QLabel("Patients en Attente de Lunettes")
 
@@ -459,7 +459,7 @@ class PatientsAttenteDialog(QDialog):
 
     def _apply_theme(self):
         c = theme_manager.colors()
-        primary = c.get('primary', '#2ecc71')
+        primary = c['primary']
 
         self.setStyleSheet(f"""
             QDialog{{
@@ -478,7 +478,7 @@ class PatientsAttenteDialog(QDialog):
             f"font-size:15px; font-weight:700; color:{c['text_primary']}; border:none;"
         )
         self._btn_close.setStyleSheet(f"""
-            QPushButton{{background:transparent; border:none; border-radius:6px;}}
+            QPushButton{{background:{c['bg_card']}; border:none; border-radius:6px;}}
             QPushButton:hover{{background:{c['danger']}22;}}
         """)
         self._btn_close.setIcon(qta.icon("fa5s.times", color=c['text_muted']))

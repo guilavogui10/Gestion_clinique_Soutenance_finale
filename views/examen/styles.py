@@ -91,11 +91,11 @@ class ExamenStyles:
                 color: {c['text_muted']};
             }}
             QLabel[class="result-normal"] {{
-                color: {c.get('success', '#10b981')};
+                color: {c['success']};
                 font-weight: 600;
             }}
             QLabel[class="result-abnormal"] {{
-                color: {c.get('danger', '#ef4444')};
+                color: {c['danger']};
                 font-weight: 600;
             }}
         """
@@ -107,16 +107,16 @@ class ExamenStyles:
         return f"""
             QTabWidget::pane {{
                 border: none;
-                background: white;
+                background: {c['bg_card']};
                 padding: 0px;
                 margin-top: 0px;
             }}
             QTabBar {{
-                background: white;
+                background: {c['bg_card']};
                 border: none;
             }}
             QTabBar::tab {{
-                background: white;
+                background: {c['bg_card']};
                 color: {c['text_secondary']};
                 border: none;
                 border-bottom: 3px solid transparent;
@@ -128,13 +128,13 @@ class ExamenStyles:
                 min-width: 120px;
             }}
             QTabBar::tab:selected {{
-                background: white;
+                background: {c['bg_card']};
                 color: {c['primary']};
                 border: none;
                 border-bottom: 3px solid {c['primary']};
             }}
             QTabBar::tab:hover {{
-                background: white;
+                background: {c['hover']};
                 color: {c['text_primary']};
                 border: none;
             }}

@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QTabWidget, QFrame, QPushButton, QLabel,
     QLineEdit, QComboBox, QTextEdit, QGridLayout, QSizePolicy,
 )
-from PySide6.QtCore import Qt, QTimer, QSize
+from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QIcon
 
 from views.shared.theme_manager import theme_manager
@@ -52,7 +52,6 @@ class VueActeMedical(QWidget):
         self.init_ui()
         self.connect_signals()
         self.load_data()
-        self._setup_auto_refresh()
 
         theme_manager.theme_changed.connect(self.apply_theme)
         self.apply_theme()
@@ -152,11 +151,11 @@ class VueActeMedical(QWidget):
         self._lbl_patient_count.setObjectName("FileAttenteTitle")
 
         btn_refresh = QPushButton("  Actualiser")
-        btn_refresh.setIcon(qta.icon("fa5s.sync-alt", color="white"))
+        btn_refresh.setIcon(qta.icon("fa5s.sync-alt", color=theme_manager.color("text_inverse")))
         btn_refresh.setObjectName("BtnRefreshFile")
         btn_refresh.setCursor(Qt.PointingHandCursor)
         btn_refresh.setFixedHeight(34)
-        btn_refresh.clicked.connect(self._update_file_attente)
+        btn_refresh.clicked.connect(self._actualiser_tout)
 
         header_layout.addWidget(self._lbl_patient_count)
         header_layout.addStretch()
@@ -204,7 +203,7 @@ class VueActeMedical(QWidget):
         icon_box.setFixedSize(36, 36)
         icon_box.setObjectName("NouveauPageIcon")
         icon_box.setAlignment(Qt.AlignCenter)
-        icon_box.setPixmap(qta.icon("fa5s.clipboard-list", color="white").pixmap(18, 18))
+        icon_box.setPixmap(qta.icon("fa5s.clipboard-list", color=theme_manager.color("text_inverse")).pixmap(18, 18))
 
         texts = QVBoxLayout()
         texts.setSpacing(1)
@@ -298,14 +297,14 @@ class VueActeMedical(QWidget):
         self.form_btn_cancel.setObjectName("NouveauBtnCancel")
         self.form_btn_cancel.setFixedHeight(34)
         self.form_btn_cancel.setCursor(Qt.PointingHandCursor)
-        self.form_btn_cancel.setIcon(qta.icon("fa5s.times", color="#6B7280"))
+        self.form_btn_cancel.setIcon(qta.icon("fa5s.times", color=theme_manager.color("text_secondary")))
         self.form_btn_cancel.clicked.connect(self._reset_nouveau_form)
 
         self.form_btn_save = QPushButton("  Enregistrer")
         self.form_btn_save.setObjectName("NouveauBtnSave")
         self.form_btn_save.setFixedHeight(34)
         self.form_btn_save.setCursor(Qt.PointingHandCursor)
-        self.form_btn_save.setIcon(qta.icon("fa5s.clipboard-list", color="white"))
+        self.form_btn_save.setIcon(qta.icon("fa5s.clipboard-list", color=theme_manager.color("text_inverse")))
         self.form_btn_save.clicked.connect(self._save_nouveau_form)
 
         fl.addWidget(self.form_btn_cancel)
@@ -356,7 +355,7 @@ class VueActeMedical(QWidget):
         lbl.setText(f"{text}{star}")
         lbl.setTextFormat(Qt.RichText)
         lbl.setStyleSheet(
-            "font-size:10px;font-weight:600;color:#374151;background:transparent;"
+            f"font-size:10px;font-weight:600;color:{theme_manager.color('text_primary')};background:transparent;"
         )
         return lbl
 
@@ -422,15 +421,28 @@ class VueActeMedical(QWidget):
     # CHARGEMENT DES DONNÉES
     # =========================================================================
 
+    def _actualiser_tout(self):
+        """Force un rechargement complet (bouton Actualiser)."""
+        self._last_actes_hash = None
+        self._last_file_hash  = None
+        self.load_data()
+
     def load_data(self):
         """Charge tous les actes et met à jour les composants."""
         try:
-            actes_obj = self.ctrl.lister_par_statut(None) if hasattr(self.ctrl, "lister_tous") \
+            actes_obj = self.ctrl.lister_tous() if hasattr(self.ctrl, "lister_tous") \
                         else self._lister_tous()
             actes = [_acte_to_dict(a) for a in actes_obj]
         except Exception as e:
             self.logger.warning("Impossible de charger les actes : %s", e)
             actes = []
+
+        # Optimisation : Diffing par hachage pour éviter les ralentissements UI
+        current_hash = hash(str(actes))
+        if getattr(self, "_last_actes_hash", None) == current_hash:
+            self._update_file_attente()
+            return
+        self._last_actes_hash = current_hash
 
         self.actes_table.load_actes(actes)
         self._update_kpis(actes)
@@ -438,7 +450,7 @@ class VueActeMedical(QWidget):
         self._update_file_attente()
 
     def _lister_tous(self) -> list:
-        """Agrège tous les statuts."""
+        """Méthode de repli si le contrôleur n'a pas lister_tous()."""
         result = []
         for statut in ("en_attente", "planifie", "en_cours", "termine", "refuse"):
             try:
@@ -468,10 +480,17 @@ class VueActeMedical(QWidget):
         """Inverse l'état du clignotement sur tous les chips actifs."""
         self._blink_state = not self._blink_state
         for lbl, style_on, style_off in self._blink_widgets:
-            try:
-                lbl.setStyleSheet(style_on if self._blink_state else style_off)
-            except RuntimeError:
-                pass  # widget déjà détruit
+            if style_on and style_off:
+                try:
+                    lbl.setStyleSheet(style_on if self._blink_state else style_off)
+                except RuntimeError:
+                    pass  # widget déjà détruit
+            else:
+                try:
+                    lbl.set_blink_state(self._blink_state)
+                except RuntimeError:
+                    pass
+
 
     def _update_file_attente(self):
         """
@@ -483,7 +502,20 @@ class VueActeMedical(QWidget):
         from datetime import datetime
         now = datetime.now()
 
-        # Vider les cartes existantes
+        # Charger les données AVANT de vider l'UI
+        raw = []
+        try:
+            raw = self.ctrl.get_suivi_file_attente() or []
+        except Exception as e:
+            self.logger.warning("Erreur suivi file attente: %s", e)
+
+        # Optimisation : Diffing par hachage pour éviter de figer l'interface toutes les 3s
+        current_hash = hash(str(raw))
+        if getattr(self, "_last_file_hash", None) == current_hash:
+            return  # Les données sont identiques à la dernière vérification, on ne redessine rien
+        self._last_file_hash = current_hash
+
+        # Vider les cartes existantes SEULEMENT si les données ont changé
         self._blink_widgets.clear()
         while self._cards_layout.count() > 0:
             item = self._cards_layout.takeAt(0)
@@ -491,18 +523,11 @@ class VueActeMedical(QWidget):
                 item.widget().deleteLater()
         self._cards_layout.addStretch()
 
-        # Charger les données
-        raw = []
-        try:
-            raw = self.ctrl.get_suivi_file_attente() or []
-        except Exception as e:
-            self.logger.warning("Erreur suivi file attente: %s", e)
-
         if not raw:
             empty = QLabel("✓   Aucun patient en attente actuellement")
             empty.setAlignment(Qt.AlignCenter)
             empty.setStyleSheet(
-                "color:#6B7280;font-size:14px;padding:48px;background:transparent;"
+                f"color:{theme_manager.color('text_secondary')};font-size:14px;padding:48px;background:transparent;"
             )
             self._cards_layout.insertWidget(0, empty)
             self._lbl_patient_count.setText("File d'attente vide")
@@ -631,9 +656,9 @@ class VueActeMedical(QWidget):
         statut_raw = patient.get('statut_patient', '')
         statut_lower = statut_raw.lower()
         if 'en cours' in statut_lower or statut_lower.startswith('en '):
-            statut_color = "#3B82F6"   # bleu — en cours
+            statut_color = c['info']
         elif 'attente' in statut_lower:
-            statut_color = "#F59E0B"   # orange — en attente
+            statut_color = c['warning']
         else:
             statut_color = c['text_secondary']
 
@@ -721,17 +746,17 @@ class VueActeMedical(QWidget):
         # Bouton "Nouvel acte"
         if code_consultation:
             btn_new = QPushButton("  Nouvel acte")
-            btn_new.setIcon(qta.icon("fa5s.plus", color="white"))
+            btn_new.setIcon(qta.icon("fa5s.plus", color=c['text_inverse']))
             btn_new.setObjectName("BtnNewActe")
             btn_new.setFixedHeight(28)
             btn_new.setCursor(Qt.PointingHandCursor)
-            btn_new.setStyleSheet("""
-                QPushButton#BtnNewActe {
-                    background:#10B981;color:white;border:none;
+            btn_new.setStyleSheet(f"""
+                QPushButton#BtnNewActe {{
+                    background:{c['success']};color:{c['text_inverse']};border:none;
                     border-radius:6px;font-size:10px;font-weight:600;
                     padding:0 12px;
-                }
-                QPushButton#BtnNewActe:hover { background:#059669; }
+                }}
+                QPushButton#BtnNewActe:hover {{ background:{c['primary']}; }}
             """)
             btn_new.clicked.connect(lambda chk=False, cc=code_consultation: self._filtrer_par_consultation(cc))
             layout.addWidget(btn_new)
@@ -741,17 +766,17 @@ class VueActeMedical(QWidget):
         # Bouton "Aller en paiement"
         if code_visite:
             btn_pay = QPushButton("  Aller en paiement")
-            btn_pay.setIcon(qta.icon("fa5s.cash-register", color="white"))
+            btn_pay.setIcon(qta.icon("fa5s.cash-register", color=c['text_inverse']))
             btn_pay.setObjectName("BtnGoPaiement")
             btn_pay.setFixedHeight(28)
             btn_pay.setCursor(Qt.PointingHandCursor)
-            btn_pay.setStyleSheet("""
-                QPushButton#BtnGoPaiement {
-                    background:#3B82F6;color:white;border:none;
+            btn_pay.setStyleSheet(f"""
+                QPushButton#BtnGoPaiement {{
+                    background:{c['info']};color:{c['text_inverse']};border:none;
                     border-radius:6px;font-size:10px;font-weight:600;
                     padding:0 12px;
-                }
-                QPushButton#BtnGoPaiement:hover { background:#2563EB; }
+                }}
+                QPushButton#BtnGoPaiement:hover {{ background:{c['primary']}; }}
             """)
             btn_pay.clicked.connect(lambda chk=False, cv=code_visite: self._valider_sejour(cv))
             layout.addWidget(btn_pay)
@@ -762,17 +787,17 @@ class VueActeMedical(QWidget):
             code_acte_ctrl = actes[0].get('code_acte')
             if code_acte_ctrl:
                 btn_ctrl = QPushButton("  Contrôle")
-                btn_ctrl.setIcon(qta.icon("fa5s.redo", color="white"))
+                btn_ctrl.setIcon(qta.icon("fa5s.redo", color=c['text_inverse']))
                 btn_ctrl.setObjectName("BtnControle")
                 btn_ctrl.setFixedHeight(28)
                 btn_ctrl.setCursor(Qt.PointingHandCursor)
-                btn_ctrl.setStyleSheet("""
-                    QPushButton#BtnControle {
-                        background:#8B5CF6;color:white;border:none;
+                btn_ctrl.setStyleSheet(f"""
+                    QPushButton#BtnControle {{
+                        background:{c['accent']};color:{c['text_inverse']};border:none;
                         border-radius:6px;font-size:10px;font-weight:600;
                         padding:0 12px;
-                    }
-                    QPushButton#BtnControle:hover { background:#7C3AED; }
+                    }}
+                    QPushButton#BtnControle:hover {{ background:{c['primary']}; }}
                 """)
                 btn_ctrl.clicked.connect(
                     lambda chk=False, ca=code_acte_ctrl: self._enregistrer_controle(ca)
@@ -872,18 +897,18 @@ class VueActeMedical(QWidget):
         # Bouton Démarrer consultation
         if code_visite:
             btn_start = QPushButton("  Démarrer consultation")
-            btn_start.setIcon(qta.icon("fa5s.play", color="white"))
+            btn_start.setIcon(qta.icon("fa5s.play", color=c['text_inverse']))
             btn_start.setObjectName("BtnStartConsultation")
             btn_start.setFixedHeight(28)
             btn_start.setCursor(Qt.PointingHandCursor)
             btn_start.setStyleSheet(f"""
                 QPushButton#BtnStartConsultation {{
-                    background:#10B981;color:white;border:none;
+                    background:{c['success']};color:{c['text_inverse']};border:none;
                     border-radius:6px;font-size:10px;font-weight:600;
                     padding:0 12px;
                 }}
                 QPushButton#BtnStartConsultation:hover {{
-                    background:#059669;
+                    background:{c['primary']};
                 }}
             """)
             btn_start.clicked.connect(lambda: self._demarrer_consultation(code_visite))
@@ -910,18 +935,18 @@ class VueActeMedical(QWidget):
         # Bouton Démarrer (visible si date_debut_execution est NULL)
         if id_acte_visite and date_debut is None:
             btn_start = QPushButton("  Démarrer")
-            btn_start.setIcon(qta.icon("fa5s.play", color="white"))
+            btn_start.setIcon(qta.icon("fa5s.play", color=c['text_inverse']))
             btn_start.setObjectName("BtnStartPassage")
             btn_start.setFixedHeight(28)
             btn_start.setCursor(Qt.PointingHandCursor)
             btn_start.setStyleSheet(f"""
                 QPushButton#BtnStartPassage {{
-                    background:#10B981;color:white;border:none;
+                    background:{c['success']};color:{c['text_inverse']};border:none;
                     border-radius:6px;font-size:10px;font-weight:600;
                     padding:0 12px;
                 }}
                 QPushButton#BtnStartPassage:hover {{
-                    background:#059669;
+                    background:{c['primary']};
                 }}
             """)
             btn_start.clicked.connect(lambda: self._demarrer_passage(id_acte_visite))
@@ -933,18 +958,18 @@ class VueActeMedical(QWidget):
             type_acte = acte.get('type_acte', '').lower()
             
             btn_end = QPushButton("  Terminer")
-            btn_end.setIcon(qta.icon("fa5s.check", color="white"))
+            btn_end.setIcon(qta.icon("fa5s.check", color=c['text_inverse']))
             btn_end.setObjectName("BtnEndPassage")
             btn_end.setFixedHeight(28)
             btn_end.setCursor(Qt.PointingHandCursor)
             btn_end.setStyleSheet(f"""
                 QPushButton#BtnEndPassage {{
-                    background:#3B82F6;color:white;border:none;
+                    background:{c['info']};color:{c['text_inverse']};border:none;
                     border-radius:6px;font-size:10px;font-weight:600;
                     padding:0 12px;
                 }}
                 QPushButton#BtnEndPassage:hover {{
-                    background:#2563EB;
+                    background:{c['primary']};
                 }}
             """)
             # Connecter selon le type d'acte
@@ -986,158 +1011,67 @@ class VueActeMedical(QWidget):
 
     def _build_pipeline_widget(self, patient: dict, now) -> QWidget:
         """
-        Barre ultra-compacte : durée flottante au-dessus du rond courant,
-        puis ronds reliés par une ligne fine. Aucun cadre, aucune couleur de fond.
+        Barre ultra-compacte : 1 cercle par acte (pas par sous-étape).
+        Pour 2 actes → 4 cercles : consultation + acte1 + acte2 + paiement.
         """
-        from PySide6.QtWidgets import QSizePolicy
         statut = patient.get('statut_patient', '').strip()
         actes  = patient.get('actes', [])
         dv     = patient.get('date_visite')
 
         has = {a['type_acte'] for a in actes if a.get('type_acte')}
-        relevant_keys = ["Attente consultation", "En consultation"]
-        for type_key, stages in self._TYPE_TO_STAGES.items():
-            if type_key in has:
-                relevant_keys += list(stages)  # (att, enc, terminé)
-        seen = set()
-        ordered_keys = []
-        for k in relevant_keys:
-            if k not in seen:
-                ordered_keys.append(k)
-                seen.add(k)
-        ordered_keys.append("Attente payement")
-
         statut_lower = statut.lower()
-        current_idx = -1
-        for i, key in enumerate(ordered_keys):
-            if key.lower() == statut_lower:
-                current_idx = i
-                break
 
         stages_meta = []
-        for i, key in enumerate(ordered_keys):
-            if i < current_idx:
-                # Marquer en vert uniquement si l'étape a réellement eu lieu
-                # (vérifié par les timestamps dans les actes)
-                if self._stage_was_actually_done(key, actes):
-                    stages_meta.append(('done',   self._past_stage_duration(key, actes, dv), key))
-                else:
-                    # Étape contournée (ex : planifiée via RDV sans passer par le service)
-                    stages_meta.append(('future', None, key))
-            elif i == current_idx:
-                stages_meta.append(('current', self._current_stage_duration(key, actes, dv, now), key))
-            else:
-                stages_meta.append(('future',  None, key))
 
-        CIRCLE = 20
+        # --- Consultation (1 cercle) ---
+        if statut_lower in ("attente consultation", "en consultation"):
+            dur = self._fmt_mins(dv, now) if dv else None
+            stages_meta.append(('current', dur, statut))
+        else:
+            stages_meta.append(('done', None, "En consultation"))
+
+        # --- Un cercle par type d'acte prescrit (dans l'ordre habituel) ---
+        for type_key in ("examen", "chirurgie", "prescription", "lunette"):
+            if type_key not in has:
+                continue
+            acte = next((a for a in actes if a.get('type_acte') == type_key), None)
+            if not acte:
+                continue
+            att_key, enc_key, fin_key = self._TYPE_TO_STAGES[type_key]
+            if acte.get('date_sortie') is not None:
+                stages_meta.append(('done', None, fin_key))
+            elif acte.get('date_debut_execution') is not None:
+                dur = self._fmt_mins(acte['date_debut_execution'], now)
+                stages_meta.append(('current', dur, enc_key))
+            elif acte.get('date_entre') is not None:
+                dur = self._fmt_mins(acte['date_entre'], now)
+                stages_meta.append(('current', dur, att_key))
+            else:
+                stages_meta.append(('future', None, att_key))
+
+        # --- Paiement (1 cercle toujours en dernier) ---
+        if statut_lower == "attente payement":
+            stages_meta.append(('current', None, "Attente payement"))
+        elif statut_lower in ("payé", "sortie", "terminé"):
+            stages_meta.append(('done', None, "Attente payement"))
+        else:
+            stages_meta.append(('future', None, "Attente payement"))
+
+        from .components.pipeline_widget import PatientPipelineWidget
+
+        pipeline = PatientPipelineWidget()
+        pipeline.set_data(stages_meta)
+
+        self._blink_widgets.append((pipeline, None, None))
+        pipeline.set_blink_state(self._blink_state)
 
         container = QWidget()
         container.setStyleSheet("background:transparent;")
-        outer = QVBoxLayout(container)
-        outer.setContentsMargins(2, 0, 2, 0)
-        outer.setSpacing(1)
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(2, 4, 2, 4)
+        layout.addWidget(pipeline)
 
-        # Rangée durée : label seulement au-dessus du rond courant, espaceurs sinon
-        dur_row = QHBoxLayout()
-        dur_row.setContentsMargins(0, 0, 0, 0)
-        dur_row.setSpacing(0)
-
-        # Rangée ronds : cercles + lignes connectrices
-        dots_row = QHBoxLayout()
-        dots_row.setContentsMargins(0, 0, 0, 0)
-        dots_row.setSpacing(0)
-
-        DUR_H = 12  # hauteur fixe de la rangée durée
-
-        for i, (state, dur, key) in enumerate(stages_meta):
-            # -- Slot durée (fixe NODE_W, vide sauf pour current) --
-            if state == 'current' and dur:
-                is_waiting = key.lower().startswith("attente")
-                dur_color  = "#D97706" if is_waiting else "#3B82F6"
-                d = QLabel(str(dur))
-                d.setAlignment(Qt.AlignCenter)
-                d.setFixedHeight(DUR_H)
-                d.setMinimumWidth(CIRCLE)
-                d.setStyleSheet(
-                    f"font-size:8px;font-weight:700;color:{dur_color};"
-                    f"background:transparent;"
-                )
-                dur_row.addWidget(d, 0, Qt.AlignHCenter)
-            else:
-                sp = QWidget()
-                sp.setFixedHeight(DUR_H)
-                sp.setMinimumWidth(CIRCLE)
-                sp.setStyleSheet("background:transparent;")
-                dur_row.addWidget(sp, 0)
-
-            # -- Rond --
-            circle = self._make_dot_circle(state, key, CIRCLE)
-            dot_wrap = QWidget()
-            dot_wrap.setFixedWidth(CIRCLE)
-            dot_wrap.setStyleSheet("background:transparent;")
-            dw = QHBoxLayout(dot_wrap)
-            dw.setContentsMargins(0, 0, 0, 0)
-            dw.addWidget(circle)
-            dots_row.addWidget(dot_wrap, 0, Qt.AlignVCenter)
-
-            if i < len(stages_meta) - 1:
-                # Espaceur expandable dans dur_row
-                sp2 = QWidget()
-                sp2.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-                sp2.setFixedHeight(DUR_H)
-                sp2.setStyleSheet("background:transparent;")
-                dur_row.addWidget(sp2, 1)
-
-                # Ligne connectrice dans dots_row
-                line = QFrame()
-                line.setFixedHeight(2)
-                line.setMinimumWidth(6)
-                line.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-                line.setStyleSheet(
-                    f"background:{'#10B981' if state == 'done' else '#E2E8F0'};border:none;"
-                )
-                dots_row.addWidget(line, 1, Qt.AlignVCenter)
-
-        outer.addLayout(dur_row)
-        outer.addLayout(dots_row)
         return container
-
-    def _make_dot_circle(self, state: str, key: str, size: int = 20) -> QLabel:
-        """Retourne un QLabel circulaire (icône qtawesome) sans aucun texte ni cadre externe."""
-        import qtawesome as qta
-        radius = size // 2
-        is_waiting = key.lower().startswith("attente")
-
-        circle = QLabel()
-        circle.setFixedSize(size, size)
-        circle.setAlignment(Qt.AlignCenter)
-
-        icon_size = max(size - 10, 6)
-
-        if state == 'done':
-            circle.setPixmap(qta.icon("fa5s.check", color="white").pixmap(icon_size, icon_size))
-            circle.setStyleSheet(
-                f"QLabel{{background:#10B981;border-radius:{radius}px;border:none;}}"
-            )
-        elif state == 'current':
-            if is_waiting:
-                px    = qta.icon("fa5s.clock", color="white").pixmap(icon_size, icon_size)
-                s_on  = f"QLabel{{background:#F59E0B;border-radius:{radius}px;border:none;}}"
-                s_off = f"QLabel{{background:#FDE68A;border-radius:{radius}px;border:none;}}"
-            else:
-                px    = qta.icon("fa5s.play",  color="white").pixmap(icon_size - 2, icon_size - 2)
-                s_on  = f"QLabel{{background:#3B82F6;border-radius:{radius}px;border:none;}}"
-                s_off = f"QLabel{{background:#BFDBFE;border-radius:{radius}px;border:none;}}"
-            circle.setPixmap(px)
-            circle.setStyleSheet(s_on)
-            self._blink_widgets.append((circle, s_on, s_off))
-        else:  # future
-            circle.setPixmap(qta.icon("fa5s.circle", color="#CBD5E1").pixmap(icon_size - 2, icon_size - 2))
-            circle.setStyleSheet(
-                f"QLabel{{background:#F1F5F9;border-radius:{radius}px;border:none;}}"
-            )
-
-        return circle
 
     def _stage_was_actually_done(self, key: str, actes: list) -> bool:
         """
@@ -1620,47 +1554,152 @@ class VueActeMedical(QWidget):
                                       code_acte: str = None, code_visite: str = None):
         """
         Redirige vers l'onglet 'Nouveau rendez-vous' après création d'un acte 'plus_tard'.
-        - Navigue directement sur l'onglet Nouveau (index 3).
-        - Pré-sélectionne le combo acte et le combo visite avec les valeurs de l'acte créé.
-        - Une fois le RDV créé (rdv_cree), passe automatiquement le patient en Attente payement.
+        Utilise le système de navigation standard du dashboard pour garantir le chargement.
         """
         dashboard = self._trouver_dashboard_parent()
-        if not dashboard or not hasattr(dashboard, 'show_rendez_vous'):
+        if not dashboard:
+            CustomMessageBox.warning(self, "Erreur", "Dashboard introuvable")
             return
 
         # Récupérer code_visite si non fourni
         if not code_visite:
             code_visite = self.ctrl.obtenir_code_visite_par_consultation(code_consultation)
+        
+        if not code_visite:
+            CustomMessageBox.warning(self, "Erreur", "Code visite introuvable")
+            return
 
-        # Naviguer vers la page rendez-vous (charge les données via charger_rendez_vous)
-        dashboard.show_rendez_vous()
+        self.logger.info(f"Redirection vers rendez-vous : consultation={code_consultation}, acte={code_acte}, visite={code_visite}")
 
-        def _setup_rdv_panel():
-            page_rdv = getattr(dashboard, 'page_rendez_vous', None)
+        # UTILISER le système de navigation du dashboard qui gère le lazy loading
+        # Cela va appeler _naviguer() → _factory_rendez_vous() → charger_rendez_vous()
+        if hasattr(dashboard, 'show_rendez_vous'):
+            dashboard.show_rendez_vous()
+        else:
+            CustomMessageBox.warning(self, "Erreur", "Navigation rendez-vous indisponible")
+            return
+
+        # Attendre que la navigation soit terminée (barre de progression + chargement)
+        # Le dashboard met la page dans workspace_stack APRÈS l'animation
+        # On attend donc que _finaliser_navigation() soit appelé
+        def _configurer_formulaire():
+            # Maintenant la page DOIT exister car show_rendez_vous() a terminé
+            page_rdv = getattr(dashboard, '_pages', {}).get('rendez_vous')
+            
             if not page_rdv:
+                self.logger.error("Page rendez-vous non trouvée après navigation")
+                CustomMessageBox.warning(
+                    self, "Erreur",
+                    "La page rendez-vous n'a pas pu être chargée. Veuillez créer le rendez-vous manuellement."
+                )
                 return
 
-            # Pré-sélectionner acte + visite ET naviguer vers l'onglet Nouveau (index 3)
+            self.logger.info("✅ Page rendez-vous chargée, configuration du formulaire")
+            
+            # Vérifier que les widgets sont initialisés
+            if not hasattr(page_rdv, 'tabs') or not hasattr(page_rdv, 'form_combo_visite'):
+                self.logger.error("Widgets rendez-vous non initialisés")
+                CustomMessageBox.warning(
+                    self, "Erreur",
+                    "Le formulaire rendez-vous n'est pas prêt."
+                )
+                return
+
+            # FORCER l'onglet Nouveau rendez-vous (index 3)
+            page_rdv.tabs.setCurrentIndex(3)
+            self.logger.info("✅ Onglet Nouveau rendez-vous activé (index 3)")
+
+            # Pré-sélectionner acte + visite
             if hasattr(page_rdv, 'preselectionner_acte_visite'):
                 page_rdv.preselectionner_acte_visite(code_acte, code_visite)
-            elif hasattr(page_rdv, 'tabs'):
-                page_rdv.tabs.setCurrentIndex(3)
+                self.logger.info(f"✅ Acte {code_acte} et visite {code_visite} pré-sélectionnés")
+            else:
+                self._preselectionner_manuellement(page_rdv, code_acte, code_visite)
 
             # Connecter rdv_cree → valider_sejour_patient (one-shot)
-            # Le signal rdv_cree est émis par RendezVousView._soumettre_form
-            if code_visite and hasattr(page_rdv, 'rdv_cree'):
+            if hasattr(page_rdv, 'rdv_cree'):
                 def _on_rdv_cree():
                     try:
                         page_rdv.rdv_cree.disconnect(_on_rdv_cree)
                     except Exception:
                         pass
-                    self.ctrl.valider_sejour_patient(code_visite)
-                    self._update_file_attente()
-                    self.load_data()
+                    # Passer le patient en Attente payement
+                    ok, msg = self.ctrl.valider_sejour_patient(code_visite)
+                    self.logger.info(f"Validation séjour patient : ok={ok}, msg={msg}")
+                    
+                    # Rediriger vers la page Acte Médical pour voir le changement
+                    QTimer.singleShot(200, lambda: self._retour_acte_medical_apres_rdv(dashboard, ok, msg))
+                
                 page_rdv.rdv_cree.connect(_on_rdv_cree)
+                self.logger.info("✅ Signal rdv_cree connecté pour validation séjour")
 
-        # Délai pour laisser charger_rendez_vous et _recharger_form_combos se terminer
-        QTimer.singleShot(500, _setup_rdv_panel)
+        # Attendre que le dashboard termine sa navigation
+        # Le dashboard utilise une animation de ~3 secondes (100 ticks × 30ms)
+        # + le temps de chargement SQL. On attend 3.5 secondes pour être sûr.
+        QTimer.singleShot(3500, _configurer_formulaire)
+    
+    def _preselectionner_manuellement(self, page_rdv, code_acte: str, code_visite: str):
+        """Pré-sélection manuelle si la méthode preselectionner_acte_visite n'existe pas."""
+        try:
+            # Pré-sélectionner le patient/visite
+            if hasattr(page_rdv, 'form_combo_visite'):
+                for i in range(page_rdv.form_combo_visite.count()):
+                    data = page_rdv.form_combo_visite.itemData(i)
+                    if isinstance(data, dict):
+                        cv = data.get('code_visite')
+                        if cv == code_visite:
+                            page_rdv.form_combo_visite.setCurrentIndex(i)
+                            self.logger.info(f"Visite {code_visite} pré-sélectionnée manuellement")
+                            break
+            
+            # Pré-sélectionner l'acte
+            if code_acte and hasattr(page_rdv, 'form_combo_acte'):
+                acte_trouve = False
+                for i in range(page_rdv.form_combo_acte.count()):
+                    if page_rdv.form_combo_acte.itemData(i) == code_acte:
+                        page_rdv.form_combo_acte.setCurrentIndex(i)
+                        acte_trouve = True
+                        self.logger.info(f"Acte {code_acte} pré-sélectionné manuellement")
+                        break
+                
+                # Si l'acte n'est pas dans le combo, l'ajouter
+                if not acte_trouve:
+                    page_rdv.form_combo_acte.addItem(f"{code_acte} | (acte créé)", code_acte)
+                    page_rdv.form_combo_acte.setCurrentIndex(page_rdv.form_combo_acte.count() - 1)
+                    self.logger.info(f"Acte {code_acte} ajouté et pré-sélectionné manuellement")
+        except Exception as e:
+            self.logger.error(f"Erreur pré-sélection manuelle: {e}")
+
+
+
+
+    def _retour_acte_medical_apres_rdv(self, dashboard, ok: bool, msg: str):
+        """Redirige vers la page Acte Médical après création du RDV."""
+        # Naviguer vers Acte Médical
+        dashboard.workspace_stack.setCurrentIndex(15)
+        if hasattr(dashboard, 'lbl_page_title'):
+            dashboard.lbl_page_title.setText("Gestion des Actes Médicaux")
+        
+        # Afficher message de confirmation
+        if ok:
+            CustomMessageBox.success(
+                self, "Patient en attente de paiement",
+                "Le rendez-vous a été créé avec succès. Le patient est maintenant en Attente payement."
+            )
+        else:
+            CustomMessageBox.warning(
+                self, "Attention",
+                f"Le rendez-vous a été créé, mais : {msg}"
+            )
+        
+        # Rafraîchir la file d'attente pour voir le patient en "Attente payement"
+        self.logger.info("Rafraîchissement de la file d'attente après création RDV")
+        QTimer.singleShot(100, lambda: self._update_file_attente())
+        QTimer.singleShot(150, lambda: self.load_data())
+        
+        # Naviguer vers l'onglet File d'attente pour montrer le patient
+        QTimer.singleShot(200, lambda: self.tabs.setCurrentIndex(2))
+        self.logger.info("Navigation vers onglet File d'attente (index 2)")
 
     def _trouver_dashboard_parent(self):
         """Remonte la hiérarchie des widgets pour trouver le DashboardView."""
@@ -1800,7 +1839,7 @@ class VueActeMedical(QWidget):
 
         self.form_personnel.clear()
         try:
-            for row in self.ctrl.lister_personnel_form():
+            for row in self.ctrl.lister_personnel_form(['Médecin', 'Directeur Général']):
                 label = row.get('label') or row.get('code', '')
                 code  = row.get('code', '')
                 self.form_personnel.addItem(label, code)
@@ -1901,28 +1940,21 @@ class VueActeMedical(QWidget):
         )
 
     def _on_export(self):
-        CustomMessageBox.info(self, "Export", "Fonctionnalité d'export à venir.")
+        """Affiche le menu export/import au-dessus du bouton Exporter."""
+        from .export_import_acte import ExportImportActeMenu
+        ExportImportActeMenu.afficher(self, self.quick_actions.btn_export, self.ctrl)
 
     # =========================================================================
-    # RAFRAÎCHISSEMENT AUTO
+    # RECHARGEMENT À L'ENTRÉE DANS LA VUE
     # =========================================================================
 
-    def _setup_auto_refresh(self):
-        # Rafraîchissement RAPIDE de la file d'attente toutes les 3s (instantané)
-        self._timer_file = QTimer(self)
-        self._timer_file.setInterval(3_000)
-        self._timer_file.timeout.connect(self._update_file_attente)
-        self._timer_file.start()
-        # Rafraîchissement global (table actes + KPIs) toutes les 30s
-        self._timer = QTimer(self)
-        self._timer.setInterval(30_000)
-        self._timer.timeout.connect(self.load_data)
-        self._timer.start()
-        # Clignotement de l'étape courante toutes les 800ms
-        self._blink_timer = QTimer(self)
-        self._blink_timer.setInterval(800)
-        self._blink_timer.timeout.connect(self._toggle_blink)
-        self._blink_timer.start()
+    def showEvent(self, event):
+        """Recharge toutes les données à chaque fois que la vue devient visible."""
+        super().showEvent(event)
+        # Invalider les caches de hash pour forcer un rechargement complet
+        self._last_actes_hash = None
+        self._last_file_hash  = None
+        self.load_data()
 
     # =========================================================================
     # THÈME
@@ -1968,7 +2000,7 @@ class VueActeMedical(QWidget):
                         color:{c['text_primary']};background:transparent;
                     }}
                     QPushButton#BtnRefreshFile {{
-                        background:{c['primary']};color:white;border:none;
+                        background:{c['primary']};color:{c['text_inverse']};border:none;
                         border-radius:7px;font-size:12px;font-weight:600;
                         padding:0 14px;
                     }}
@@ -2033,32 +2065,32 @@ class VueActeMedical(QWidget):
                     width:10px;height:10px;
                 }}
                 QWidget#NouveauInfoBanner {{
-                    background:#EFF6FF;
-                    border:1px solid #BFDBFE;
+                    background:{c['primary_light']};
+                    border:1px solid {c['border']};
                     border-radius:10px;
                 }}
                 QLabel#NouveauInfoIconCircle {{
-                    background:#2563EB;border-radius:14px;
+                    background:{c['primary']};border-radius:14px;
                 }}
                 QLabel#NouveauInfoL1 {{
-                    font-size:12px;font-weight:600;color:#1E40AF;
+                    font-size:12px;font-weight:600;color:{c['primary']};
                     background:transparent;
                 }}
                 QLabel#NouveauInfoL2 {{
-                    font-size:11px;color:#3B82F6;background:transparent;
+                    font-size:11px;color:{c['info']};background:transparent;
                 }}
                 QPushButton#NouveauBtnSearch {{
-                    background:#2563EB;border:none;border-radius:8px;
+                    background:{c['primary']};border:none;border-radius:8px;
                 }}
                 QPushButton#NouveauBtnSearch:hover {{
-                    background:#1D4ED8;
+                    background:{c['primary_hover']};
                 }}
                 QWidget#NouveauFooter {{
                     background:{c['bg_card']};
                     border-top:1px solid {c['border']};
                 }}
                 QPushButton#NouveauBtnSave {{
-                    background:{c['primary']};color:white;border:none;
+                    background:{c['primary']};color:{c['text_inverse']};border:none;
                     border-radius:8px;font-size:12px;font-weight:600;
                     padding:0 16px;
                 }}

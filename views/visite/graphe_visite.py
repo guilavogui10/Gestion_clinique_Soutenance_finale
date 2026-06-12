@@ -3,8 +3,6 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.ticker import MaxNLocator
 import numpy as np
-from scipy.interpolate import make_interp_spline
-import mplcursors
 from views.shared.theme_manager import theme_manager
 
 
@@ -66,10 +64,14 @@ class BaseGraph(FigureCanvas):
         self.axes = self.fig.add_subplot(111)
         self.axes.set_facecolor('none')
         
+        # Texte fixe pour le hover en haut
+        self.hover_text = self.fig.text(0.5, 0.96, '', ha='center', va='top', fontsize=10, fontweight='bold')
+        
         super().__init__(self.fig)
         self.setParent(parent)
-        self.cursors = []
-        self._setup_modern_style()
+        self.fig.canvas.mpl_connect('motion_notify_event', self._on_hover)
+        self.fig.canvas.mpl_connect('axes_leave_event', lambda event: self._clear_hover_text())
+        self.fig.canvas.mpl_connect('figure_leave_event', lambda event: self._clear_hover_text())
 
     def _setup_modern_style(self):
         """Configure le style moderne des axes"""
@@ -77,8 +79,8 @@ class BaseGraph(FigureCanvas):
         for spine in self.axes.spines.values():
             spine.set_visible(False)
         
-        # Grille subtile
-        self.axes.grid(True, axis='y', linestyle='-', alpha=0.1, 
+        # Grille subtile avec les deux axes (x et y) comme sur l'image
+        self.axes.grid(True, axis='both', linestyle='--', alpha=0.3, 
                       color=self.theme.COLORS['border'], linewidth=0.8)
         
         # Style des ticks
@@ -89,68 +91,72 @@ class BaseGraph(FigureCanvas):
             pad=8
         )
         
-        # Marges optimisées
-        self.fig.subplots_adjust(left=0.1, right=0.95, top=0.9, bottom=0.15)
+        if hasattr(self, 'hover_text'):
+            self.hover_text.set_text('')
+        
+        # Marges optimisées (plus de place en haut pour le texte)
+        self.fig.subplots_adjust(left=0.1, right=0.95, top=0.85, bottom=0.15)
 
-    def _create_smooth_curve(self, x, y, color, label=None, alpha=0.8):
-        """Crée une courbe lissée moderne"""
+    def _create_linear_curve(self, x, y, color, label=None, alpha=0.9):
+        """Crée une courbe linéaire (lignes droites entre les points)"""
         if len(y) < 2 or sum(y) == 0:
             return None, None
             
-        x_smooth = np.linspace(x.min(), x.max(), 200)
-        spline = make_interp_spline(x, y, k=min(3, len(y)-1))
-        y_smooth = np.maximum(spline(x_smooth), 0)
-        
         # Ligne principale
-        line = self.axes.plot(x_smooth, y_smooth, color=color, 
-                             linewidth=2.5, alpha=alpha, label=label,
-                             antialiased=True)[0]
+        line = self.axes.plot(x, y, color=color, 
+                             linewidth=2.0, alpha=alpha, label=label,
+                             antialiased=True, zorder=5)[0]
         
-        # Zone de remplissage subtile
-        self.axes.fill_between(x_smooth, y_smooth, color=color, 
-                              alpha=0.1, antialiased=True)
-        
-        return line, (x_smooth, y_smooth)
+        return line, (x, y)
 
     def _create_data_points(self, x, y, color, category_name):
-        """Crée les points de données avec style moderne"""
-        scatter = self.axes.scatter(x, y, color=self.theme.COLORS['surface'], 
-                                   edgecolor=color, s=50, zorder=10, 
-                                   linewidth=2, alpha=0.9)
+        """Crée les points de données pleins (style classique)"""
+        scatter = self.axes.scatter(x, y, color=color, 
+                                   edgecolor=self.theme.COLORS['surface'], s=50, zorder=10, 
+                                   linewidth=1.5, alpha=1.0)
         
-        # Configuration du tooltip moderne
-        cursor = mplcursors.cursor(scatter, hover=True)
-        cursor.connect("add", lambda sel: self._style_tooltip(sel, category_name))
-        self.cursors.append(cursor)
+        if not hasattr(self, 'scatters'):
+            self.scatters = []
+        self.scatters.append({'scatter': scatter, 'label': category_name, 'x': x, 'y': y})
         
         return scatter
 
-    def _style_tooltip(self, sel, category_name):
-        """Style moderne pour les tooltips"""
-        idx = int(round(sel.target[0]))
-        value = int(sel.target[1])
-        
-        # Contenu du tooltip
-        if hasattr(self, 'month_labels'):
-            text = f"{self.month_labels[idx]}\n{category_name}: {value}"
-        else:
-            text = f"{category_name}: {value}"
-        
-        sel.annotation.set_text(text)
-        
-        # Style du tooltip
-        sel.annotation.get_bbox_patch().set(
-            fc=self.theme.COLORS['surface'],
-            ec=self.theme.COLORS['border'],
-            boxstyle="round,pad=0.5",
-            alpha=0.95,
-            linewidth=1
-        )
-        
-        sel.annotation.set_color(self.theme.COLORS['text'])
-        sel.annotation.set_fontsize(9)
-        sel.annotation.set_fontweight('500')
-        sel.annotation.arrow_patch.set_visible(False)
+    def _on_hover(self, event):
+        if not event.inaxes:
+            self._clear_hover_text()
+            return
+
+        if not hasattr(self, 'scatters'):
+            return
+
+        found = False
+        for item in self.scatters:
+            cont, ind = item['scatter'].contains(event)
+            if cont:
+                idx = ind["ind"][0]
+                value = item['y'][idx]
+                category_name = item['label']
+                
+                if hasattr(self, "month_labels") and 0 <= idx < len(self.month_labels):
+                    text = f"{category_name} en {self.month_labels[idx]} : {int(value)}"
+                else:
+                    text = f"{category_name} : {int(value)}"
+
+                if self.hover_text.get_text() != text:
+                    self.hover_text.set_text(text)
+                    self.hover_text.set_color(self.theme.COLORS["text"])
+                    self.fig.canvas.draw_idle()
+                
+                found = True
+                break
+                
+        if not found and self.hover_text.get_text() != '':
+            self._clear_hover_text()
+
+    def _clear_hover_text(self):
+        """Efface le texte quand la souris quitte"""
+        self.hover_text.set_text('')
+        self.fig.canvas.draw_idle()
 
     def _set_intelligent_ylim(self, values):
         """Définit une échelle Y intelligente"""
@@ -191,6 +197,8 @@ class VisiteAnalyseGraph(BaseGraph):
         """Met à jour le graphique des visites"""
         self._last_stats = stats_mensuelles
         self.axes.clear()
+        if hasattr(self, 'scatters'):
+            self.scatters.clear()
         self._setup_modern_style()
         
         if not stats_mensuelles:
@@ -205,7 +213,7 @@ class VisiteAnalyseGraph(BaseGraph):
         
         # Création de la courbe
         color = self.theme.COLORS['primary']
-        self._create_smooth_curve(x, y, color, alpha=0.9)
+        self._create_linear_curve(x, y, color, alpha=0.9)
         
         # Points de données
         self._create_data_points(x, y, color, "Visites")
@@ -252,6 +260,8 @@ class AgeAnalyseGraph(BaseGraph):
         """Met à jour le graphique des âges"""
         self._last_stats = stats_ages
         self.axes.clear()
+        if hasattr(self, 'scatters'):
+            self.scatters.clear()
         self._setup_modern_style()
         
         if not stats_ages:
@@ -270,9 +280,9 @@ class AgeAnalyseGraph(BaseGraph):
             all_values.extend(y)
             
             if sum(y) > 0:
-                # Courbe lissée
-                self._create_smooth_curve(x, y, config['color'], 
-                                        config['label'], alpha=0.8)
+                # Courbe linéaire (lignes droites)
+                self._create_linear_curve(x, y, config['color'], 
+                                        config['label'], alpha=0.9)
                 
                 # Points de données
                 self._create_data_points(x, y, config['color'], config['label'])

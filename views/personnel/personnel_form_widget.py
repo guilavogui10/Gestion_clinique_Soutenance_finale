@@ -78,9 +78,10 @@ class PersonnelFormWidget(QWidget):
 
         # Icône users
         icon_box = QFrame()
+        self._icon_box = icon_box
         icon_box.setFixedSize(46, 46)
         icon_box.setStyleSheet(f"""
-            background-color: {c['bg_main']};
+            background-color: {c['bg_input']};
             border-radius: 10px;
             border: 1px solid {c['border_light']};
         """)
@@ -125,7 +126,7 @@ class PersonnelFormWidget(QWidget):
 
         # Bouton Enregistrer
         label_save = " Enregistrer" if not self.personnel_obj else " Mettre à jour"
-        self.btn_save = QPushButton(qta.icon("fa5s.save", color="#ffffff"), label_save)
+        self.btn_save = QPushButton(qta.icon("fa5s.save", color=theme_manager.color("text_inverse")), label_save)
         self.btn_save.setFixedSize(140, 40)
         self.btn_save.setEnabled(False)
         self._apply_save_btn_style()
@@ -148,13 +149,14 @@ class PersonnelFormWidget(QWidget):
             }}
             QPushButton:enabled {{
                 background-color: {c['primary']};
-                color: #ffffff;
+                color: {c['text_inverse']};
             }}
             QPushButton:enabled:hover {{ background-color: {c['primary_hover']}; }}
         """)
 
-    def _make_field(self, label_text: str, widget, icon_name: str, icon_color: str, height: int = 38):
+    def _make_field(self, label_text: str, widget, icon_name: str, color_key: str, height: int = 38):
         c = theme_manager.colors()
+        icon_color = c[color_key]
         vbox = QVBoxLayout()
         vbox.setSpacing(3)
 
@@ -185,18 +187,23 @@ class PersonnelFormWidget(QWidget):
         ico_lbl.setStyleSheet("border: none; background: transparent;")
         bl.addWidget(ico_lbl, alignment=Qt.AlignCenter)
 
+        # Stocker pour mise à jour lors du changement de thème
+        if not hasattr(self, '_field_badges'):
+            self._field_badges = []
+        self._field_badges.append((badge, ico_lbl, icon_name, color_key))
+
         self._clear_widget_style(widget, c)
         hbox.addWidget(badge, 0, Qt.AlignVCenter)
         hbox.addWidget(widget, 1)
         vbox.addWidget(wrapper)
-        
+
         # Label d'erreur avec hauteur fixe pour éviter le décalage
         err_lbl = QLabel("")
         err_lbl.setFixedHeight(12)
         err_lbl.setStyleSheet(f"color: {c['danger']}; font-size: 9px; font-style: italic; background: transparent;")
         err_lbl.setVisible(False)
         vbox.addWidget(err_lbl)
-        
+
         return vbox, wrapper, err_lbl
 
     def _apply_wrapper_style(self, wrapper: QFrame, border_color: str = None):
@@ -241,6 +248,7 @@ class PersonnelFormWidget(QWidget):
     def _section_form(self, parent_layout):
         c = theme_manager.colors()
         card = QFrame()
+        self._form_card = card  # référence pour apply_theme()
         card.setStyleSheet(f"""
             QFrame {{
                 background-color: {c['bg_card']};
@@ -259,17 +267,17 @@ class PersonnelFormWidget(QWidget):
 
         # Titre section
         hdr = QHBoxLayout()
-        ico = QLabel()
-        ico.setPixmap(qta.icon("fa5s.clipboard-list", color=c['primary']).pixmap(14, 14))
-        ico.setStyleSheet("border: none; background: transparent;")
-        lbl_t = QLabel("Informations du personnel")
-        lbl_t.setStyleSheet(
+        self._form_ico = QLabel()
+        self._form_ico.setPixmap(qta.icon("fa5s.clipboard-list", color=c['primary']).pixmap(14, 14))
+        self._form_ico.setStyleSheet("border: none; background: transparent;")
+        self._form_lbl = QLabel("Informations du personnel")
+        self._form_lbl.setStyleSheet(
             f"font-size: 12px; font-weight: bold; color: {c['primary']};"
             " background: transparent; border: none;"
         )
-        hdr.addWidget(ico)
+        hdr.addWidget(self._form_ico)
         hdr.addSpacing(6)
-        hdr.addWidget(lbl_t)
+        hdr.addWidget(self._form_lbl)
         hdr.addStretch()
         left_col.addLayout(hdr)
 
@@ -278,12 +286,12 @@ class PersonnelFormWidget(QWidget):
         row1.setSpacing(12)
         self.edit_nom = QLineEdit()
         self.edit_nom.setPlaceholderText("Ex: Diallo")
-        vb_nom, self._wrap_nom, self._err_nom = self._make_field("Nom", self.edit_nom, "fa5s.user", "#3498db")
+        vb_nom, self._wrap_nom, self._err_nom = self._make_field("Nom", self.edit_nom, "fa5s.user", "info")
         row1.addLayout(vb_nom, 1)
 
         self.edit_prenom = QLineEdit()
         self.edit_prenom.setPlaceholderText("Ex: Mamadou")
-        vb_prenom, self._wrap_prenom, self._err_prenom = self._make_field("Prénom", self.edit_prenom, "fa5s.user", "#1abc9c")
+        vb_prenom, self._wrap_prenom, self._err_prenom = self._make_field("Prénom", self.edit_prenom, "fa5s.user", "primary")
         row1.addLayout(vb_prenom, 1)
         left_col.addLayout(row1)
 
@@ -292,12 +300,12 @@ class PersonnelFormWidget(QWidget):
         row2.setSpacing(12)
         self.edit_fonction = QLineEdit()
         self.edit_fonction.setPlaceholderText("Ex: Médecin")
-        vb_fonction, self._wrap_fonction, self._err_fonction = self._make_field("Fonction", self.edit_fonction, "fa5s.briefcase", "#e67e22")
+        vb_fonction, self._wrap_fonction, self._err_fonction = self._make_field("Fonction", self.edit_fonction, "fa5s.briefcase", "accent")
         row2.addLayout(vb_fonction, 1)
 
         self.edit_contact = QLineEdit()
         self.edit_contact.setPlaceholderText("Ex: +224 123 456 789")
-        vb_contact, self._wrap_contact, self._err_contact = self._make_field("Contact", self.edit_contact, "fa5s.phone", "#9b59b6")
+        vb_contact, self._wrap_contact, self._err_contact = self._make_field("Contact", self.edit_contact, "fa5s.phone", "secondary")
         row2.addLayout(vb_contact, 1)
         left_col.addLayout(row2)
 
@@ -306,12 +314,12 @@ class PersonnelFormWidget(QWidget):
         row3.setSpacing(12)
         self.edit_mail = QLineEdit()
         self.edit_mail.setPlaceholderText("Ex: personnel@example.com")
-        vb_mail, self._wrap_mail, self._err_mail = self._make_field("Email", self.edit_mail, "fa5s.envelope", "#27ae60")
+        vb_mail, self._wrap_mail, self._err_mail = self._make_field("Email", self.edit_mail, "fa5s.envelope", "success")
         row3.addLayout(vb_mail, 1)
 
         self.edit_adresse = QLineEdit()
         self.edit_adresse.setPlaceholderText("Ex: Conakry, Guinée")
-        vb_adresse, self._wrap_adresse, self._err_adresse = self._make_field("Adresse", self.edit_adresse, "fa5s.map-marker-alt", "#e74c3c")
+        vb_adresse, self._wrap_adresse, self._err_adresse = self._make_field("Adresse", self.edit_adresse, "fa5s.map-marker-alt", "danger")
         row3.addLayout(vb_adresse, 1)
         left_col.addLayout(row3)
 
@@ -320,7 +328,7 @@ class PersonnelFormWidget(QWidget):
         self.date_naissance.setDisplayFormat("yyyy-MM-dd")
         self.date_naissance.setCalendarPopup(True)
         self.date_naissance.setDate(QDate.currentDate())
-        vb_date, self._wrap_date, self._err_date = self._make_field("Date de naissance", self.date_naissance, "fa5s.calendar-alt", "#f39c12")
+        vb_date, self._wrap_date, self._err_date = self._make_field("Date de naissance", self.date_naissance, "fa5s.calendar-alt", "warning")
         left_col.addLayout(vb_date)
 
         # Checkbox Est responsable
@@ -356,17 +364,17 @@ class PersonnelFormWidget(QWidget):
         
         # Titre section compte
         compte_hdr = QHBoxLayout()
-        compte_ico = QLabel()
-        compte_ico.setPixmap(qta.icon("fa5s.user-lock", color=c['primary']).pixmap(14, 14))
-        compte_ico.setStyleSheet("border: none; background: transparent;")
-        compte_lbl = QLabel("Compte utilisateur")
-        compte_lbl.setStyleSheet(
+        self._compte_ico = QLabel()
+        self._compte_ico.setPixmap(qta.icon("fa5s.user-lock", color=c['primary']).pixmap(14, 14))
+        self._compte_ico.setStyleSheet("border: none; background: transparent;")
+        self._compte_lbl = QLabel("Compte utilisateur")
+        self._compte_lbl.setStyleSheet(
             f"font-size: 12px; font-weight: bold; color: {c['primary']};"
             " background: transparent; border: none;"
         )
-        compte_hdr.addWidget(compte_ico)
+        compte_hdr.addWidget(self._compte_ico)
         compte_hdr.addSpacing(6)
-        compte_hdr.addWidget(compte_lbl)
+        compte_hdr.addWidget(self._compte_lbl)
         compte_hdr.addStretch()
         middle_col.addLayout(compte_hdr)
         
@@ -400,6 +408,7 @@ class PersonnelFormWidget(QWidget):
         
         # Container nouveau compte
         self.nouveau_compte_container = QWidget()
+        self.nouveau_compte_container.setStyleSheet("background: transparent;")
         nouveau_layout = QVBoxLayout(self.nouveau_compte_container)
         nouveau_layout.setContentsMargins(0, 0, 0, 0)
         nouveau_layout.setSpacing(10)
@@ -407,24 +416,20 @@ class PersonnelFormWidget(QWidget):
         self.edit_mdp = QLineEdit()
         self.edit_mdp.setPlaceholderText("Mot de passe")
         self.edit_mdp.setEchoMode(QLineEdit.Password)
-        vb_mdp, self._wrap_mdp, self._err_mdp = self._make_field("Mot de passe", self.edit_mdp, "fa5s.lock", "#e74c3c")
+        vb_mdp, self._wrap_mdp, self._err_mdp = self._make_field("Mot de passe", self.edit_mdp, "fa5s.lock", "danger")
         nouveau_layout.addLayout(vb_mdp)
         
         from PySide6.QtWidgets import QComboBox
         self.combo_role = QComboBox()
         self.combo_role.addItems([
             "Directeur Général",
-            "Administrateur",
             "Médecin",
             "Chirurgien",
             "Laborantin",
-            "Opticien",
-            "Pharmacien",
-            "Réceptionniste",
-            "Secrétaire",
-            "Comptable"
+            "Caissière",
+            "personnel"
         ])
-        vb_role, self._wrap_role, self._err_role = self._make_field("Rôle", self.combo_role, "fa5s.user-tag", "#9b59b6")
+        vb_role, self._wrap_role, self._err_role = self._make_field("Rôle", self.combo_role, "fa5s.user-tag", "secondary")
         nouveau_layout.addLayout(vb_role)
         
         self.nouveau_compte_container.setVisible(False)
@@ -432,6 +437,7 @@ class PersonnelFormWidget(QWidget):
         
         # Container personnel existant
         self.existant_compte_container = QWidget()
+        self.existant_compte_container.setStyleSheet("background: transparent;")
         existant_layout = QVBoxLayout(self.existant_compte_container)
         existant_layout.setContentsMargins(0, 0, 0, 0)
         existant_layout.setSpacing(10)
@@ -439,29 +445,25 @@ class PersonnelFormWidget(QWidget):
         self.combo_personnel = QComboBox()
         self._charger_personnels_sans_compte()
         self.combo_personnel.currentIndexChanged.connect(self._charger_personnel_selectionne)
-        vb_perso, self._wrap_perso, self._err_perso = self._make_field("Personnel", self.combo_personnel, "fa5s.user", "#3498db")
+        vb_perso, self._wrap_perso, self._err_perso = self._make_field("Personnel", self.combo_personnel, "fa5s.user", "info")
         existant_layout.addLayout(vb_perso)
         
         self.edit_mdp_existant = QLineEdit()
         self.edit_mdp_existant.setPlaceholderText("Mot de passe")
         self.edit_mdp_existant.setEchoMode(QLineEdit.Password)
-        vb_mdp_ex, self._wrap_mdp_ex, self._err_mdp_ex = self._make_field("Mot de passe", self.edit_mdp_existant, "fa5s.lock", "#e74c3c")
+        vb_mdp_ex, self._wrap_mdp_ex, self._err_mdp_ex = self._make_field("Mot de passe", self.edit_mdp_existant, "fa5s.lock", "danger")
         existant_layout.addLayout(vb_mdp_ex)
         
         self.combo_role_existant = QComboBox()
         self.combo_role_existant.addItems([
             "Directeur Général",
-            "Administrateur",
             "Médecin",
             "Chirurgien",
             "Laborantin",
-            "Opticien",
-            "Pharmacien",
-            "Réceptionniste",
-            "Secrétaire",
-            "Comptable"
+            "Caissière",
+            "personnel"
         ])
-        vb_role_ex, self._wrap_role_ex, self._err_role_ex = self._make_field("Rôle", self.combo_role_existant, "fa5s.user-tag", "#9b59b6")
+        vb_role_ex, self._wrap_role_ex, self._err_role_ex = self._make_field("Rôle", self.combo_role_existant, "fa5s.user-tag", "secondary")
         existant_layout.addLayout(vb_role_ex)
         
         self.existant_compte_container.setVisible(False)
@@ -478,7 +480,7 @@ class PersonnelFormWidget(QWidget):
         self.photo_label.setFixedSize(120, 140)
         self.photo_label.setAlignment(Qt.AlignCenter)
         self.photo_label.setStyleSheet(
-            f"background: {c['bg_main']}; border: 1px dashed {c['border_focus']}; border-radius: 10px;"
+            f"background: {c['bg_input']}; border: 1px dashed {c['border_focus']}; border-radius: 10px;"
         )
         self.photo_label.setPixmap(qta.icon("fa5s.user-circle", color=c['text_muted']).pixmap(60, 60))
         right_col.addWidget(self.photo_label, 0, Qt.AlignTop)
@@ -593,6 +595,10 @@ class PersonnelFormWidget(QWidget):
                     full_path = os.path.join(self.controleur.service.image_folder, photo_path)
                     self._set_photo_preview(full_path)
                 
+                # NE PAS renseigner le mot de passe pour des raisons de sécurité
+                # L'utilisateur devra le saisir à nouveau s'il veut créer/modifier le compte
+                self.edit_mdp_existant.clear()
+                
         except Exception as e:
             print(f"Erreur chargement personnel: {e}")
             self.mode_modification = False
@@ -669,6 +675,27 @@ class PersonnelFormWidget(QWidget):
         self._apply_save_btn_style()
 
     def _valider_email_complet(self):
+        """Validation complète de l'email incluant la vérification d'unicité"""
+        mail = self.edit_mail.text().strip()
+        
+        # Validation du format
+        ok, msg = self.controleur._valider_email(mail)
+        
+        # Vérification de l'unicité si le format est valide
+        if ok and mail and not self._mail_disponible(mail):
+            ok = False
+            # Trouver le personnel qui utilise cet email
+            for personnel in self.controleur.get_all_personnels():
+                if personnel.get("mail", "").strip().lower() == mail.lower():
+                    code_courant = self.personnel_obj.get("code") if self.personnel_obj else None
+                    if self.radio_existant.isChecked():
+                        code_courant = self.combo_personnel.currentData()
+                    if personnel.get("code") != code_courant:
+                        nom_prenom = f"{personnel.get('prenom', '')} {personnel.get('nom', '')}"
+                        msg = f"Email utilisé par {nom_prenom}"
+                        break
+        
+        self._set_field_state(self._wrap_mail, self._err_mail, ok, msg, bool(mail))
         self._valider_formulaire()
 
     def _set_field_state(self, wrapper: QFrame, err_lbl: QLabel,
@@ -688,16 +715,20 @@ class PersonnelFormWidget(QWidget):
         if not mail_normalise:
             return False
         
-        # Si on est en mode modification (personnel existant sélectionné), ne pas vérifier
-        if self.mode_modification and self.radio_existant.isChecked():
-            return True
+        # En mode modification, on récupère le code du personnel qu'on modifie
+        code_courant = None
         
-        code_courant = self.personnel_obj.get("code") if self.personnel_obj else None
+        # Si on modifie un personnel (personnel_obj est défini)
+        if self.personnel_obj:
+            code_courant = self.personnel_obj.get("code")
         
-        # Si on modifie un personnel existant via combo, récupérer son code
+        # Si on est en mode personnel existant (modification via combo)
         if self.radio_existant.isChecked():
-            code_courant = self.combo_personnel.currentData()
+            code_selectionne = self.combo_personnel.currentData()
+            if code_selectionne:
+                code_courant = code_selectionne
         
+        # Vérifier si l'email est utilisé par un autre personnel
         for personnel in self.controleur.get_all_personnels():
             if (personnel.get("mail", "").strip().lower() == mail_normalise and
                     personnel.get("code") != code_courant):
@@ -838,8 +869,156 @@ class PersonnelFormWidget(QWidget):
     def apply_theme(self):
         c = theme_manager.colors()
         self.setStyleSheet(f"""
-            QWidget {{
-                background: {c['bg_main']};
+            PersonnelFormWidget {{
+                background-color: {c['bg_main']};
+            }}
+            QLabel {{
+                background: transparent;
                 color: {c['text_primary']};
+                border: none;
             }}
         """)
+
+        # Carte principale du formulaire
+        if hasattr(self, '_form_card'):
+            self._form_card.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {c['bg_card']};
+                    border: 1.5px solid {c['border_light']};
+                    border-radius: 12px;
+                }}
+            """)
+
+        # Titres de sections
+        _checkbox_style = f"""
+            QCheckBox {{
+                font-size: 10px; font-weight: 600;
+                color: {c['text_secondary']}; background: transparent;
+            }}
+            QCheckBox::indicator {{
+                width: 14px; height: 14px;
+                border: 2px solid {c['border']}; border-radius: 4px;
+            }}
+            QCheckBox::indicator:checked {{
+                background: {c['primary']}; border-color: {c['primary']};
+            }}
+        """
+        if hasattr(self, '_form_ico'):
+            self._form_ico.setPixmap(qta.icon("fa5s.clipboard-list", color=c['primary']).pixmap(14, 14))
+        if hasattr(self, '_form_lbl'):
+            self._form_lbl.setStyleSheet(
+                f"font-size: 12px; font-weight: bold; color: {c['primary']};"
+                " background: transparent; border: none;"
+            )
+        if hasattr(self, '_compte_ico'):
+            self._compte_ico.setPixmap(qta.icon("fa5s.user-lock", color=c['primary']).pixmap(14, 14))
+        if hasattr(self, '_compte_lbl'):
+            self._compte_lbl.setStyleSheet(
+                f"font-size: 12px; font-weight: bold; color: {c['primary']};"
+                " background: transparent; border: none;"
+            )
+
+        # Checkboxes
+        if hasattr(self, 'radio_nouveau'):
+            self.radio_nouveau.setStyleSheet(_checkbox_style)
+        if hasattr(self, 'radio_existant'):
+            self.radio_existant.setStyleSheet(_checkbox_style)
+        if hasattr(self, 'check_responsable'):
+            self.check_responsable.setStyleSheet(f"""
+                QCheckBox {{
+                    font-size: 11px; font-weight: 600;
+                    color: {c['text_primary']}; background: transparent; border: none;
+                }}
+                QCheckBox::indicator {{
+                    width: 16px; height: 16px;
+                    border: 2px solid {c['border']}; border-radius: 4px;
+                    background: {c['bg_input']};
+                }}
+                QCheckBox::indicator:checked {{
+                    background: {c['primary']}; border-color: {c['primary']};
+                }}
+            """)
+
+        # Photo label
+        if hasattr(self, 'photo_label'):
+            self.photo_label.setStyleSheet(
+                f"background: {c['bg_input']}; border: 1px dashed {c['border_focus']}; border-radius: 10px;"
+            )
+
+        # Badges de champs
+        if hasattr(self, '_field_badges'):
+            for badge, ico_lbl, icon_name, color_key in self._field_badges:
+                color = c[color_key]
+                badge.setStyleSheet(f"background-color: {color}20; border-radius: 6px; border: none;")
+                ico_lbl.setPixmap(qta.icon(icon_name, color=color).pixmap(12, 12))
+
+        # Header
+        if hasattr(self, 'header_frame'):
+            self.header_frame.setStyleSheet(f"""
+                background-color: {c['bg_card']};
+                border-radius: 12px;
+                border: none;
+            """)
+        if hasattr(self, '_icon_box'):
+            self._icon_box.setStyleSheet(f"""
+                background-color: {c['bg_input']};
+                border-radius: 10px;
+                border: 1px solid {c['border_light']};
+            """)
+        if hasattr(self, 'btn_cancel'):
+            self.btn_cancel.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {c['bg_card']};
+                    color: {c['text_secondary']};
+                    border: 1.5px solid {c['border']};
+                    border-radius: 10px;
+                    font-size: 13px;
+                    font-weight: 500;
+                }}
+                QPushButton:hover {{ background-color: {c['hover']}; }}
+            """)
+            self.btn_cancel.setIcon(qta.icon("fa5s.times", color=c['text_secondary']))
+        if hasattr(self, 'btn_save'):
+            self.btn_save.setIcon(qta.icon("fa5s.save", color=c["text_inverse"]))
+            self._apply_save_btn_style()
+        if hasattr(self, 'btn_photo'):
+            self.btn_photo.setIcon(qta.icon("fa5s.camera", color=c['primary']))
+            self.btn_photo.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {c['bg_card']};
+                    color: {c['primary']};
+                    border-radius: 8px;
+                    border: 1px solid {c['border_light']};
+                    font-weight: bold;
+                    font-size: 11px;
+                }}
+                QPushButton:hover {{ background-color: {c['hover']}; }}
+            """)
+
+        # ── Re-styler tous les wrappers et champs de saisie ──────────────────
+        # Champs principaux (toujours présents)
+        if hasattr(self, '_wrap_nom'):
+            for wrapper in [self._wrap_nom, self._wrap_prenom, self._wrap_fonction,
+                             self._wrap_contact, self._wrap_mail, self._wrap_adresse,
+                             self._wrap_date]:
+                self._apply_wrapper_style(wrapper)
+            for widget in [self.edit_nom, self.edit_prenom, self.edit_fonction,
+                            self.edit_contact, self.edit_mail, self.edit_adresse,
+                            self.date_naissance]:
+                self._clear_widget_style(widget, c)
+
+        # Champs "nouveau compte"
+        if hasattr(self, '_wrap_mdp'):
+            self._apply_wrapper_style(self._wrap_mdp)
+            self._apply_wrapper_style(self._wrap_role)
+            self._clear_widget_style(self.edit_mdp, c)
+            self._clear_widget_style(self.combo_role, c)
+
+        # Champs "personnel existant"
+        if hasattr(self, '_wrap_perso'):
+            self._apply_wrapper_style(self._wrap_perso)
+            self._apply_wrapper_style(self._wrap_mdp_ex)
+            self._apply_wrapper_style(self._wrap_role_ex)
+            self._clear_widget_style(self.combo_personnel, c)
+            self._clear_widget_style(self.edit_mdp_existant, c)
+            self._clear_widget_style(self.combo_role_existant, c)

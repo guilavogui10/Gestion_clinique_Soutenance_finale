@@ -58,18 +58,17 @@ class QuickActions(QWidget):
     def apply_theme(self):
         """Applique le thème actuel"""
         c = theme_manager.colors()
-        
+
         self.setStyleSheet(f"""
             QWidget {{
-                background: white;
+                background: {c['bg_card']};
                 border-top: 1px solid {c['border_light']};
             }}
         """)
-        
-        # Style des boutons
+
         btn_style = f"""
             QPushButton {{
-                background: white;
+                background: {c['bg_card']};
                 color: {c['text_primary']};
                 border: none;
                 border-radius: 8px;
@@ -79,10 +78,10 @@ class QuickActions(QWidget):
                 text-align: left;
             }}
             QPushButton:hover {{
-                background: {c['bg_card']};
+                background: {c['hover']};
             }}
             QPushButton:pressed {{
-                background: {c['hover']};
+                background: {c['primary_light']};
             }}
         """
         

@@ -1106,6 +1106,64 @@ class ExamenDAO:
             self.db.close()
 
     # =========================================================================
+    # EXPORT / IMPORT
+    # =========================================================================
+
+    def lister_pour_export(self) -> list:
+        """Retourne tous les examens avec code_consultation pour export CSV/Excel."""
+        conn = self.db.connect()
+        if not conn:
+            return []
+        try:
+            cursor = conn.cursor(DictCursor)
+            cursor.execute("""
+                SELECT e.code            AS code_examen,
+                       am.code_consultation,
+                       e.code_personnel,
+                       e.libelle_examen,
+                       e.frais_examen,
+                       e.conclusion_medicale,
+                       e.statut_facture,
+                       e.date_examen
+                FROM examen e
+                JOIN acte_medical am ON e.code_acte = am.code_acte
+                ORDER BY e.code DESC
+            """)
+            return cursor.fetchall() or []
+        except Exception as e:
+            print(f"[ExamenDAO] Erreur lister_pour_export: {e}")
+            return []
+        finally:
+            self.db.close()
+
+    def _inserer_import(self, cursor, code_acte: str, code_session: str, data: dict) -> bool:
+        """
+        INSERT examen en mode import — reçoit curseur externe.
+        Ne met PAS à jour visite.statut_patient (géré par le service).
+        """
+        code = self._generer_code(cursor)
+        cursor.execute("""
+            INSERT INTO examen (
+                code, libelle_examen, frais_examen, statut_facture,
+                date_examen, code_session, code_personnel, code_acte,
+                interpreter_par, date_interpretation, conclusion_medicale
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        """, (
+            code,
+            data.get('libelle_examen'),
+            data.get('frais_examen', 0.0),
+            data.get('statut_facture', 'attente payement'),
+            data.get('date_examen'),
+            code_session,
+            data.get('code_personnel') or None,
+            code_acte,
+            data.get('interpreter_par') or None,
+            data.get('date_interpretation') or None,
+            data.get('conclusion_medicale') or None,
+        ))
+        return cursor.rowcount > 0
+
+    # =========================================================================
     # METHODES PRIVEES
     # =========================================================================
 

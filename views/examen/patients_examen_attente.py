@@ -238,7 +238,7 @@ class PatientCard(QFrame):
             }}
             PatientCard:hover {{
                 border           : 1.5px solid {c['primary']};
-                background-color : {c.get('bg_alt', c['bg_card'])};
+                background-color : {c['hover']};
             }}
         """)
 
@@ -284,33 +284,33 @@ class PatientCard(QFrame):
         # Bouton Procéder
         self._btn.setStyleSheet(ExamenStyles.button_primary())
         self._btn.setIcon(
-            qta.icon("fa5s.flask", color=c.get('text_inverse', '#ffffff'))
+            qta.icon("fa5s.flask", color=c['text_inverse'])
         )
 
         # Bouton changer statut
         if self._statut_patient == "En examen":
             self._btn_changer.setStyleSheet(f"""
                 QPushButton {{
-                    background: {c['danger']}; color: #ffffff;
+                    background: {c['danger']}; color: {c['text_inverse']};
                     border: none; border-radius: 6px;
                     font-size: 8px; font-weight: 600;
                 }}
                 QPushButton:hover {{ background: {c['danger']}cc; }}
             """)
             self._btn_changer.setIcon(
-                qta.icon("fa5s.stop-circle", color="#ffffff")
+                qta.icon("fa5s.stop-circle", color=c['text_inverse'])
             )
         else:
             self._btn_changer.setStyleSheet(f"""
                 QPushButton {{
-                    background: {c['primary']}; color: #ffffff;
+                    background: {c['primary']}; color: {c['text_inverse']};
                     border: none; border-radius: 6px;
                     font-size: 8px; font-weight: 600;
                 }}
                 QPushButton:hover {{ background: {c['primary_hover']}; }}
             """)
             self._btn_changer.setIcon(
-                qta.icon("fa5s.play-circle", color="#ffffff")
+                qta.icon("fa5s.play-circle", color=c['text_inverse'])
             )
 
 
@@ -498,7 +498,7 @@ class PatientsAttenteExamenView(QWidget):
             font-size    : 11px;
             font-weight  : 600;
             color        : {c['text_muted']};
-            background   : {c.get('bg_alt', c['bg_card'])};
+            background   : {c['bg_card']};
             border-radius: 10px;
             padding      : 2px 10px;
             border       : 1px solid {c['border_light']};

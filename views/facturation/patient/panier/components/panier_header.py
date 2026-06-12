@@ -46,8 +46,9 @@ class PanierHeader:
         self.badge_panier = QLabel("0")
         self.badge_panier.setFixedSize(22, 22)
         self.badge_panier.setAlignment(Qt.AlignCenter)
+        _c = theme_manager.colors()
         self.badge_panier.setStyleSheet(
-            f"background: {self.vert_principal}; color: white;"
+            f"background: {self.vert_principal}; color: {_c['text_inverse']};"
             "border-radius: 11px; font-size: 10px; font-weight: bold; border: none;"
         )
 

@@ -22,11 +22,11 @@ from views.shared.message_box import CustomMessageBox
 class NetworkCard(QFrame):
     """Card cliquable pour chaque réseau mobile (logo + nom + radio)."""
 
-    def __init__(self, name: str, bg_color: str, text_color: str = "white", parent=None):
+    def __init__(self, name: str, bg_color: str, text_color: str = None, parent=None):
         super().__init__(parent)
         self.name = name
         self._bg_color = bg_color
-        self._text_color = text_color
+        self._text_color = text_color or theme_manager.colors()['text_inverse']
         self._selected = False
 
         self.setFixedSize(90, 90)
@@ -525,13 +525,13 @@ class PaymentSlidePanel(QFrame):
         lay.addStretch()
 
         # Bouton Payer
-        self.btn_pay = QPushButton(qta.icon("fa5s.lock", color="white"), "  Payer")
+        self.btn_pay = QPushButton(qta.icon("fa5s.lock", color=c['text_inverse']), "  Payer")
         self.btn_pay.setFixedHeight(44)
         self.btn_pay.setCursor(Qt.PointingHandCursor)
         self.btn_pay.setStyleSheet(f"""
             QPushButton {{
                 background: {c['primary']};
-                color: white;
+                color: {c['text_inverse']};
                 border-radius: 10px;
                 font-size: 14px;
                 font-weight: 700;
@@ -600,10 +600,8 @@ class PaymentSlidePanel(QFrame):
         self.network_group = QButtonGroup(self)
 
         networks = [
-            ("Orange Money", "#FF6600", "white"),
-            ("MTN Mobile",   "#FFCC00", "#333333"),
-            ("Moov Money",   "#E30613", "white"),
-            ("Wari",         "#1B8B40", "white"),
+            ("Orange Money", "#FF6600", c['text_inverse']),
+            ("MTN Mobile",   "#FFCC00", c['text_primary']),
         ]
 
         nets_lay = QHBoxLayout()

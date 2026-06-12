@@ -33,8 +33,8 @@ class RendezVousStyles:
             "en_cours": (c["info"], c["info_bg"]),
             "termine": (c["primary"], c["primary_light"]),
             "annule": (c["danger"], c["danger_bg"]),
-            "absent": ("#B7791F", "#FEF3C7"),
-            "reporte": ("#DB2777", "#FCE7F3"),
+            "absent":  (c["warning"],  c["warning_bg"]),
+            "reporte": (c["accent"],   c["accent_light"]),
         }
         fg, bg = palette.get(statut, (c["text_secondary"], c["bg_input"]))
         return f"""

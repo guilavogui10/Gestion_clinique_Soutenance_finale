@@ -176,6 +176,7 @@ class ActesTable(QWidget):
         self._render_page()
 
     def _render_page(self):
+        c = theme_manager.colors()
         total = len(self.filtered_actes)
         total_pages = max(1, ceil(total / self.items_per_page))
         self.current_page = max(1, min(self.current_page, total_pages))
@@ -196,7 +197,7 @@ class ActesTable(QWidget):
             type_layout = QHBoxLayout(type_widget)
             type_layout.setContentsMargins(4, 0, 4, 0)
             type_layout.setAlignment(Qt.AlignCenter)
-            type_layout.addWidget(_badge(type_label, "#0F7B6C", "#E6F5F2"))
+            type_layout.addWidget(_badge(type_label, c['primary'], c['primary_light']))
             self.table.setCellWidget(row, 2, type_widget)
 
             # Décision médicale (tronquée)
@@ -206,21 +207,21 @@ class ActesTable(QWidget):
             # Choix patient
             choix = acte.get("choix_patient") or "—"
             choix_colors = {
-                "maintenant": ("#10B981", "#ECFDF5"),
-                "plus_tard":  ("#3B82F6", "#EFF6FF"),
-                "ailleurs":   ("#EF4444", "#FEF2F2"),
+                "maintenant": (c['success'],         c['success_bg']),
+                "plus_tard":  (c['info'],             c['info_bg']),
+                "ailleurs":   (c['danger'],           c['danger_bg']),
             }
             cw = QWidget()
             cl = QHBoxLayout(cw)
             cl.setContentsMargins(4, 0, 4, 0)
             cl.setAlignment(Qt.AlignCenter)
-            fc, bc = choix_colors.get(choix, ("#6B7280", "#F9FAFB"))
+            fc, bc = choix_colors.get(choix, (c['text_secondary'], c['bg_main']))
             cl.addWidget(_badge(choix, fc, bc))
             self.table.setCellWidget(row, 4, cw)
 
             # Statut badge
             statut = acte.get("statut_acte", "")
-            fc2, bc2 = STATUT_COLORS.get(statut, ("#6B7280", "#F9FAFB"))
+            fc2, bc2 = STATUT_COLORS.get(statut, (c['text_secondary'], c['bg_main']))
             sw = QWidget()
             sl = QHBoxLayout(sw)
             sl.setContentsMargins(4, 0, 4, 0)
@@ -243,34 +244,34 @@ class ActesTable(QWidget):
 
             btn_view = QPushButton()
             btn_view.setFixedSize(28, 28)
-            btn_view.setIcon(qta.icon("fa5s.eye", color="#3B82F6"))
+            btn_view.setIcon(qta.icon("fa5s.eye", color=c['info']))
             btn_view.setToolTip("Voir détails")
             btn_view.setCursor(Qt.PointingHandCursor)
-            btn_view.setStyleSheet("QPushButton{background:#EFF6FF;border-radius:6px;border:none;} QPushButton:hover{background:#DBEAFE;}")
+            btn_view.setStyleSheet(f"QPushButton{{background:{c['info_bg']};border-radius:6px;border:none;}} QPushButton:hover{{background:{c['hover']};}}")
             btn_view.clicked.connect(lambda _, a=acte: self.view_clicked.emit(a))
 
             btn_choix = QPushButton()
             btn_choix.setFixedSize(28, 28)
-            btn_choix.setIcon(qta.icon("fa5s.user-check", color="#10B981"))
+            btn_choix.setIcon(qta.icon("fa5s.user-check", color=c['success']))
             btn_choix.setToolTip("Enregistrer choix patient")
             btn_choix.setCursor(Qt.PointingHandCursor)
-            btn_choix.setStyleSheet("QPushButton{background:#ECFDF5;border-radius:6px;border:none;} QPushButton:hover{background:#D1FAE5;}")
+            btn_choix.setStyleSheet(f"QPushButton{{background:{c['success_bg']};border-radius:6px;border:none;}} QPushButton:hover{{background:{c['hover']};}}")
             btn_choix.clicked.connect(lambda _, a=acte: self.choix_clicked.emit(a))
 
             btn_edit = QPushButton()
             btn_edit.setFixedSize(28, 28)
-            btn_edit.setIcon(qta.icon("fa5s.edit", color="#F59E0B"))
+            btn_edit.setIcon(qta.icon("fa5s.edit", color=c['warning']))
             btn_edit.setToolTip("Modifier")
             btn_edit.setCursor(Qt.PointingHandCursor)
-            btn_edit.setStyleSheet("QPushButton{background:#FFFBEB;border-radius:6px;border:none;} QPushButton:hover{background:#FEF3C7;}")
+            btn_edit.setStyleSheet(f"QPushButton{{background:{c['warning_bg']};border-radius:6px;border:none;}} QPushButton:hover{{background:{c['hover']};}}")
             btn_edit.clicked.connect(lambda _, a=acte: self.edit_clicked.emit(a))
 
             btn_del = QPushButton()
             btn_del.setFixedSize(28, 28)
-            btn_del.setIcon(qta.icon("fa5s.trash-alt", color="#EF4444"))
+            btn_del.setIcon(qta.icon("fa5s.trash-alt", color=c['danger']))
             btn_del.setToolTip("Supprimer")
             btn_del.setCursor(Qt.PointingHandCursor)
-            btn_del.setStyleSheet("QPushButton{background:#FEF2F2;border-radius:6px;border:none;} QPushButton:hover{background:#FEE2E2;}")
+            btn_del.setStyleSheet(f"QPushButton{{background:{c['danger_bg']};border-radius:6px;border:none;}} QPushButton:hover{{background:{c['hover']};}}")
             btn_del.clicked.connect(lambda _, a=acte: self.delete_clicked.emit(a))
 
             for btn in (btn_view, btn_choix, btn_edit, btn_del):
@@ -346,7 +347,7 @@ class ActesTable(QWidget):
             }}
             QPushButton#BtnNewActe {{
                 background: {c['primary']};
-                color: white;
+                color: {c['text_inverse']};
                 border-radius: 8px;
                 padding: 8px 16px;
                 font-size: 13px;
@@ -363,6 +364,6 @@ class ActesTable(QWidget):
         """)
         self.btn_prev.setIcon(qta.icon("fa5s.chevron-left", color=c["primary"]))
         self.btn_next.setIcon(qta.icon("fa5s.chevron-right", color=c["primary"]))
-        self.btn_new.setIcon(qta.icon("fa5s.plus", color="white"))
+        self.btn_new.setIcon(qta.icon("fa5s.plus", color=c['text_inverse']))
         self.btn_prev.setStyleSheet(f"QPushButton{{background:{c['bg_main']};border:1px solid {c['border']};border-radius:6px;}} QPushButton:hover{{background:{c['primary_light']};}}")
         self.btn_next.setStyleSheet(f"QPushButton{{background:{c['bg_main']};border:1px solid {c['border']};border-radius:6px;}} QPushButton:hover{{background:{c['primary_light']};}}")

@@ -328,7 +328,7 @@ class DetailActeModal(QDialog):
                 border-top:1px solid {c['border']};
             }}
             QPushButton#BtnClose2 {{
-                background:{c['primary']};color:white;
+                background:{c['primary']};color:{c['text_inverse']};
                 border-radius:8px;font-weight:bold;font-size:13px;border:none;
             }}
             QPushButton#BtnClose2:hover {{ background:{c['primary_hover']}; }}

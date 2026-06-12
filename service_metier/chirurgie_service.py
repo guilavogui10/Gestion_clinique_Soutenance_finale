@@ -361,6 +361,10 @@ class ChirurgieService:
         """Retourne la liste du personnel pour le formulaire."""
         return self.dao.lister_personnel()
 
+    def lister_personnel_par_roles(self, roles: list) -> list:
+        from data.dao_user import UserDAO
+        return UserDAO().lister_personnel_par_roles(roles)
+
     def rechercher_par_libelle(self, code_session: str, libelle: str) -> list:
         """Recherche des chirurgies par libellé (LIKE) dans une session."""
         return self.dao.rechercher_par_libelle(code_session, libelle)

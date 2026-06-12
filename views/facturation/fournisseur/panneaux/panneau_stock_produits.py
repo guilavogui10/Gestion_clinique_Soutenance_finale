@@ -73,9 +73,13 @@ def _scroll_wrap(inner_widget: QWidget) -> QScrollArea:
         QScrollArea: Scroll area configurée
     """
     scroll = QScrollArea()
+    _bg = theme_manager.colors()['bg_card']
     scroll.setWidgetResizable(True)
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-    scroll.setStyleSheet(FactureStyles.scroll_area())
+    scroll.setStyleSheet(
+        f"QScrollArea{{border:none; background:{_bg};}}"
+        f"QScrollArea > QWidget{{background:{_bg};}}"
+    )
     scroll.verticalScrollBar().setStyleSheet(FactureStyles.scrollbar())
     scroll.setWidget(inner_widget)
     return scroll
@@ -275,9 +279,10 @@ class PanneauStockProduits(FondArrondi):
         self._repositionner()
         self._setup_ui()
         self._setup_ombre()
-        
+
+        self.apply_theme()
         theme_manager.theme_changed.connect(self.apply_theme)
-        
+
         self.move(parent.width(), self.y())
         self.hide()
     
@@ -361,27 +366,27 @@ class PanneauStockProduits(FondArrondi):
         self._kpi_strip.setStyleSheet(f"background:{FactureStyles.VERT_CLAIR}; border:none;")
         kpi_lay = QHBoxLayout(self._kpi_strip)
         kpi_lay.setContentsMargins(16, 0, 12, 0)
-        ic_kpi = QLabel()
-        ic_kpi.setPixmap(
+        self._ic_kpi = QLabel()
+        self._ic_kpi.setPixmap(
             qta.icon("fa5s.boxes", color=FactureStyles.VERT_PRINCIPAL).pixmap(QSize(13, 13))
         )
-        ic_kpi.setStyleSheet("background:transparent;")
+        self._ic_kpi.setStyleSheet("background:transparent;")
         self._lbl_kpi = QLabel("— produits en stock")
         self._lbl_kpi.setStyleSheet(
             f"color:{FactureStyles.VERT_PRINCIPAL}; font-size:11px; font-weight:600;"
             f"background:transparent;"
         )
-        btn_refresh = QPushButton(qta.icon("fa5s.sync-alt", color=FactureStyles.VERT_PRINCIPAL), "")
-        btn_refresh.setFixedSize(26, 26)
-        btn_refresh.setCursor(Qt.PointingHandCursor)
-        btn_refresh.setToolTip("Rafraîchir")
-        btn_refresh.setStyleSheet("background:transparent; border:none; border-radius:6px;")
-        btn_refresh.clicked.connect(self._rafraichir)
-        kpi_lay.addWidget(ic_kpi)
+        self._btn_refresh = QPushButton(qta.icon("fa5s.sync-alt", color=FactureStyles.VERT_PRINCIPAL), "")
+        self._btn_refresh.setFixedSize(26, 26)
+        self._btn_refresh.setCursor(Qt.PointingHandCursor)
+        self._btn_refresh.setToolTip("Rafraîchir")
+        self._btn_refresh.setStyleSheet("background:transparent; border:none; border-radius:6px;")
+        self._btn_refresh.clicked.connect(self._rafraichir)
+        kpi_lay.addWidget(self._ic_kpi)
         kpi_lay.addSpacing(6)
         kpi_lay.addWidget(self._lbl_kpi)
         kpi_lay.addStretch()
-        kpi_lay.addWidget(btn_refresh)
+        kpi_lay.addWidget(self._btn_refresh)
         self._lay_stock.addWidget(self._kpi_strip)
         
         # Scroll des cartes
@@ -451,7 +456,7 @@ class PanneauStockProduits(FondArrondi):
         """Met à jour les couleurs selon le thème actif."""
         c = theme_manager.colors()
         # Fond arrondi
-        self._couleur_fond = QColor(c['bg_main'])
+        self._couleur_fond = QColor(c['bg_card'])
         self.update()
         # En-tête
         self._header.setStyleSheet(
@@ -474,6 +479,19 @@ class PanneauStockProduits(FondArrondi):
         )
         # Onglets
         self._barre._mettre_a_jour_styles()
+        # KPI strip
+        if hasattr(self, '_kpi_strip'):
+            self._kpi_strip.setStyleSheet(f"background:{c['success_bg']}; border:none;")
+        if hasattr(self, '_ic_kpi'):
+            self._ic_kpi.setPixmap(
+                qta.icon("fa5s.boxes", color=c['primary']).pixmap(QSize(13, 13))
+            )
+        if hasattr(self, '_lbl_kpi'):
+            self._lbl_kpi.setStyleSheet(
+                f"color:{c['primary']}; font-size:11px; font-weight:600; background:transparent;"
+            )
+        if hasattr(self, '_btn_refresh'):
+            self._btn_refresh.setIcon(qta.icon("fa5s.sync-alt", color=c['primary']))
     
     def _setup_ombre(self) -> None:
         """Configure l'ombre du panneau."""
@@ -778,7 +796,7 @@ class PanneauStockProduits(FondArrondi):
         
         titre = QLabel(libelle)
         titre.setStyleSheet(
-            f"color:{FactureStyles.GRIS_TEXTE}; font-size:12px; font-weight:700; background:transparent;"
+            f"color:{theme_manager.colors()['text_primary']}; font-size:12px; font-weight:700; background:transparent;"
         )
         titre.setWordWrap(True)
         info_layout.addWidget(titre)

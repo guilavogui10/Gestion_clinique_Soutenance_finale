@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel
 from .animated_frame import AnimatedFrame
 from .circular_progress import CircularProgress
 from ..styles.statistiques_styles import StatistiquesStyles
+from views.shared.theme_manager import theme_manager
 
 
 class DonutCard(AnimatedFrame):
@@ -46,8 +47,9 @@ class DonutCard(AnimatedFrame):
         self.couleur = couleur
         self.pourcentage = pourcentage
         self._icone_name = icone
-        
+
         self._setup_ui(titre, valeur, icone)
+        theme_manager.theme_changed.connect(self.apply_theme)
     
     def _setup_ui(self, titre: str, valeur: str, icone: str):
         """Configure l'interface de la card."""
@@ -154,6 +156,10 @@ class DonutCard(AnimatedFrame):
         self._title_lbl.setStyleSheet(StatistiquesStyles.label_titre())
         self.value_label.setStyleSheet(StatistiquesStyles.label_valeur(self.couleur, 18))
         self.circular_progress.set_color(self.couleur)
+
+    def apply_theme(self):
+        """Met à jour les couleurs selon le thème actif (conserve la couleur d’accent)."""
+        self.update_theme_color(self.couleur)
     
     def get_value(self) -> str:
         """

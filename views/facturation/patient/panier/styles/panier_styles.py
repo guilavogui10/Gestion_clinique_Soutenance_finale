@@ -34,8 +34,24 @@ class PanierStyles:
             QComboBox:focus {{ border: 2px solid {vert_principal}; }}
             QComboBox::drop-down {{ border: none; width: 28px; }}
             QComboBox QAbstractItemView {{
-                border-radius: 8px; border: 1px solid {c['border']};
-                selection-background-color: {c['primary']}20;
+                border-radius: 8px;
+                border: 1px solid {c['border']};
+                background-color: {c['bg_card']};
+                color: {c['text_primary']};
+                outline: none;
+            }}
+            QComboBox QAbstractItemView::item {{
+                background-color: {c['bg_card']};
+                color: {c['text_primary']};
+                padding: 6px 10px;
+                min-height: 26px;
+            }}
+            QComboBox QAbstractItemView::item:hover {{
+                background-color: {c['hover']};
+            }}
+            QComboBox QAbstractItemView::item:selected {{
+                background-color: {c['primary_light']};
+                color: {c['primary']};
             }}
         """
 
@@ -73,10 +89,23 @@ class PanierStyles:
             QComboBox QAbstractItemView {{
                 border-radius: 10px;
                 border: 1px solid {c['border']};
-                background: {c['bg_card']};
-                selection-background-color: {vert_principal};
-                selection-color: {c['text_inverse']};
+                background-color: {c['bg_card']};
+                color: {c['text_primary']};
+                outline: none;
                 padding: 4px;
+            }}
+            QComboBox QAbstractItemView::item {{
+                background-color: {c['bg_card']};
+                color: {c['text_primary']};
+                padding: 6px 10px;
+                min-height: 26px;
+            }}
+            QComboBox QAbstractItemView::item:hover {{
+                background-color: {c['hover']};
+            }}
+            QComboBox QAbstractItemView::item:selected {{
+                background-color: {vert_principal};
+                color: {c['text_inverse']};
             }}
         """
 
@@ -88,7 +117,7 @@ class PanierStyles:
             border-radius: 10px;
             border: 1px dashed {c['border']};
             padding-left: 14px;
-            background: {c['bg_main']};
+            background: {c['bg_input']};
             font-size: 12px;
             color: {c['text_muted']};
             font-style: italic;
@@ -180,12 +209,19 @@ class PanierStyles:
         c = theme_manager.colors()
         return f"""
             QPushButton {{
-                background-color: {c['success']}; color: {c['text_inverse']};
+                background-color: {c['primary']}; color: {c['text_inverse']};
                 border-radius: 10px; font-weight: bold;
                 font-size: 12px; border: none;
             }}
-            QPushButton:hover {{ background-color: {c['success']}; }}
-            QPushButton:pressed {{ background-color: {c['success']}; }}
+            QPushButton:hover {{
+                background-color: {c['primary_hover']};
+                color: {c['text_inverse']};
+            }}
+            QPushButton:pressed {{ background-color: {c['primary_hover']}; }}
+            QPushButton:disabled {{
+                background-color: {c['border']};
+                color: {c['text_muted']};
+            }}
         """
 
     @staticmethod
@@ -194,12 +230,23 @@ class PanierStyles:
         c = theme_manager.colors()
         return f"""
             QPushButton {{
-                background-color: {c['danger']}; color: {c['text_inverse']};
+                background-color: {c['bg_card']};
+                color: {c['danger']};
+                border: 1.5px solid {c['danger']};
                 border-radius: 10px; font-weight: bold;
-                font-size: 12px; border: none;
+                font-size: 12px;
             }}
-            QPushButton:hover {{ background-color: {c['danger']}; }}
+            QPushButton:hover {{
+                background-color: {c['danger']};
+                color: {c['text_inverse']};
+                border-color: {c['danger']};
+            }}
             QPushButton:pressed {{ background-color: {c['danger']}; }}
+            QPushButton:disabled {{
+                background-color: {c['border']};
+                color: {c['text_muted']};
+                border-color: {c['border']};
+            }}
         """
 
     @staticmethod
@@ -224,6 +271,6 @@ class PanierStyles:
         """Style pour une ligne du panier."""
         c = theme_manager.colors()
         return f"""
-            background: {c['bg_main']}; border-radius: 10px;
+            background: {c['bg_card']}; border-radius: 10px;
             border: 1px solid {c['border']};
         """

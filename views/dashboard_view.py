@@ -123,7 +123,9 @@ class DashboardView(QWidget):
 
     def _factory_visites(self):
         from views.visite import VisiteView
-        return VisiteView(self.visite_ctrl)
+        v = VisiteView(self.visite_ctrl)
+        v.rdv_visite_created.connect(self._naviguer_vers_rdv_nouveau)
+        return v
 
     def _factory_rendez_vous(self):
         from views.rendez_vous import RendezVousView
@@ -167,7 +169,7 @@ class DashboardView(QWidget):
 
     def _factory_admin(self):
         from views.admin import AdminView
-        return AdminView(self.visite_ctrl)
+        return AdminView(self.visite_ctrl, charger_avec_barre=self._charger_avec_barre)
 
     def _factory_settings(self):
         from views.settings.vue_parametre import ParametreView
@@ -361,7 +363,7 @@ class DashboardView(QWidget):
         self.loading_bar_container.setFixedHeight(80)
         self.loading_bar_container.setVisible(False)
         self.loading_bar_container.setStyleSheet(
-            "background-color: #EFF6FF; border-bottom: 2px solid #93C5FD;"
+            f"background-color: {theme_manager.colors()['info_bg']}; border-bottom: 2px solid {theme_manager.colors()['primary']};"
         )
         lbc_layout = QVBoxLayout(self.loading_bar_container)
         lbc_layout.setContentsMargins(30, 12, 30, 12)
@@ -372,14 +374,14 @@ class DashboardView(QWidget):
         top_row.setContentsMargins(0, 0, 0, 0)
 
         self.loading_label = QLabel("Chargement...")
+        self.loading_label.setObjectName("loading_label")
         self.loading_label.setStyleSheet(
-            "font-size: 13px; font-weight: 700; color: #1D4ED8; "
-            "background: transparent; border: none;"
+            "font-size: 13px; font-weight: 700; background: transparent; border: none;"
         )
         self.loading_pct = QLabel("0 %")
+        self.loading_pct.setObjectName("loading_pct")
         self.loading_pct.setStyleSheet(
-            "font-size: 13px; font-weight: 700; color: #1D4ED8; "
-            "background: transparent; border: none;"
+            "font-size: 13px; font-weight: 700; background: transparent; border: none;"
         )
         top_row.addWidget(self.loading_label)
         top_row.addStretch()
@@ -392,20 +394,8 @@ class DashboardView(QWidget):
         self.loading_bar.setValue(0)
         self.loading_bar.setFixedHeight(16)
         self.loading_bar.setTextVisible(False)
-        self.loading_bar.setStyleSheet("""
-            QProgressBar {
-                background-color: #BFDBFE;
-                border: none;
-                border-radius: 8px;
-            }
-            QProgressBar::chunk {
-                background: qlineargradient(
-                    x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #2563EB, stop:1 #60A5FA
-                );
-                border-radius: 8px;
-            }
-        """)
+        self._loading_bar_base_style = True  # flag pour apply_theme
+        self.loading_bar.setStyleSheet(self._loading_bar_style())
         lbc_layout.addWidget(self.loading_bar)
 
         # STACK — vide au démarrage, peuplé en lazy loading
@@ -472,8 +462,10 @@ class DashboardView(QWidget):
             if charger_fn:
                 charger_fn(page)
             self._page_cible = page
-        except Exception:
-            pass
+        except Exception as _e:
+            import traceback
+            print(f"[Dashboard] ERREUR chargement '{cle}': {_e}")
+            traceback.print_exc()
         finally:
             self._data_prete = True
             # Si la barre est déjà à 100 %, afficher la page maintenant
@@ -624,11 +616,12 @@ class DashboardView(QWidget):
             action = menu.addAction(qta.icon(icon_name, color=color), f"  {service_name}")
             action.triggered.connect(nav_method)
 
-        menu.setStyleSheet("""
-            QMenu { background-color: white; border: 1px solid #E5E7EB; border-radius: 8px; padding: 8px 0; }
-            QMenu::item { padding: 10px 20px; color: #1F2937; font-size: 13px; font-weight: 500; }
-            QMenu::item:selected { background-color: #EFF6FF; color: #3B82F6; }
-            QMenu::icon { padding-left: 10px; }
+        c = theme_manager.colors()
+        menu.setStyleSheet(f"""
+            QMenu {{ background-color: {c['bg_card']}; border: 1px solid {c['border']}; border-radius: 8px; padding: 8px 0; }}
+            QMenu::item {{ padding: 10px 20px; color: {c['text_primary']}; font-size: 13px; font-weight: 500; }}
+            QMenu::item:selected {{ background-color: {c['primary_light']}; color: {c['primary']}; }}
+            QMenu::icon {{ padding-left: 10px; }}
         """)
         menu.exec(self.btn_nav_services.mapToGlobal(self.btn_nav_services.rect().bottomLeft()))
 
@@ -642,11 +635,12 @@ class DashboardView(QWidget):
         action_create = menu.addAction(qta.icon('fa5s.user-plus', color='#3B82F6'), "  Créer compte")
         action_create.triggered.connect(self._creer_compte)
 
-        menu.setStyleSheet("""
-            QMenu { background-color: white; border: 1px solid #E5E7EB; border-radius: 8px; padding: 8px 0; }
-            QMenu::item { padding: 10px 20px; color: #1F2937; font-size: 13px; font-weight: 500; }
-            QMenu::item:selected { background-color: #EFF6FF; color: #3B82F6; }
-            QMenu::icon { padding-left: 10px; }
+        _c = theme_manager.colors()
+        menu.setStyleSheet(f"""
+            QMenu {{ background-color: {_c['bg_card']}; border: 1px solid {_c['border']}; border-radius: 8px; padding: 8px 0; }}
+            QMenu::item {{ padding: 10px 20px; color: {_c['text_primary']}; font-size: 13px; font-weight: 500; }}
+            QMenu::item:selected {{ background-color: {_c['primary_light']}; color: {_c['primary']}; }}
+            QMenu::icon {{ padding-left: 10px; }}
         """)
         menu.exec(self.btn_login.mapToGlobal(self.btn_login.rect().bottomLeft()))
 
@@ -666,6 +660,23 @@ class DashboardView(QWidget):
     # THEME
     # ═══════════════════════════════════════════════════════════════
 
+    def _loading_bar_style(self) -> str:
+        c = theme_manager.colors()
+        return f"""
+            QProgressBar {{
+                background-color: {c['primary_light']};
+                border: none;
+                border-radius: 8px;
+            }}
+            QProgressBar::chunk {{
+                background: qlineargradient(
+                    x1:0, y1:0, x2:1, y2:0,
+                    stop:0 {c['primary']}, stop:1 {c['secondary']}
+                );
+                border-radius: 8px;
+            }}
+        """
+
     def toggle_theme(self):
         theme_manager.next_theme()
 
@@ -676,7 +687,7 @@ class DashboardView(QWidget):
 
         self.sidebar_container.setStyleSheet(f"""
             QFrame#sidebar_container {{
-                background-color: {c['bg_card']};
+                background-color: {c['bg_sidebar']};
                 border-radius: 15px;
                 border: 1px solid {c['border']};
             }}
@@ -709,9 +720,9 @@ class DashboardView(QWidget):
                     self.btn_admin, self.btn_logout, self.btn_settings]:
             btn.setStyleSheet(f"""
                 QPushButton {{ background-color: transparent; border: none; border-radius: 4px; }}
-                QPushButton:checked {{ background-color: {c['hover']}; border-left: 3px solid {c['primary']}; }}
-                QPushButton:hover {{ background-color: {c['hover']}; }}
-                QPushButton QLabel {{ color: {c['text_primary']}; background: transparent; border: none; }}
+                QPushButton:checked {{ background-color: {c['hover_sidebar']}; border-left: 3px solid {c['primary']}; }}
+                QPushButton:hover {{ background-color: {c['hover_sidebar']}; }}
+                QPushButton QLabel {{ color: {c['text_sidebar']}; background: transparent; border: none; }}
             """)
 
             icon_label = btn.findChild(QLabel, "btn_icon_label")
@@ -723,26 +734,26 @@ class DashboardView(QWidget):
             text_label = btn.findChild(QLabel, "btn_text_label")
             if text_label:
                 text_label.setStyleSheet(
-                    f"color: {c['text_primary']}; font-size: 9px; font-weight: 600; "
+                    f"color: {c['text_sidebar']}; font-size: 9px; font-weight: 600; "
                     "border: none; background: transparent;"
                 )
 
         self.content_area.setStyleSheet(Styles.content_area())
 
         self.header_frame.setStyleSheet(f"""
-            QFrame#main_header {{ background-color: white; border: none; border-bottom: 1px solid #E5E7EB; }}
+            QFrame#main_header {{ background-color: {c['bg_header']}; border: none; border-bottom: 1px solid {c['border']}; }}
             QWidget#logo_container, QWidget#logo_text_container,
             QWidget#nav_container, QWidget#login_container {{ background-color: transparent; border: none; }}
             QLabel#logo_icon_header {{ background-color: transparent; border: none; }}
         """)
 
-        self.logo_icon_header.setPixmap(qta.icon('fa5s.eye', color='#3B82F6').pixmap(QSize(50, 50)))
+        self.logo_icon_header.setPixmap(qta.icon('fa5s.eye', color=c['primary']).pixmap(QSize(50, 50)))
         self.lbl_app_name.setStyleSheet(
-            "font-size: 18px; font-weight: 700; color: #1F2937; background: transparent; border: none; "
+            f"font-size: 18px; font-weight: 700; color: {c['text_primary']}; background: transparent; border: none; "
             "font-family: 'Yu Gothic UI', 'Segoe UI', Arial, sans-serif;"
         )
         self.lbl_app_subtitle.setStyleSheet(
-            "font-size: 11px; color: #6B7280; background: transparent; border: none; "
+            f"font-size: 11px; color: {c['text_secondary']}; background: transparent; border: none; "
             "font-family: 'Yu Gothic UI', 'Segoe UI', Arial, sans-serif;"
         )
 
@@ -750,21 +761,32 @@ class DashboardView(QWidget):
                     self.btn_nav_equipe, self.btn_nav_rdv, self.btn_nav_contact]:
             btn.setStyleSheet(f"""
                 QPushButton#header_nav_btn {{ background-color: transparent; border: none; border-radius: 6px; padding: 8px 12px; }}
-                QPushButton#header_nav_btn:hover {{ background-color: transparent; }}
-                QLabel#nav_text_label {{ color: #6B7280; font-size: 14px; font-weight: 700; background: transparent; border: none; font-family: 'Yu Gothic UI', 'Segoe UI', Arial, sans-serif; }}
-                QPushButton#header_nav_btn:hover QLabel#nav_text_label {{ color: #3B82F6; }}
+                QPushButton#header_nav_btn:hover {{ background-color: {c['hover']}; }}
+                QLabel#nav_text_label {{ color: {c['text_secondary']}; font-size: 14px; font-weight: 700; background: transparent; border: none; font-family: 'Yu Gothic UI', 'Segoe UI', Arial, sans-serif; }}
+                QPushButton#header_nav_btn:hover QLabel#nav_text_label {{ color: {c['primary']}; }}
                 QLabel#nav_icon_label {{ background: transparent; border: none; }}
             """)
             icon_label = btn.findChild(QLabel, "nav_icon_label")
             if icon_label:
                 icon_label.setPixmap(
-                    qta.icon(btn.property("nav_icon"), color='#3B82F6').pixmap(QSize(16, 16))
+                    qta.icon(btn.property("nav_icon"), color=c['primary']).pixmap(QSize(16, 16))
                 )
 
-        self.btn_login.setStyleSheet("""
-            QPushButton#btn_login { background-color: #3B82F6; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; padding: 0 20px; }
-            QPushButton#btn_login:hover { background-color: #2563EB; }
+        self.btn_login.setStyleSheet(f"""
+            QPushButton#btn_login {{ background-color: {c['primary']}; color: {c['text_inverse']}; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; padding: 0 20px; }}
+            QPushButton#btn_login:hover {{ background-color: {c['primary_hover']}; }}
         """)
+
+        # Loading bar
+        self.loading_bar_container.setStyleSheet(
+            f"background-color: {c['info_bg']}; border-bottom: 2px solid {c['primary']};"
+        )
+        self.loading_bar.setStyleSheet(self._loading_bar_style())
+        for lbl in (self.loading_label, self.loading_pct):
+            lbl.setStyleSheet(
+                f"font-size: 13px; font-weight: 700; color: {c['primary']}; "
+                "background: transparent; border: none;"
+            )
 
         self.footer_frame.setStyleSheet(Styles.footer())
         self.lbl_version.setStyleSheet(f"font-size: 8px; color: {c['text_muted']};")
@@ -845,6 +867,15 @@ class DashboardView(QWidget):
                 p.charger_rendez_vous(code_session)
         self._naviguer("rendez_vous", self._factory_rendez_vous, "Rendez-vous", _charger)
 
+    def _naviguer_vers_rdv_nouveau(self, code_visite: str, code_session: str):
+        """Navigue vers le module Rendez-vous et ouvre l'onglet Nouveau pré-rempli."""
+        if not self._verifier_acces_interface("Rendez-vous"):
+            return
+        def _charger(p):
+            p.charger_rendez_vous(code_session)
+            p.ouvrir_nouveau_avec_visite(code_visite)
+        self._naviguer("rendez_vous", self._factory_rendez_vous, "Rendez-vous", _charger)
+
     def show_examen(self):
         if not self._verifier_acces_interface("Examens"):
             return
@@ -901,8 +932,41 @@ class DashboardView(QWidget):
                 p.charger_personnels()
         self._naviguer("personnel", self._factory_personnel, "Personnel", _charger)
 
+    def _charger_avec_barre(self, nom: str, charger_fn):
+        """Affiche la barre de progression du dashboard pendant le chargement d'une sous-vue admin.
+        Identique à _naviguer() mais sans changer de page dans workspace_stack."""
+        self._anim_timer.stop()
+        self._prog_valeur = 0
+        self._data_prete  = False
+        self._page_cible  = self.workspace_stack.currentWidget()
+
+        self.loading_label.setText(f"Chargement {nom}...")
+        self.loading_pct.setText("0 %")
+        self.loading_bar.setValue(0)
+        self.loading_bar_container.setVisible(True)
+        QApplication.processEvents()
+
+        self._anim_timer.start(self._ANIM_INTERVAL_MS)
+        QTimer.singleShot(80, lambda: self._exec_admin(charger_fn))
+
+    def _exec_admin(self, charger_fn):
+        """Exécute charger_fn puis signale que les données sont prêtes."""
+        try:
+            charger_fn()
+        except Exception as e:
+            print(f"[Dashboard] Erreur chargement admin: {e}")
+        finally:
+            self._data_prete = True
+            if self._prog_valeur >= 100:
+                self._finaliser_navigation()
+
     def show_admin(self):
-        self._naviguer("admin", self._factory_admin, "Administration")
+        if not self._verifier_acces_interface("Administration"):
+            return
+        def _charger(p):
+            if hasattr(p, '_charger_session_active'):
+                p._charger_session_active()
+        self._naviguer("admin", self._factory_admin, "Administration", _charger)
 
     def show_commande_lunette(self):
         if not self._verifier_acces_interface("Lunettes"):
@@ -959,3 +1023,24 @@ class DashboardView(QWidget):
     @property
     def page_resultats(self):
         return self._page("resultats", self._factory_resultats)
+    
+    # ═══════════════════════════════════════════════════════════════
+    # NAVIGATION VERS FACTURATION AVEC CODE FACTURE
+    # ═══════════════════════════════════════════════════════════════
+    
+    def naviguer_vers_facturation(self, code_facture_four: str = None):
+        """Navigue vers le module Facturation et active l'onglet Facture Fournisseur.
+        Si code_facture_four est fourni, charge automatiquement la facture pour paiement."""
+        if not self._verifier_acces_interface("Facturation"):
+            return
+        
+        def _charger(p):
+            actif, code_session = self.visite_ctrl.verifier_session_active()
+            if actif:
+                p.charger_donnees(code_session)
+            
+            # Charger la facture spécifique si fournie
+            if code_facture_four and hasattr(p, 'charger_facture_pour_paiement'):
+                p.charger_facture_pour_paiement(code_facture_four)
+        
+        self._naviguer("facturation", self._factory_facturation, "Facturation", _charger)

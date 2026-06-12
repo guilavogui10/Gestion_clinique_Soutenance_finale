@@ -432,6 +432,62 @@ class ChirurgieDAO:
             self.db.close()
 
     # =========================================================================
+    # EXPORT / IMPORT
+    # =========================================================================
+
+    def lister_pour_export(self) -> list:
+        """Retourne toutes les chirurgies avec code_consultation pour export CSV/Excel."""
+        conn = self.db.connect()
+        if not conn:
+            return []
+        try:
+            cursor = conn.cursor(DictCursor)
+            cursor.execute("""
+                SELECT c.code                    AS code_chirurgie,
+                       am.code_consultation,
+                       c.code_personnel,
+                       c.libelle_chururgie       AS libelle_chirurgie,
+                       c.frais_chururgie         AS frais_chirurgie,
+                       c.compte_rendu_operatoire AS compte_rendu,
+                       c.statut_facture,
+                       c.date_chururgie          AS date_chirurgie
+                FROM chururgie c
+                JOIN acte_medical am ON c.code_acte = am.code_acte
+                ORDER BY c.code DESC
+            """)
+            return cursor.fetchall() or []
+        except Exception as e:
+            print(f"[ChirurgieDAO] Erreur lister_pour_export: {e}")
+            return []
+        finally:
+            self.db.close()
+
+    def _inserer_import(self, cursor, code_acte: str, code_session: str, data: dict) -> bool:
+        """
+        INSERT chirurgie en mode import — reçoit curseur externe.
+        Ne met PAS à jour visite.statut_patient (géré par le service).
+        """
+        code = self._generer_code(cursor)
+        cursor.execute("""
+            INSERT INTO chururgie (
+                code, libelle_chururgie, frais_chururgie, statut_facture,
+                date_chururgie, code_session, code_personnel, code_acte,
+                compte_rendu_operatoire
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        """, (
+            code,
+            data.get('libelle_chirurgie'),
+            data.get('frais_chirurgie', 0.0),
+            data.get('statut_facture', 'attente payement'),
+            data.get('date_chirurgie'),
+            code_session,
+            data.get('code_personnel') or None,
+            code_acte,
+            data.get('compte_rendu') or '',
+        ))
+        return cursor.rowcount > 0
+
+    # =========================================================================
     # MÉTHODES PRIVÉES
     # =========================================================================
 

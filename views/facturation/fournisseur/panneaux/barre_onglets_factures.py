@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..styles.facture_styles import FactureStyles
+from views.shared.theme_manager import theme_manager
 
 
 class BarreOngletsFactures(QFrame):
@@ -38,12 +39,15 @@ class BarreOngletsFactures(QFrame):
         super().__init__(parent)
         self.on_change = on_change
         self.setFixedHeight(50)
+        self._actif_idx = 0
+        self._icones = [icone for icone, _ in self.ONGLETS]
         self.setStyleSheet(
             f"background:{FactureStyles.BLANC};"
             f"border-bottom:1px solid {FactureStyles.GRIS_CLAIR};"
         )
         self._boutons: list[QPushButton] = []
         self._setup_ui()
+        theme_manager.theme_changed.connect(self.apply_theme)
 
     def _setup_ui(self) -> None:
         lay = QHBoxLayout(self)
@@ -88,10 +92,12 @@ class BarreOngletsFactures(QFrame):
 
     def activer(self, index: int) -> None:
         """Active visuellement l'onglet à l'index donné."""
+        self._actif_idx = index
         for i, btn in enumerate(self._boutons):
-            btn.setStyleSheet(
-                self._style_actif() if i == index else self._style_inactif()
-            )
+            actif = (i == index)
+            btn.setStyleSheet(self._style_actif() if actif else self._style_inactif())
+            icon_color = FactureStyles.VERT_PRINCIPAL if actif else FactureStyles.GRIS_TEXTE
+            btn.setIcon(qta.icon(self._icones[i], color=icon_color))
 
     def activer_detail(self, actif: bool) -> None:
         """Active ou désactive le bouton onglet Détail."""
@@ -113,5 +119,17 @@ class BarreOngletsFactures(QFrame):
             f"QPushButton{{background:transparent; color:{FactureStyles.GRIS_TEXTE};"
             f"border-radius:8px; font-size:11px; font-weight:400;"
             f"padding:0 12px; border:none;}}"
-            f"QPushButton:hover{{background:{FactureStyles.GRIS_FOND};}}"
+            f"QPushButton:hover{{background:{FactureStyles.BLANC};}}"
         )
+
+    def apply_theme(self) -> None:
+        """Met à jour les couleurs selon le thème actif."""
+        self.setStyleSheet(
+            f"background:{FactureStyles.BLANC};"
+            f"border-bottom:1px solid {FactureStyles.GRIS_CLAIR};"
+        )
+        for i, btn in enumerate(self._boutons):
+            actif = (i == self._actif_idx)
+            btn.setStyleSheet(self._style_actif() if actif else self._style_inactif())
+            icon_color = FactureStyles.VERT_PRINCIPAL if actif else FactureStyles.GRIS_TEXTE
+            btn.setIcon(qta.icon(self._icones[i], color=icon_color))

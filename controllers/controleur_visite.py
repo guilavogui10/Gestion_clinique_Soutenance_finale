@@ -105,6 +105,9 @@ class VisiteControleur:
     def verifier_session_active(self) -> Tuple[bool, str]:
         return self.service.verifier_session_active()
 
+    def lister_sessions_completes(self) -> list:
+        return self.service.lister_sessions_completes()
+
     def get_cabinet_info(self) -> Dict[str, Optional[str]]:
         return self.service.get_cabinet_info()
 
@@ -141,6 +144,18 @@ class VisiteControleur:
                 self.logger.error(f"Erreur alerte {code_visite}: {e}")
         return alertes
 
+    def verifier_alertes_temps_attente_batch(self, codes_visites: List[str], seuil_minutes: int = 45) -> List[Dict]:
+        """Vérifie les alertes de temps d'attente pour plusieurs visites en une seule fois (batch)."""
+        alertes = []
+        try:
+            alertes_brutes = self.service.verifier_alertes_temps_attente_batch(codes_visites, seuil_minutes)
+            for alerte in alertes_brutes:
+                alerte['severite'] = self._determiner_severite_alerte(alerte['temps_attente'])
+                alertes.append(alerte)
+        except Exception as e:
+            self.logger.error(f"Erreur alerte batch: {e}")
+        return alertes
+
     def _determiner_severite_alerte(self, temps_attente: int) -> str:
         """Détermine la sévérité d'une alerte selon le temps d'attente."""
         if temps_attente > 90:
@@ -150,3 +165,22 @@ class VisiteControleur:
         elif temps_attente > 30:
             return "moyenne"
         return "faible"
+
+    # =========================================================================
+    # EXPORT / IMPORT
+    # =========================================================================
+
+    def obtenir_donnees_pour_export(self) -> list:
+        return self.service.obtenir_donnees_pour_export()
+
+    def export_to_excel(self, chemin: str) -> tuple:
+        return self.service.export_to_excel(chemin)
+
+    def export_to_csv(self, chemin: str) -> tuple:
+        return self.service.export_to_csv(chemin)
+
+    def import_from_excel(self, chemin: str) -> tuple:
+        return self.service.import_from_excel(chemin)
+
+    def import_from_csv(self, chemin: str) -> tuple:
+        return self.service.import_from_csv(chemin)

@@ -8,20 +8,107 @@ Tableau consultation:
 
 from datetime import datetime, date, timedelta
 import re
+import numpy as np
 
 import qtawesome as qta
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import QSize, Qt, QPropertyAnimation, QRect, QEasingCurve
 from PySide6.QtGui import QColor
 from PySide6.QtPrintSupport import QPrinter, QPrintDialog
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
     QLineEdit, QPushButton, QComboBox, QTableWidget, QHeaderView,
-    QTableWidgetItem, QFrame, QSizePolicy, QAbstractItemView, QCheckBox
+    QTableWidgetItem, QFrame, QSizePolicy, QAbstractItemView, QCheckBox,
+    QGraphicsDropShadowEffect, QScrollArea
 )
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from views.shared.modal_theme import MC
 from views.shared.theme_manager import theme_manager
+
+
+class MiniLinearGraph(FigureCanvas):
+    MONTH_LABELS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"]
+
+    def __init__(self, parent=None, width=3, height=2, dpi=100):
+        self.fig = Figure(figsize=(width, height), dpi=dpi, facecolor="none")
+        self.axes = self.fig.add_subplot(111)
+        self.axes.set_facecolor("none")
+        self.hover_text = self.fig.text(0.5, 0.95, '', ha='center', va='top', fontsize=9, fontweight='bold')
+        super().__init__(self.fig)
+        self.setParent(parent)
+        self.setStyleSheet("background: transparent;")
+        self.scatters = []
+        self.mpl_connect("motion_notify_event", self._on_hover)
+        self.mpl_connect("axes_leave_event", lambda e: self._clear_hover_text())
+        self.mpl_connect("figure_leave_event", lambda e: self._clear_hover_text())
+
+    def update_graph(self, data_dict, color, label_text):
+        self.axes.clear()
+        self.scatters.clear()
+        
+        # Style
+        for spine in self.axes.spines.values():
+            spine.set_visible(False)
+        self.axes.grid(True, axis="both", linestyle="--", alpha=0.3, color=MC.BORDER, linewidth=0.8)
+        self.axes.tick_params(colors=MC.TEXT_SECONDARY, labelsize=7, length=0, pad=4)
+        if hasattr(self, 'hover_text'):
+            self.hover_text.set_text('')
+        self.fig.subplots_adjust(left=0.1, right=0.95, top=0.8, bottom=0.2)
+
+        if not data_dict:
+            self.fig.tight_layout()
+            self.draw()
+            return
+
+        x = np.arange(12)
+        y = np.zeros(12)
+        for k, v in data_dict.items():
+            try:
+                idx = int(k) - 1
+                if 0 <= idx < 12:
+                    y[idx] = v
+            except ValueError:
+                if k in self.MONTH_LABELS:
+                    y[self.MONTH_LABELS.index(k)] = v
+
+        if sum(y) == 0:
+            self.axes.set_ylim(0, 10)
+        else:
+            self.axes.set_ylim(0, max(y) * 1.25)
+            self.axes.plot(x, y, color=color, linewidth=2.0, alpha=0.9, antialiased=True, zorder=5)
+            sc = self.axes.scatter(x, y, color=color, edgecolor=MC.BG_CARD, s=40, zorder=10, linewidth=1.5, alpha=1.0)
+            self.scatters.append({'scatter': sc, 'label': label_text, 'x': x, 'y': y})
+
+        self.axes.set_xticks(x)
+        self.axes.set_xticklabels(self.MONTH_LABELS, rotation=45, ha='right')
+        self.axes.yaxis.set_visible(False)
+        self.draw()
+
+    def _on_hover(self, event):
+        if not event.inaxes:
+            self._clear_hover_text()
+            return
+        found = False
+        for item in self.scatters:
+            cont, ind = item['scatter'].contains(event)
+            if cont:
+                idx = ind["ind"][0]
+                value = item['y'][idx]
+                label = item['label']
+                month = self.MONTH_LABELS[idx]
+                txt = f"{label} en {month} : {int(value)}"
+                if self.hover_text.get_text() != txt:
+                    self.hover_text.set_text(txt)
+                    self.hover_text.set_color(MC.TEXT_PRIMARY)
+                    self.fig.canvas.draw_idle()
+                found = True
+                break
+        if not found and self.hover_text.get_text() != '':
+            self._clear_hover_text()
+
+    def _clear_hover_text(self):
+        self.hover_text.set_text('')
+        self.fig.canvas.draw_idle()
 
 
 class TableauConsultationView(QWidget):
@@ -230,7 +317,7 @@ class TableauConsultationView(QWidget):
         self._filters_frame = self._creer_filtres_graphique()
         frame_layout.addWidget(self._filters_frame)
 
-        self.graph_canvas = FigureCanvas(Figure(figsize=(3, 2), dpi=100, facecolor=MC.BG_CARD))
+        self.graph_canvas = MiniLinearGraph(width=3, height=2, dpi=100)
         self.graph_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.graph_canvas.setMinimumHeight(0)
         frame_layout.addWidget(self.graph_canvas, 1)
@@ -245,7 +332,7 @@ class TableauConsultationView(QWidget):
         self._patient_frame = self._creer_selecteur_patient()
         frame_layout.addWidget(self._patient_frame)
 
-        self.graph_patient_canvas = FigureCanvas(Figure(figsize=(3, 2), dpi=100, facecolor=MC.BG_CARD))
+        self.graph_patient_canvas = MiniLinearGraph(width=3, height=2, dpi=100)
         self.graph_patient_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.graph_patient_canvas.setMinimumHeight(0)
         frame_layout.addWidget(self.graph_patient_canvas, 1)
@@ -609,7 +696,7 @@ class TableauConsultationView(QWidget):
         self._actualiser_graphique()
 
     def _actualiser_graphique(self):
-        """Met à jour le graphique des consultations par mois avec barres horizontales adaptatives."""
+        """Met à jour le graphique des consultations par mois avec courbes linéaires."""
         try:
             data = self.ctrl.obtenir_nombre_par_mois_filtre(
                 self.code_session,
@@ -618,151 +705,20 @@ class TableauConsultationView(QWidget):
                 commandelunette=self.graph_service_filters['commandelunette'],
                 prescription=self.graph_service_filters['prescription']
             )
-            
-            if not data:
-                self.graph_canvas.figure.clear()
-                self.graph_canvas.draw()
-                return
-
-            self.graph_canvas.figure.clear()
-            ax = self.graph_canvas.figure.add_subplot(111)
-            ax.set_facecolor(MC.BG_CARD)
-            ax.grid(True, axis="x", alpha=0.3, linestyle="--", color=MC.BORDER)
-
-            # Mapping mois 1-12 au lieu des noms
-            mois_labels = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]
-            mois_ordre = {str(i): i-1 for i in range(1, 13)}  # "1"->0, "2"->1, etc.
-            
-            mois_sorted = sorted(data.keys(), key=lambda x: mois_ordre.get(x, 100))
-            values = [data[m] for m in mois_sorted]
-
-            # Calculer l'échelle adaptative plus compacte
-            max_val = max(values) if values else 0
-            if max_val <= 3:
-                step = 1
-                max_limit = max(3, max_val + 0.5)
-            elif max_val <= 10:
-                step = 2
-                max_limit = max(10, max_val + 1)
-            elif max_val <= 50:
-                step = 5
-                max_limit = max(50, max_val + 5)
-            elif max_val <= 200:
-                step = 20
-                max_limit = max(200, max_val + 20)
-            else:
-                step = 50
-                max_limit = max(500, max_val + 50)
-
-            colors = [MC.PRIMARY if v > 0 else MC.BG_MAIN for v in values]
-            bars = ax.barh(mois_sorted, values, color=colors, edgecolor=MC.PRIMARY, linewidth=1, height=0.8)
-
-            for i, (bar, val) in enumerate(zip(bars, values)):
-                if val > 0:
-                    # Positionnement compact du texte
-                    if val < max_limit * 0.15:
-                        text_x = val + (max_limit * 0.02)
-                        ha = "left"
-                    else:
-                        text_x = val - (max_limit * 0.02)
-                        ha = "right"
-                    
-                    ax.text(text_x, bar.get_y() + bar.get_height() / 2,
-                           f"{int(val)}", ha=ha, va="center", fontsize=8, 
-                           fontweight="bold", color=MC.PRIMARY if ha == "right" else MC.TEXT_SECONDARY)
-
-            ax.set_xlim(0, max_limit)
-            ax.set_xticks(range(0, int(max_limit) + step, step))
-            ax.set_xlabel("Consultations", fontsize=9, fontweight="bold", color=MC.TEXT_PRIMARY)
-            ax.set_ylabel("Mois", fontsize=9, fontweight="bold", color=MC.TEXT_PRIMARY)
-            ax.tick_params(labelsize=8, colors=MC.TEXT_SECONDARY)
-            ax.spines["top"].set_visible(False)
-            ax.spines["right"].set_visible(False)
-            ax.spines["left"].set_color(MC.BORDER)
-            ax.spines["bottom"].set_color(MC.BORDER)
-
-            # Layout plus compact
-            self.graph_canvas.figure.subplots_adjust(left=0.12, right=0.98, top=0.95, bottom=0.12)
-            self.graph_canvas.draw()
+            self.graph_canvas.update_graph(data or {}, MC.PRIMARY, "Consultations")
         except Exception as e:
             print(f"[TableauConsultationView] Erreur actualiser_graphique: {e}")
 
     def _actualiser_graphique_patient(self):
-        """Met à jour le graphique des consultations du patient sélectionné avec échelle adaptative."""
+        """Met à jour le graphique des consultations du patient sélectionné avec courbes linéaires."""
         try:
             patient_code = self.patient_combo.currentData()
             if not patient_code:
-                self.graph_patient_canvas.figure.clear()
-                self.graph_patient_canvas.draw()
+                self.graph_patient_canvas.update_graph({}, MC.ACCENT, "Consultations")
                 return
 
             data = self.ctrl.obtenir_consultations_par_patient_par_mois(self.code_session, patient_code)
-            
-            if not data:
-                self.graph_patient_canvas.figure.clear()
-                self.graph_patient_canvas.draw()
-                return
-
-            self.graph_patient_canvas.figure.clear()
-            ax = self.graph_patient_canvas.figure.add_subplot(111)
-            ax.set_facecolor(MC.BG_CARD)
-            ax.grid(True, axis="x", alpha=0.3, linestyle="--", color=MC.BORDER)
-
-            # Mapping mois 1-12 au lieu des noms
-            mois_labels = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]
-            mois_ordre = {str(i): i-1 for i in range(1, 13)}  # "1"->0, "2"->1, etc.
-            
-            mois_sorted = sorted(data.keys(), key=lambda x: mois_ordre.get(x, 100))
-            values = [data[m] for m in mois_sorted]
-
-            # Calculer l'échelle adaptative plus compacte
-            max_val = max(values) if values else 0
-            if max_val <= 3:
-                step = 1
-                max_limit = max(3, max_val + 0.5)
-            elif max_val <= 10:
-                step = 2
-                max_limit = max(10, max_val + 1)
-            elif max_val <= 50:
-                step = 5
-                max_limit = max(50, max_val + 5)
-            elif max_val <= 200:
-                step = 20
-                max_limit = max(200, max_val + 20)
-            else:
-                step = 50
-                max_limit = max(500, max_val + 50)
-
-            colors = [MC.ACCENT if v > 0 else MC.BG_MAIN for v in values]  # Couleur violette pour différencier
-            bars = ax.barh(mois_sorted, values, color=colors, edgecolor=MC.ACCENT, linewidth=1, height=0.8)
-
-            for i, (bar, val) in enumerate(zip(bars, values)):
-                if val > 0:
-                    # Positionnement compact du texte
-                    if val < max_limit * 0.15:
-                        text_x = val + (max_limit * 0.02)
-                        ha = "left"
-                    else:
-                        text_x = val - (max_limit * 0.02)
-                        ha = "right"
-                    
-                    ax.text(text_x, bar.get_y() + bar.get_height() / 2,
-                           f"{int(val)}", ha=ha, va="center", fontsize=8, 
-                           fontweight="bold", color=MC.ACCENT if ha == "right" else MC.TEXT_SECONDARY)
-
-            ax.set_xlim(0, max_limit)
-            ax.set_xticks(range(0, int(max_limit) + step, step))
-            ax.set_xlabel("Consultations", fontsize=9, fontweight="bold", color=MC.TEXT_PRIMARY)
-            ax.set_ylabel("Mois", fontsize=9, fontweight="bold", color=MC.TEXT_PRIMARY)
-            ax.tick_params(labelsize=8, colors=MC.TEXT_SECONDARY)
-            ax.spines["top"].set_visible(False)
-            ax.spines["right"].set_visible(False)
-            ax.spines["left"].set_color(MC.BORDER)
-            ax.spines["bottom"].set_color(MC.BORDER)
-
-            # Layout plus compact
-            self.graph_patient_canvas.figure.subplots_adjust(left=0.12, right=0.98, top=0.95, bottom=0.12)
-            self.graph_patient_canvas.draw()
+            self.graph_patient_canvas.update_graph(data or {}, MC.ACCENT, "Consultations")
         except Exception as e:
             print(f"[TableauConsultationView] Erreur actualiser_graphique_patient: {e}")
 
@@ -932,3 +888,758 @@ class TableauConsultationView(QWidget):
                 "Erreur",
                 f"Une erreur inattendue s'est produite : {str(e)}"
             )
+
+
+class TableauConsultationAdminView(QWidget):
+    """
+    Interface tableau consultation admin.
+    - Tableau pleine largeur (ConsultationsTable) avec toutes les actions impression.
+    - Panel glissant (drawer) déclenché au clic sur une ligne :
+        • graphe consultations/mois du patient (tous les 12 mois)
+        • détail de sa dernière consultation.
+    """
+
+    PANEL_WIDTH = 430
+
+    def __init__(self, consultation_ctrl, code_session: str):
+        super().__init__()
+        self.ctrl          = consultation_ctrl
+        self.code_session  = code_session
+        self._code_patient = None
+        self._nom_patient  = ""
+        self._panel_open   = False
+        self._init_ui()
+        theme_manager.theme_changed.connect(self.apply_theme)
+        self.apply_theme()
+
+    # ──────────────────────────────────────────────────────────────────
+    # CONSTRUCTION
+    # ──────────────────────────────────────────────────────────────────
+
+    def _init_ui(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        # Tableau pleine largeur
+        from views.consultation.components.consultations_table import ConsultationsTable
+        self.tbl = ConsultationsTable(self.ctrl)
+        self.tbl.table.cellClicked.connect(self._on_cellule_cliquee)
+        self.tbl.imprimer_info_clicked.connect(self._on_imprimer_info)
+        self.tbl.imprimer_avec_resultat_clicked.connect(self._on_imprimer_avec_resultat)
+        self.tbl.new_resultat_clicked.connect(self._on_new_resultat)
+        root.addWidget(self.tbl)
+
+        # Quick Actions en bas
+        from views.consultation.components.quick_actions import QuickActions
+        self.quick_actions = QuickActions()
+        self.quick_actions.new_consultation_clicked.connect(self._naviguer_vers_consultation)
+        self.quick_actions.imprimer_tous_rapports_clicked.connect(self._on_imprimer_tous_rapports)
+        self.quick_actions.imprimer_rapport_date_clicked.connect(self._on_imprimer_rapport_par_date)
+        self.quick_actions.advanced_search_clicked.connect(self._on_recherche_avancee)
+        # Masquer les boutons non pertinents dans le contexte admin
+        # Ordre : 0=Nouvelle consultation, 1=Patients en attente, 2=Recherche avancée,
+        #         3=Rapports & exports, 4=Historique patient, 5=Imprimer rapport
+        self.quick_actions.buttons[1].hide()  # Patients en attente
+        self.quick_actions.buttons[4].hide()  # Historique patient
+        root.addWidget(self.quick_actions)
+
+        # Panel glissant (overlay — child de self, positionné en absolu)
+        self._drawer = self._build_drawer()
+        self._drawer.setParent(self)
+        self._drawer.hide()
+
+        self._anim = QPropertyAnimation(self._drawer, b"geometry")
+        self._anim.setDuration(280)
+        self._anim.setEasingCurve(QEasingCurve.OutCubic)
+
+    # ── Drawer glissant ───────────────────────────────────────────────
+
+    def _build_drawer(self) -> QFrame:
+        c   = theme_manager.colors()
+        frm = QFrame(self)
+        frm.setObjectName("TCAdminDrawer")
+        frm.setFixedWidth(self.PANEL_WIDTH)
+        frm.setStyleSheet(f"""
+            QFrame#TCAdminDrawer {{
+                background:{c['bg_card']};
+                border-left:2px solid {c['border']};
+            }}
+        """)
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(24)
+        shadow.setOffset(-5, 0)
+        shadow.setColor(QColor(0, 0, 0, 70))
+        frm.setGraphicsEffect(shadow)
+
+        lay = QVBoxLayout(frm)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(0)
+
+        # Barre titre du drawer
+        title_bar = QFrame()
+        title_bar.setFixedHeight(46)
+        title_bar.setObjectName("DrawerTitleBar")
+        tb_lay = QHBoxLayout(title_bar)
+        tb_lay.setContentsMargins(14, 0, 10, 0)
+        tb_lay.setSpacing(8)
+
+        self._drawer_ico = QLabel()
+        self._drawer_ico.setPixmap(qta.icon("fa5s.user-circle", color=c['primary']).pixmap(18, 18))
+        self._drawer_ico.setStyleSheet("border:none; background:transparent;")
+        self._drawer_title = QLabel("Détails patient")
+        self._drawer_title.setStyleSheet(
+            f"font-weight:700; font-size:13px; color:{c['text_primary']}; border:none;"
+        )
+        btn_close = QPushButton(qta.icon("fa5s.times", color=c['text_secondary']), "")
+        btn_close.setObjectName("DrawerCloseBtn")
+        btn_close.setFixedSize(28, 28)
+        btn_close.setCursor(Qt.PointingHandCursor)
+        btn_close.setStyleSheet(f"""
+            QPushButton#DrawerCloseBtn {{
+                background:{c['hover']}; border:none; border-radius:14px;
+            }}
+            QPushButton#DrawerCloseBtn:hover {{
+                background:{c['border']};
+            }}
+        """)
+        btn_close.clicked.connect(self._fermer_drawer)
+
+        tb_lay.addWidget(self._drawer_ico)
+        tb_lay.addSpacing(4)
+        tb_lay.addWidget(self._drawer_title, 1)
+        tb_lay.addWidget(btn_close)
+        lay.addWidget(title_bar)
+
+        sep_top = QFrame()
+        sep_top.setFixedHeight(1)
+        sep_top.setObjectName("DrawerTopSep")
+        sep_top.setStyleSheet(f"background:{c['border_light']}; border:none;")
+        lay.addWidget(sep_top)
+
+        # Contenu scrollable
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("background:transparent; border:none;")
+
+        content = QWidget()
+        content.setStyleSheet("background:transparent;")
+        cl = QVBoxLayout(content)
+        cl.setContentsMargins(10, 10, 10, 10)
+        cl.setSpacing(10)
+
+        self.frame_graphe = self._build_frame_graphe()
+        self.frame_detail = self._build_frame_detail()
+        cl.addWidget(self.frame_graphe)
+        cl.addWidget(self.frame_detail)
+        cl.addStretch()
+
+        scroll.setWidget(content)
+        lay.addWidget(scroll, 1)
+
+        return frm
+
+    # ── Frame graphe (dans le drawer) ────────────────────────────────
+
+    def _build_frame_graphe(self) -> QFrame:
+        c   = theme_manager.colors()
+        frm = QFrame()
+        frm.setObjectName("TCAdminGraph")
+        self._appliquer_style_carte(frm, "TCAdminGraph")
+
+        lay = QVBoxLayout(frm)
+        lay.setContentsMargins(14, 10, 14, 10)
+        lay.setSpacing(6)
+
+        hdr = QHBoxLayout()
+        self._ico_graph = QLabel()
+        self._ico_graph.setPixmap(qta.icon("fa5s.chart-bar", color=c['primary']).pixmap(16, 16))
+        self._ico_graph.setStyleSheet("border:none; background:transparent;")
+        self._title_graph = QLabel("Consultations du patient par mois")
+        self._title_graph.setStyleSheet(
+            f"font-weight:700; font-size:12px; color:{c['text_primary']}; border:none;"
+        )
+        hdr.addWidget(self._ico_graph)
+        hdr.addSpacing(6)
+        hdr.addWidget(self._title_graph, 1)
+        lay.addLayout(hdr)
+
+        self._sep_graph = QFrame()
+        self._sep_graph.setFixedHeight(1)
+        self._sep_graph.setStyleSheet(f"background:{c['border']}; border:none;")
+        lay.addWidget(self._sep_graph)
+
+        from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as _Canvas
+        from matplotlib.figure import Figure as _Figure
+        self._fig_graph    = _Figure(figsize=(4, 2.8), dpi=90, facecolor="none")
+        self._ax_graph     = self._fig_graph.add_subplot(111)
+        self._ax_graph.set_facecolor("none")
+        self._canvas_graph = _Canvas(self._fig_graph)
+        self._canvas_graph.setStyleSheet("background:transparent;")
+        self._canvas_graph.setFixedHeight(220)
+        lay.addWidget(self._canvas_graph)
+
+        self._dessiner_graphe_vide()
+        return frm
+
+    # ── Frame détail (dans le drawer) ────────────────────────────────
+
+    def _build_frame_detail(self) -> QFrame:
+        c   = theme_manager.colors()
+        frm = QFrame()
+        frm.setObjectName("TCAdminDetail")
+        self._appliquer_style_carte(frm, "TCAdminDetail")
+
+        lay = QVBoxLayout(frm)
+        lay.setContentsMargins(14, 10, 14, 10)
+        lay.setSpacing(6)
+
+        hdr = QHBoxLayout()
+        self._ico_detail = QLabel()
+        self._ico_detail.setPixmap(qta.icon("fa5s.file-medical", color=c['primary']).pixmap(16, 16))
+        self._ico_detail.setStyleSheet("border:none; background:transparent;")
+        self._title_detail = QLabel("Dernière consultation du patient")
+        self._title_detail.setStyleSheet(
+            f"font-weight:700; font-size:12px; color:{c['text_primary']}; border:none;"
+        )
+        hdr.addWidget(self._ico_detail)
+        hdr.addSpacing(6)
+        hdr.addWidget(self._title_detail, 1)
+        lay.addLayout(hdr)
+
+        self._sep_detail = QFrame()
+        self._sep_detail.setFixedHeight(1)
+        self._sep_detail.setStyleSheet(f"background:{c['border']}; border:none;")
+        lay.addWidget(self._sep_detail)
+
+        self._lbl_empty_det = QLabel("Cliquez sur une ligne du tableau\npour voir les détails")
+        self._lbl_empty_det.setAlignment(Qt.AlignCenter)
+        self._lbl_empty_det.setStyleSheet(
+            f"color:{c['text_muted']}; font-size:11px; border:none;"
+        )
+        lay.addWidget(self._lbl_empty_det)
+
+        self._detail_widget = QWidget()
+        self._detail_widget.setStyleSheet("background:transparent;")
+        dl = QGridLayout(self._detail_widget)
+        dl.setContentsMargins(0, 4, 0, 4)
+        dl.setSpacing(8)
+        dl.setColumnStretch(2, 1)
+
+        champs = [
+            ("fa5s.user",            "Patient",        "_det_patient"),
+            ("fa5s.calendar-alt",    "Date",           "_det_date"),
+            ("fa5s.stethoscope",     "Diagnostic",     "_det_diag"),
+            ("fa5s.money-bill-wave", "Frais",          "_det_frais"),
+            ("fa5s.file-invoice",    "Statut facture", "_det_statut"),
+            ("fa5s.user-md",         "Personnel",      "_det_personnel"),
+        ]
+        for i, (icon_name, libelle, attr) in enumerate(champs):
+            ico = QLabel()
+            ico.setPixmap(qta.icon(icon_name, color=c['primary']).pixmap(14, 14))
+            ico.setStyleSheet("border:none; background:transparent;")
+            ico.setFixedSize(20, 20)
+            ico.setAlignment(Qt.AlignCenter)
+
+            lbl = QLabel(libelle)
+            lbl.setStyleSheet(
+                f"color:{c['text_secondary']}; font-size:11px; font-weight:600; border:none;"
+            )
+            lbl.setFixedWidth(100)
+
+            val = QLabel("—")
+            val.setStyleSheet(
+                f"color:{c['text_primary']}; font-size:12px; font-weight:700; border:none;"
+            )
+            val.setWordWrap(True)
+            setattr(self, attr, val)
+
+            dl.addWidget(ico, i, 0)
+            dl.addWidget(lbl, i, 1)
+            dl.addWidget(val, i, 2)
+
+        lay.addWidget(self._detail_widget)
+        self._detail_widget.hide()
+        lay.addStretch()
+        return frm
+
+    @staticmethod
+    def _appliquer_style_carte(frame: QFrame, obj_name: str):
+        c = theme_manager.colors()
+        frame.setStyleSheet(f"""
+            QFrame#{obj_name} {{
+                background:{c['bg_card']};
+                border:1px solid {c['border']};
+                border-radius:14px;
+            }}
+        """)
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(12)
+        shadow.setOffset(0, 3)
+        shadow.setColor(QColor(0, 0, 0, 20))
+        frame.setGraphicsEffect(shadow)
+
+    # ──────────────────────────────────────────────────────────────────
+    # ANIMATION DRAWER
+    # ──────────────────────────────────────────────────────────────────
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        h = self.height()
+        w = self.PANEL_WIDTH
+        if self._panel_open:
+            self._drawer.setGeometry(self.width() - w, 0, w, h)
+        else:
+            self._drawer.setGeometry(self.width(), 0, w, h)
+
+    def _ouvrir_drawer(self):
+        h = self.height()
+        w = self.PANEL_WIDTH
+        self._anim.stop()
+        # Déconnecter le hide branché lors de la fermeture précédente
+        try:
+            self._anim.finished.disconnect()
+        except Exception:
+            pass
+        if not self._drawer.isVisible():
+            self._drawer.setGeometry(QRect(self.width(), 0, w, h))
+            self._drawer.show()
+            self._drawer.raise_()
+        self._anim.setStartValue(QRect(self.width(), 0, w, h))
+        self._anim.setEndValue(QRect(self.width() - w, 0, w, h))
+        self._panel_open = True
+        self._anim.start()
+
+    def _fermer_drawer(self):
+        h = self.height()
+        w = self.PANEL_WIDTH
+        self._anim.stop()
+        self._anim.setStartValue(QRect(self.width() - w, 0, w, h))
+        self._anim.setEndValue(QRect(self.width(), 0, w, h))
+        self._panel_open = False
+        try:
+            self._anim.finished.disconnect()
+        except Exception:
+            pass
+        self._anim.finished.connect(self._drawer.hide)
+        self._anim.start()
+
+    # ──────────────────────────────────────────────────────────────────
+    # INTERACTIONS
+    # ──────────────────────────────────────────────────────────────────
+
+    def _on_cellule_cliquee(self, row: int, col: int):
+        ct    = self.tbl
+        start = (ct.current_page - 1) * ct.items_per_page
+        idx   = start + row
+        if 0 <= idx < len(ct.filtered_consultations):
+            self._selectionner(ct.filtered_consultations[idx])
+
+    def _selectionner(self, consultation):
+        detail = self.tbl._get_detail(consultation)
+        if not detail:
+            return
+        code_patient = detail.get('code_patient')
+        if not code_patient:
+            return
+        nom = f"{detail.get('patient_nom','') or ''} {detail.get('patient_prenom','') or ''}".strip()
+        self._code_patient = code_patient
+        self._nom_patient  = nom or "Patient"
+        self._drawer_title.setText(f"Détails — {self._nom_patient}")
+        self._mettre_a_jour_graphe()
+        self._mettre_a_jour_detail()
+        self._ouvrir_drawer()
+
+    # ──────────────────────────────────────────────────────────────────
+    # GRAPHE — tous les 12 mois
+    # ──────────────────────────────────────────────────────────────────
+
+    _MOIS_ORDRE = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin",
+                   "Juil", "Août", "Sep", "Oct", "Nov", "Déc"]
+
+    def _mettre_a_jour_graphe(self):
+        try:
+            data = self.ctrl.obtenir_consultations_par_patient_par_mois(
+                self.code_session, self._code_patient
+            ) or {}
+        except Exception:
+            data = {}
+
+        self._title_graph.setText(f"Consultations de {self._nom_patient} par mois")
+
+        # Tous les 12 mois — 0 pour les mois sans données
+        vals = [float(data.get(m, 0) or 0) for m in self._MOIS_ORDRE]
+
+        c_th = theme_manager.colors()
+        self._ax_graph.clear()
+        self._ax_graph.set_facecolor("none")
+
+        x    = range(len(self._MOIS_ORDRE))
+        colors = [c_th['primary'] if v > 0 else c_th['border_light'] for v in vals]
+        bars = self._ax_graph.bar(x, vals, color=colors, width=0.55, alpha=0.88, zorder=3)
+
+        self._ax_graph.set_xticks(list(x))
+        self._ax_graph.set_xticklabels(
+            self._MOIS_ORDRE, fontsize=7, color=c_th['text_secondary'], rotation=45, ha='right'
+        )
+        self._ax_graph.tick_params(colors=c_th['text_secondary'], labelsize=7, length=0, pad=4)
+        self._ax_graph.set_ylabel("Consultations", fontsize=8, color=c_th['text_secondary'])
+        for sp in self._ax_graph.spines.values():
+            sp.set_visible(False)
+        self._ax_graph.grid(True, axis='y', linestyle='-',
+                            alpha=0.12, color=c_th['border'], linewidth=0.8)
+
+        max_v = max(vals) if any(v > 0 for v in vals) else 1
+        self._ax_graph.set_ylim(0, max_v * 1.35)
+
+        for bar, val in zip(bars, vals):
+            if val > 0:
+                self._ax_graph.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    bar.get_height() + max_v * 0.05,
+                    f"{int(val)}", ha='center', va='bottom',
+                    fontsize=8, fontweight='700', color=c_th['text_primary']
+                )
+
+        self._fig_graph.subplots_adjust(left=0.14, right=0.97, top=0.93, bottom=0.30)
+        self._canvas_graph.draw()
+
+    def _dessiner_graphe_vide(self):
+        c_th = theme_manager.colors()
+        self._ax_graph.clear()
+        self._ax_graph.set_facecolor("none")
+        self._ax_graph.text(
+            0.5, 0.5,
+            "Cliquez sur une ligne\npour voir les consultations du patient",
+            ha='center', va='center', fontsize=9,
+            color=c_th['text_muted'],
+            transform=self._ax_graph.transAxes
+        )
+        for sp in self._ax_graph.spines.values():
+            sp.set_visible(False)
+        self._ax_graph.set_xticks([])
+        self._ax_graph.set_yticks([])
+        self._fig_graph.subplots_adjust(left=0.08, right=0.97, top=0.95, bottom=0.1)
+        self._canvas_graph.draw()
+
+    # ──────────────────────────────────────────────────────────────────
+    # DÉTAIL DERNIÈRE CONSULTATION
+    # ──────────────────────────────────────────────────────────────────
+
+    def _mettre_a_jour_detail(self):
+        try:
+            historique = self.ctrl.obtenir_historique_patient(self._code_patient) or []
+        except Exception:
+            historique = []
+
+        if not historique:
+            self._detail_widget.hide()
+            self._lbl_empty_det.show()
+            return
+
+        derniere = historique[0]  # trié DESC → index 0 = la plus récente
+
+        def _g(key, fallback="—"):
+            v = (derniere.get(key) if isinstance(derniere, dict)
+                 else getattr(derniere, key, None))
+            return str(v).strip() if v else fallback
+
+        date_raw = (derniere.get('date_consultation') if isinstance(derniere, dict)
+                    else getattr(derniere, 'date_consultation', None))
+        try:
+            if hasattr(date_raw, 'strftime'):
+                date_str = date_raw.strftime('%d/%m/%Y')
+            elif isinstance(date_raw, str):
+                from datetime import datetime as _dt
+                date_str = _dt.strptime(date_raw[:10], '%Y-%m-%d').strftime('%d/%m/%Y')
+            else:
+                date_str = str(date_raw) if date_raw else "—"
+        except Exception:
+            date_str = str(date_raw) if date_raw else "—"
+
+        frais_raw = (derniere.get('frais_consultation') if isinstance(derniere, dict)
+                     else getattr(derniere, 'frais_consultation', 0)) or 0
+        try:
+            frais_str = f"{float(frais_raw):,.0f} GNF".replace(",", " ")
+        except Exception:
+            frais_str = "—"
+
+        per_nom    = _g('personnel_nom',      "")
+        per_prenom = _g('personnel_prenom',   "")
+        per_fonc   = _g('personnel_fonction', "")
+        dr_str = f"Dr. {per_nom} {per_prenom}".strip() if per_nom else "—"
+        if per_fonc and per_fonc != "—":
+            dr_str += f"  ({per_fonc})"
+
+        self._det_patient.setText(self._nom_patient)
+        self._det_date.setText(date_str)
+        self._det_diag.setText(_g('diagnostique'))
+        self._det_frais.setText(frais_str)
+        self._det_statut.setText(_g('statut_facture'))
+        self._det_personnel.setText(dr_str)
+
+        self._lbl_empty_det.hide()
+        self._detail_widget.show()
+
+    # ──────────────────────────────────────────────────────────────────
+    # IMPRESSION — réutilisation 100% des méthodes de VueConsultation
+    # ──────────────────────────────────────────────────────────────────
+
+    def _naviguer_vers_consultation(self):
+        """Navigue vers la page consultation du dashboard."""
+        parent = self.parent()
+        while parent:
+            if parent.__class__.__name__ == "DashboardView":
+                if hasattr(parent, "show_consultation"):
+                    parent.show_consultation()
+                return
+            parent = parent.parent()
+
+    def _on_imprimer_info(self, consultation):
+        from services.pdf_actes.consultation_pdf import ConsultationPDF
+        from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+        from views.shared.message_box import CustomMessageBox
+        code = consultation.code
+        try:
+            detail = self.ctrl.obtenir_consultation_complete(code)
+            if not detail:
+                CustomMessageBox("Erreur", f"Impossible de récupérer les détails de {code}.",
+                                 "error", parent=self).exec()
+                return
+            try:
+                info_cabinet = self.ctrl.get_cabinet_info()
+            except Exception:
+                info_cabinet = {}
+            pdf_path = ConsultationPDF.generer_pdf_consultation(detail, info_cabinet, None)
+            ApercuPDFDialog(pdf_path, f"Aperçu - Consultation {code}", self).exec()
+        except Exception as e:
+            CustomMessageBox("Erreur", f"Erreur lors de la génération du PDF :\n{e}",
+                             "error", parent=self).exec()
+
+    def _on_imprimer_avec_resultat(self, consultation):
+        from views.shared.message_box import CustomMessageBox
+        from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+        from services.pdf_actes.consultation_pdf import ConsultationPDF
+        code = consultation.code
+        try:
+            detail = self.ctrl.obtenir_consultation_complete(code)
+            if not detail:
+                CustomMessageBox("Erreur", f"Impossible de récupérer les détails de {code}.",
+                                 "error", parent=self).exec()
+                return
+            try:
+                info_cabinet = self.ctrl.get_cabinet_info()
+            except Exception:
+                info_cabinet = {}
+
+            resultat_data = {}
+            try:
+                from controllers.controleur_resultat import ResultatControleur
+                res_ctrl = ResultatControleur()
+                resultats = res_ctrl.lister_par_consultation(code) or []
+                if resultats:
+                    id_res = getattr(resultats[0], 'id_resultat', None)
+                    if id_res:
+                        resultat_data = res_ctrl.get_detail_resultat(id_res) or {}
+            except Exception:
+                pass
+
+            if not resultat_data:
+                CustomMessageBox("Information",
+                                 "Aucun résultat médical trouvé pour cette consultation.",
+                                 "info", parent=self).exec()
+                return
+
+            fichier_bytes    = None
+            type_fichier_res = resultat_data.get('type_fichier', '') if isinstance(resultat_data, dict) else ''
+            try:
+                from controllers.controleur_resultat import ResultatControleur
+                res_ctrl = ResultatControleur()
+                id_res = resultat_data.get('id_resultat') if isinstance(resultat_data, dict) else None
+                if id_res and type_fichier_res == 'image':
+                    fichier_bytes = res_ctrl.lire_fichier_bytes(id_res)
+            except Exception:
+                pass
+
+            pdf_path = ConsultationPDF.generer_pdf_consultation_avec_resultat(
+                detail, resultat_data, info_cabinet, None,
+                fichier_bytes=fichier_bytes, type_fichier_res=type_fichier_res
+            )
+            ApercuPDFDialog(pdf_path, f"Consultation avec résultat — {code}", self).exec()
+        except Exception as e:
+            CustomMessageBox("Erreur", f"Erreur lors de la génération du PDF :\n{e}",
+                             "error", parent=self).exec()
+
+    def _on_new_resultat(self, consultation):
+        from views.shared.message_box import CustomMessageBox
+        CustomMessageBox(
+            "Information",
+            f"Pour ajouter un résultat à la consultation {consultation.code},\n"
+            "veuillez naviguer vers la section Résultats.",
+            "info", parent=self
+        ).exec()
+
+    def _on_imprimer_tous_rapports(self):
+        from views.shared.message_box import CustomMessageBox
+        from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+        if not self.code_session:
+            CustomMessageBox("Information", "Aucune session active.", "info", parent=self).exec()
+            return
+        try:
+            pdf_path = self.ctrl.generer_pdf_rapport_consultations_par_date(self.code_session)
+            ApercuPDFDialog(pdf_path, "Rapport des consultations par date", self).exec()
+        except Exception as e:
+            CustomMessageBox("Erreur", f"Erreur lors de la génération du PDF :\n{e}",
+                             "error", parent=self).exec()
+
+    def _on_imprimer_rapport_par_date(self):
+        from views.shared.message_box import CustomMessageBox
+        if not self.code_session:
+            CustomMessageBox("Information", "Aucune session active.", "info", parent=self).exec()
+            return
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QFormLayout, QDialogButtonBox
+        from PySide6.QtCore import QDate
+        from PySide6.QtWidgets import QDateEdit, QLabel as _QLabel
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Sélectionner une date")
+        dialog.setFixedSize(340, 150)
+        c = theme_manager.colors()
+        dialog.setStyleSheet(f"background:{c['bg_card']}; color:{c['text_primary']};")
+        lay = QVBoxLayout(dialog)
+        lay.setContentsMargins(20, 16, 20, 16)
+        lay.setSpacing(14)
+        lay.addWidget(_QLabel("<b>Sélectionner une date pour le rapport</b>"))
+        form = QFormLayout()
+        date_edit = QDateEdit()
+        date_edit.setCalendarPopup(True)
+        date_edit.setDate(QDate.currentDate())
+        date_edit.setDisplayFormat("dd/MM/yyyy")
+        date_edit.setFixedHeight(34)
+        form.addRow("Date :", date_edit)
+        lay.addLayout(form)
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        lay.addWidget(buttons)
+        if dialog.exec():
+            date_cible = date_edit.date().toPython()
+            try:
+                from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
+                pdf_path = self.ctrl.generer_pdf_rapport_date_precise(self.code_session, date_cible)
+                date_str = date_cible.strftime('%d/%m/%Y') if hasattr(date_cible, 'strftime') else str(date_cible)
+                ApercuPDFDialog(pdf_path, f"Rapport du {date_str}", self).exec()
+            except Exception as e:
+                CustomMessageBox("Erreur", f"Erreur lors de la génération du PDF :\n{e}",
+                                 "error", parent=self).exec()
+
+    def _on_recherche_avancee(self):
+        if not self.code_session:
+            return
+        from PySide6.QtWidgets import (QDialog, QVBoxLayout, QFormLayout,
+                                        QDialogButtonBox, QDateEdit, QLabel as _QLabel)
+        from PySide6.QtCore import QDate
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Recherche entre deux dates")
+        dialog.setFixedSize(400, 200)
+        c = theme_manager.colors()
+        dialog.setStyleSheet(f"background:{c['bg_card']}; color:{c['text_primary']};")
+        lay = QVBoxLayout(dialog)
+        lay.setContentsMargins(24, 20, 24, 20)
+        lay.setSpacing(14)
+        lay.addWidget(_QLabel("<b>Rechercher des consultations entre deux dates</b>"))
+        form = QFormLayout()
+        form.setSpacing(10)
+        today = QDate.currentDate()
+        date_debut = QDateEdit()
+        date_debut.setCalendarPopup(True)
+        date_debut.setDate(today.addDays(-30))
+        date_debut.setDisplayFormat("dd/MM/yyyy")
+        date_fin = QDateEdit()
+        date_fin.setCalendarPopup(True)
+        date_fin.setDate(today)
+        date_fin.setDisplayFormat("dd/MM/yyyy")
+        form.addRow("Date début :", date_debut)
+        form.addRow("Date fin :", date_fin)
+        lay.addLayout(form)
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        lay.addWidget(buttons)
+        if dialog.exec():
+            debut = date_debut.date().toPython()
+            fin   = date_fin.date().toPython()
+            try:
+                resultats = self.ctrl.rechercher_entre_dates(self.code_session, debut, fin) or []
+            except Exception:
+                resultats = []
+            self.tbl.load_consultations(resultats, self.code_session)
+
+    # ──────────────────────────────────────────────────────────────────
+    # API PUBLIQUE
+    # ──────────────────────────────────────────────────────────────────
+
+    def charger_consultations(self, code_session: str):
+        self.code_session = code_session
+        try:
+            consultations = self.ctrl.lister_consultations(code_session) or []
+        except Exception:
+            consultations = []
+        self.tbl.load_consultations(consultations, code_session)
+
+    def rafraichir(self):
+        self.charger_consultations(self.code_session)
+
+    # ──────────────────────────────────────────────────────────────────
+    # THÈME
+    # ──────────────────────────────────────────────────────────────────
+
+    def apply_theme(self):
+        c = theme_manager.colors()
+
+        # Drawer
+        self._drawer.setStyleSheet(f"""
+            QFrame#TCAdminDrawer {{
+                background:{c['bg_card']};
+                border-left:2px solid {c['border']};
+            }}
+        """)
+        self._drawer_ico.setPixmap(qta.icon("fa5s.user-circle", color=c['primary']).pixmap(18, 18))
+        self._drawer_title.setStyleSheet(
+            f"font-weight:700; font-size:13px; color:{c['text_primary']}; border:none;"
+        )
+
+        # Cartes
+        for frm, name in [(self.frame_graphe, "TCAdminGraph"),
+                          (self.frame_detail, "TCAdminDetail")]:
+            frm.setStyleSheet(f"""
+                QFrame#{name} {{
+                    background:{c['bg_card']};
+                    border:1px solid {c['border']};
+                    border-radius:14px;
+                }}
+            """)
+
+        self._ico_graph.setPixmap(qta.icon("fa5s.chart-bar",    color=c['primary']).pixmap(16, 16))
+        self._ico_detail.setPixmap(qta.icon("fa5s.file-medical", color=c['primary']).pixmap(16, 16))
+        for lbl in (self._title_graph, self._title_detail):
+            lbl.setStyleSheet(
+                f"font-weight:700; font-size:12px; color:{c['text_primary']}; border:none;"
+            )
+        for sep in (self._sep_graph, self._sep_detail):
+            sep.setStyleSheet(f"background:{c['border']}; border:none;")
+        self._lbl_empty_det.setStyleSheet(
+            f"color:{c['text_muted']}; font-size:11px; border:none;"
+        )
+
+        if self._code_patient:
+            self._mettre_a_jour_graphe()
+        else:
+            self._dessiner_graphe_vide()
+
+        if hasattr(self, 'tbl') and hasattr(self.tbl, 'apply_theme'):
+            try:
+                self.tbl.apply_theme()
+            except Exception:
+                pass

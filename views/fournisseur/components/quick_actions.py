@@ -33,7 +33,7 @@ class QuickActions(QWidget):
             ("fa5s.file-export", "Exporter", "success", self.export_clicked),
             ("fa5s.file-import", "Importer", "info", self.import_clicked),
             ("fa5s.bell", "Notifications", "warning", self.notifications_clicked),
-            ("fa5s.chart-bar", "Rapports", "accent", self.reports_clicked),
+            ("fa5s.chart-bar", "Imprimer rapports", "accent", self.reports_clicked),
             ("fa5s.search-plus", "Recherche avancée", "text_secondary", self.search_clicked),
         ]
 
@@ -58,7 +58,7 @@ class QuickActions(QWidget):
             btn.setStyleSheet(
                 f"""
                 QPushButton#QuickActionButton {{
-                    background: white;
+                    background: {c['bg_card']};
                     border: none;
                     border-radius: 8px;
                     padding-left: 15px;

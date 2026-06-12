@@ -34,37 +34,27 @@ class QuickActions(QWidget):
         
         # 5 boutons d'actions
         self.btn_new_visit = self._create_action_button(
-            "fa5s.plus-circle",
-            "Nouvelle visite",
-            theme_manager.colors()['primary']
+            "fa5s.plus-circle", "Nouvelle visite",    'primary'
         )
         self.btn_new_visit.clicked.connect(self.new_visit_clicked.emit)
-        
+
         self.btn_progression = self._create_action_button(
-            "fa5s.tasks",
-            "Suivi progression",
-            theme_manager.colors()['success']
+            "fa5s.tasks",      "Suivi progression",   'success'
         )
         self.btn_progression.clicked.connect(self.progression_clicked.emit)
-        
+
         self.btn_priorities = self._create_action_button(
-            "fa5s.bell",
-            "Priorités & urgences",
-            theme_manager.colors()['danger']
+            "fa5s.bell",       "Priorités & urgences",'danger'
         )
         self.btn_priorities.clicked.connect(self.priorities_clicked.emit)
-        
+
         self.btn_details = self._create_action_button(
-            "fa5s.file-alt",
-            "Détails d'une visite",
-            theme_manager.colors()['info']
+            "fa5s.file-alt",   "Détails d'une visite",'info'
         )
         self.btn_details.clicked.connect(self.details_clicked.emit)
-        
+
         self.btn_export = self._create_action_button(
-            "fa5s.download",
-            "Exporter rapport",
-            theme_manager.colors()['accent']
+            "fa5s.download",   "Exporter rapport",    'accent'
         )
         self.btn_export.clicked.connect(self.export_clicked.emit)
         
@@ -74,26 +64,25 @@ class QuickActions(QWidget):
         layout.addWidget(self.btn_details)
         layout.addWidget(self.btn_export)
     
-    def _create_action_button(self, icon_name, text, color):
-        """Crée un bouton d'action"""
+    def _create_action_button(self, icon_name, text, color_key):
         btn = QPushButton(f"  {text}")
         btn.setObjectName("ActionButton")
         btn.setFixedHeight(40)
         btn.setCursor(Qt.PointingHandCursor)
-        btn.setProperty("color", color)
-        
-        # Stocker l'icône pour la mise à jour du thème
         btn.setProperty("icon_name", icon_name)
-        btn.setIcon(qta.icon(icon_name, color=color))
-        
+        btn.setProperty("color_key", color_key)
         return btn
-    
+
     def apply_theme(self):
         c = theme_manager.colors()
-        
+
         self.setStyleSheet(f"""
+            QWidget {{
+                background: {c['bg_card']};
+                border-top: 1px solid {c['border_light']};
+            }}
             QPushButton#ActionButton {{
-                background: white;
+                background: {c['bg_card']};
                 border: none;
                 border-radius: 8px;
                 color: {c['text_primary']};
@@ -103,14 +92,16 @@ class QuickActions(QWidget):
                 padding-left: 15px;
             }}
             QPushButton#ActionButton:hover {{
-                background: {c['bg_card']};
+                background: {c['hover']};
+            }}
+            QPushButton#ActionButton:pressed {{
+                background: {c['primary_light']};
             }}
         """)
-        
-        # Mise à jour des icônes
+
         for btn in self.findChildren(QPushButton):
             if btn.objectName() == "ActionButton":
                 icon_name = btn.property("icon_name")
-                color = btn.property("color")
-                if icon_name and color:
-                    btn.setIcon(qta.icon(icon_name, color=color))
+                color_key = btn.property("color_key")
+                if icon_name and color_key:
+                    btn.setIcon(qta.icon(icon_name, color=c.get(color_key, c['primary'])))

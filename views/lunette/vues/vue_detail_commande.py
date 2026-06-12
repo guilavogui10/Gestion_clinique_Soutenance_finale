@@ -32,18 +32,18 @@ def _row_ic_val(icone_name, valeur, couleur_ic=None, couleur_val=None, gras=Fals
     if couleur_val is None:
         couleur_val = c['text_secondary']
     w = QWidget()
-    w.setStyleSheet("background:transparent;")
+    w.setStyleSheet(f"background:{c['bg_card']};")
     lay = QHBoxLayout(w)
     lay.setContentsMargins(0, 0, 0, 0)
     lay.setSpacing(5)
     ic = QLabel()
     ic.setPixmap(qta.icon(icone_name, color=couleur_ic).pixmap(QSize(11, 11)))
-    ic.setStyleSheet("background:transparent; border:none;")
+    ic.setStyleSheet(f"background:{c['bg_card']}; border:none;")
     lbl = QLabel(str(valeur) if valeur else "—")
     poids = "700" if gras else "400"
     lbl.setStyleSheet(
         f"color:{couleur_val}; font-size:11px; font-weight:{poids};"
-        f"background:transparent; border:none;"
+        f"background:{c['bg_card']}; border:none;"
     )
     lbl.setWordWrap(True)
     lay.addWidget(ic)
@@ -59,7 +59,7 @@ class VueDetailCommande(QWidget):
         super().__init__(parent)
         self.ctrl = ctrl
         self.on_retour = on_retour
-        self.setStyleSheet("background:transparent;")
+        self.setStyleSheet(f"background:{_c()['bg_card']};")
 
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(16, 12, 16, 16)
@@ -81,7 +81,7 @@ class VueDetailCommande(QWidget):
 
         # Placeholder
         self._corps = QWidget()
-        self._corps.setStyleSheet("background:transparent;")
+        self._corps.setStyleSheet(f"background:{_c()['bg_card']};")
         self._corps_lay = QVBoxLayout(self._corps)
         self._corps_lay.setContentsMargins(0, 0, 0, 0)
         self._corps_lay.setSpacing(12)
@@ -172,7 +172,7 @@ class VueDetailCommande(QWidget):
         hdr = QHBoxLayout()
         ic = QLabel()
         ic.setPixmap(qta.icon(icone_name, color=couleur).pixmap(QSize(13, 13)))
-        ic.setStyleSheet("background:transparent; border:none;")
+        ic.setStyleSheet(f"background:{c['bg_card']}; border:none;")
         tl = QLabel(titre)
         tl.setStyleSheet(
             f"color:{couleur}; font-size:11px; font-weight:700; border:none;")

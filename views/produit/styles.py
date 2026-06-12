@@ -98,7 +98,7 @@ class ProduitStyles:
         c = theme_manager.colors()
         return f"""
             QFrame {{
-                background-color: {c['bg_main']};
+                background-color: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 6px;
                 padding: 8px 12px;

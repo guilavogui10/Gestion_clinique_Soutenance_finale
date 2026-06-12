@@ -171,6 +171,52 @@ class ConsultationControleur:
     def lister_personnel(self):
         return self.service.lister_personnel()
 
+    def lister_personnel_par_roles(self, roles: list) -> list:
+        return self.service.lister_personnel_par_roles(roles)
+
+    # === TARIF PAR TYPE VISITE ===
+
+    # Correspondance entre les valeurs stockées en DB et les clés du config_metier.json
+    _NORMALIZE_TYPE_VISITE = {
+        'immediat':    'Urgence',
+        'immédiat':    'Urgence',
+        'rendez-vous': 'RDV',
+        'rendez vous': 'RDV',
+        'rdv':         'RDV',
+        'vip':         'VIP',
+        'controle':    'Contrôle',
+        'contrôle':    'Contrôle',
+    }
+
+    def get_tarif_par_type_visite(self, type_visite: str) -> Optional[float]:
+        """
+        Retourne le tarif de consultation correspondant au type de visite
+        en lisant config_metier.json (via ConfigMetierManager).
+        Gère les synonymes entre les valeurs DB et les clés JSON.
+        Retourne None si le type est inconnu.
+        """
+        try:
+            from parametre.config_metier_manager import ConfigMetierManager
+            manager = ConfigMetierManager()
+            key = (type_visite or '').strip()
+
+            # 1. Essai exact (cas où le JSON et la DB sont déjà alignés)
+            tarif = manager.get_tarif_visite(key)
+            if tarif is not None:
+                return float(tarif)
+
+            # 2. Normalisation
+            config_key = self._NORMALIZE_TYPE_VISITE.get(key.lower())
+            if config_key:
+                tarif = manager.get_tarif_visite(config_key)
+                if tarif is not None:
+                    return float(tarif)
+
+            return None
+        except Exception as e:
+            self.logger.error(f"[ConsultationControleur] get_tarif_par_type_visite: {e}")
+            return None
+
     # === RECHERCHE AVANCEE ===
 
     def rechercher_entre_dates(self, code_session, date_debut, date_fin):
@@ -213,6 +259,23 @@ class ConsultationControleur:
         return RapportConsultationPDF.generer_pdf_consultations_par_date(
             details_list, info_cabinet
         )
+
+    # === EXPORT / IMPORT ===
+
+    def obtenir_donnees_pour_export(self) -> list:
+        return self.service.obtenir_donnees_pour_export()
+
+    def export_to_excel(self, chemin: str) -> tuple:
+        return self.service.export_to_excel(chemin)
+
+    def export_to_csv(self, chemin: str) -> tuple:
+        return self.service.export_to_csv(chemin)
+
+    def import_from_excel(self, chemin: str) -> tuple:
+        return self.service.import_from_excel(chemin)
+
+    def import_from_csv(self, chemin: str) -> tuple:
+        return self.service.import_from_csv(chemin)
 
     def generer_pdf_rapport_date_precise(self, code_session, date_cible):
         """

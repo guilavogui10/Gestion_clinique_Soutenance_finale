@@ -79,7 +79,7 @@ class CarteAlerteCommande(QFrame):
         code_lbl = QLabel(f"#{row.get('commande_code', '—')}")
         code_lbl.setStyleSheet(
             f"color:{c['primary']}; font-size:12px; font-weight:700;"
-            f"background:transparent; border:none;"
+            f"background:{c['bg_card']}; border:none;"
         )
         ligne1.addWidget(code_lbl)
         ligne1.addStretch()
@@ -114,11 +114,11 @@ class CarteAlerteCommande(QFrame):
         ic_patient = QLabel()
         ic_patient.setPixmap(
             qta.icon("fa5s.user", color=c['text_secondary']).pixmap(QSize(11, 11)))
-        ic_patient.setStyleSheet("background:transparent; border:none;")
+        ic_patient.setStyleSheet("background:{c['bg_card']}; border:none;")
         patient_lbl = QLabel(nom_complet)
         patient_lbl.setStyleSheet(
             f"color:{c['text_primary']}; font-size:11px; font-weight:600;"
-            f"background:transparent; border:none;"
+            f"background:{c['bg_card']}; border:none;"
         )
         ligne2.addWidget(ic_patient)
         ligne2.addSpacing(5)
@@ -132,21 +132,21 @@ class CarteAlerteCommande(QFrame):
         ic_verre = QLabel()
         ic_verre.setPixmap(
             qta.icon("fa5s.eye", color=c['text_secondary']).pixmap(QSize(11, 11)))
-        ic_verre.setStyleSheet("background:transparent; border:none;")
+        ic_verre.setStyleSheet("background:{c['bg_card']}; border:none;")
         verre_lbl = QLabel(f"Verre : {row.get('numero_verre', '—')}")
         verre_lbl.setStyleSheet(
             f"color:{c['text_secondary']}; font-size:10px;"
-            f"background:transparent; border:none;"
+            f"background:{c['bg_card']}; border:none;"
         )
 
         ic_cadre = QLabel()
         ic_cadre.setPixmap(
             qta.icon("fa5s.glasses", color=c['text_secondary']).pixmap(QSize(11, 11)))
-        ic_cadre.setStyleSheet("background:transparent; border:none;")
+        ic_cadre.setStyleSheet("background:{c['bg_card']}; border:none;")
         cadre_lbl = QLabel(f"Cadre : {row.get('numero_cadre', '—')}")
         cadre_lbl.setStyleSheet(
             f"color:{c['text_secondary']}; font-size:10px;"
-            f"background:transparent; border:none;"
+            f"background:{c['bg_card']}; border:none;"
         )
 
         ligne3.addWidget(ic_verre)
@@ -173,11 +173,11 @@ class CarteAlerteCommande(QFrame):
         ic_date = QLabel()
         ic_date.setPixmap(
             qta.icon("fa5s.calendar-alt", color=couleur_badge).pixmap(QSize(11, 11)))
-        ic_date.setStyleSheet("background:transparent; border:none;")
+        ic_date.setStyleSheet("background:{c['bg_card']}; border:none;")
         date_lbl = QLabel(f"Livraison prévue : {date_str}")
         date_lbl.setStyleSheet(
             f"color:{couleur_badge}; font-size:10px; font-weight:600;"
-            f"background:transparent; border:none;"
+            f"background:{c['bg_card']}; border:none;"
         )
 
         nom_per    = row.get("personnel_nom",    "")
@@ -187,11 +187,11 @@ class CarteAlerteCommande(QFrame):
         ic_per = QLabel()
         ic_per.setPixmap(
             qta.icon("fa5s.user-md", color=c['text_secondary']).pixmap(QSize(11, 11)))
-        ic_per.setStyleSheet("background:transparent; border:none;")
+        ic_per.setStyleSheet("background:{c['bg_card']}; border:none;")
         per_lbl = QLabel(per_complet)
         per_lbl.setStyleSheet(
             f"color:{c['text_secondary']}; font-size:10px;"
-            f"background:transparent; border:none;"
+            f"background:{c['bg_card']}; border:none;"
         )
 
         ligne4.addWidget(ic_date)
@@ -281,7 +281,7 @@ class PanneauAlertesLivraison(FondArrondi):
         self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
         contenu = QWidget()
-        contenu.setStyleSheet("background:transparent;")
+        contenu.setStyleSheet(f"background:{_c()['bg_main']};")
         self._contenu_layout = QVBoxLayout(contenu)
         self._contenu_layout.setContentsMargins(16, 16, 16, 16)
         self._contenu_layout.setSpacing(16)
@@ -300,7 +300,7 @@ class PanneauAlertesLivraison(FondArrondi):
 
         wrapper = QFrame()
         wrapper.setStyleSheet(
-            "background:transparent;"
+            f"background:{_c()['bg_card']};"
             "border-bottom-left-radius:20px;"
             "border-bottom-right-radius:20px;"
         )
@@ -336,7 +336,7 @@ class PanneauAlertesLivraison(FondArrondi):
         # Titre + compteur
         hdr = QHBoxLayout()
         frame._ic = QLabel()
-        frame._ic.setStyleSheet("background:transparent; border:none;")
+        frame._ic.setStyleSheet("background:{c['bg_card']}; border:none;")
         frame._tl = QLabel(titre)
 
         frame._compteur = QLabel("0")
@@ -356,7 +356,7 @@ class PanneauAlertesLivraison(FondArrondi):
 
         # Conteneur enfant rechargeable
         enfant = QWidget()
-        enfant.setStyleSheet("background:transparent; border:none;")
+        enfant.setStyleSheet("background:{c['bg_card']}; border:none;")
         enfant_layout = QVBoxLayout(enfant)
         enfant_layout.setContentsMargins(0, 0, 0, 0)
         enfant_layout.setSpacing(8)
@@ -395,13 +395,13 @@ class PanneauAlertesLivraison(FondArrondi):
             qta.icon("fa5s.bell", color=c['text_inverse']).pixmap(QSize(20, 20)))
         self._titre.setStyleSheet(
             f"color:{c['text_inverse']}; font-size:14px; font-weight:700;"
-            f"letter-spacing:0.3px; background:transparent;"
+            f"letter-spacing:0.3px; background:{c['bg_card']};"
         )
         self.btn_fermer.setIcon(qta.icon("fa5s.times", color=c['text_inverse']))
 
         # Scrollbar
         self._scroll.setStyleSheet(
-            f"QScrollArea{{border:none; background:transparent;}}"
+            f"QScrollArea{{border:none; background:{c['bg_main']};}}"
             f"QScrollBar:vertical{{border:none;background:{c['bg_main']};"
             f"width:5px;border-radius:2px;}}"
             f"QScrollBar::handle:vertical{{background:{c['border']};border-radius:2px;}}"
@@ -471,7 +471,7 @@ class PanneauAlertesLivraison(FondArrondi):
         lbl = QLabel(texte)
         lbl.setAlignment(Qt.AlignCenter)
         lbl.setStyleSheet(
-            f"color:{c['text_secondary']}; font-size:11px; background:transparent;"
+            f"color:{c['text_secondary']}; font-size:11px; background:{c['bg_card']};"
         )
         return lbl
 

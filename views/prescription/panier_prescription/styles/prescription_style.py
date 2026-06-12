@@ -23,10 +23,9 @@ class PrescriptionStyles:
     # -------------------------------------------------------------------------
 
     @staticmethod
-    def combo_produit(bleu_principal: str = None) -> str:
+    def combo_produit() -> str:
         """Style pour le combo produit."""
         c = theme_manager.colors()
-        bleu_principal = bleu_principal or c['primary']
         return f"""
             QComboBox {{
                 border-radius: 10px;
@@ -36,7 +35,7 @@ class PrescriptionStyles:
                 font-size: 12px;
                 color: {c['text_primary']};
             }}
-            QComboBox:focus {{ border: 2px solid {bleu_principal}; }}
+            QComboBox:focus {{ border: 2px solid {c['primary']}; }}
             QComboBox::drop-down {{ border: none; width: 28px; }}
             QComboBox QAbstractItemView {{
                 border-radius: 8px;
@@ -55,7 +54,7 @@ class PrescriptionStyles:
         c = theme_manager.colors()
         return (
             f"border-radius: 8px; border: 1px solid {c['border']};"
-            f"padding-left: 12px; background: {c['bg_main']}; font-size: 12px; color: {c['text_muted']};"
+            f"padding-left: 12px; background: {c['bg_input']}; font-size: 12px; color: {c['text_muted']};"
         )
 
     @staticmethod
@@ -90,10 +89,9 @@ class PrescriptionStyles:
     # -------------------------------------------------------------------------
 
     @staticmethod
-    def patient_card(bleu_principal: str = None) -> str:
+    def patient_card() -> str:
         """Style pour la carte d'information patient."""
         c = theme_manager.colors()
-        bleu_principal = bleu_principal or c['primary']
         return f"""
             QFrame {{
                 background: qlineargradient(
@@ -102,7 +100,7 @@ class PrescriptionStyles:
                     stop:1 {c['bg_input']}
                 );
                 border-radius: 10px;
-                border: 1.5px solid {bleu_principal};
+                border: 1.5px solid {c['primary']};
             }}
         """
 
@@ -111,17 +109,12 @@ class PrescriptionStyles:
     # -------------------------------------------------------------------------
 
     @staticmethod
-    def btn_prescrire_modern(bleu_principal: str = None) -> str:
+    def btn_prescrire_modern() -> str:
         """Style moderne pour le bouton 'Prescrire ce produit'."""
         c = theme_manager.colors()
-        bleu_principal = bleu_principal or c['primary']
         return f"""
             QPushButton {{
-                background: qlineargradient(
-                    x1:0, y1:0, x2:0, y2:1,
-                    stop:0 {bleu_principal},
-                    stop:1 {c['primary_light']}
-                );
+                background: {c['primary']};
                 color: {c['text_inverse']};
                 border-radius: 12px;
                 font-weight: bold;
@@ -129,14 +122,8 @@ class PrescriptionStyles:
                 border: none;
                 padding: 8px 20px;
             }}
-            QPushButton:hover {{
-                background: qlineargradient(
-                    x1:0, y1:0, x2:0, y2:1,
-                    stop:0 {c['primary_light']},
-                    stop:1 {bleu_principal}
-                );
-            }}
-            QPushButton:pressed  {{ background-color: {c['primary']}; }}
+            QPushButton:hover {{ background: {c['primary_hover']}; }}
+            QPushButton:pressed  {{ background-color: {c['primary_hover']}; }}
             QPushButton:disabled {{
                 background: {c['border']};
                 color: {c['text_muted']};
@@ -162,7 +149,7 @@ class PrescriptionStyles:
             }}
             QPushButton:pressed {{
                 background-color: {c['success']};
-                color: white;
+                color: {c['text_inverse']};
             }}
             QPushButton:disabled {{
                 background-color: transparent;
@@ -190,7 +177,7 @@ class PrescriptionStyles:
             }}
             QPushButton:pressed {{
                 background-color: {c['danger']};
-                color: white;
+                color: {c['text_inverse']};
             }}
         """
 

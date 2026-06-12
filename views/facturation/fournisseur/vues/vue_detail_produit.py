@@ -152,6 +152,7 @@ class VueDetailProduit(QWidget):
 
         self.setStyleSheet("background:transparent;")
         self._setup_ui()
+        theme_manager.theme_changed.connect(self.apply_theme)
 
     # =========================================================================
     # CONSTRUCTION UI
@@ -177,22 +178,36 @@ class VueDetailProduit(QWidget):
     def _construire_btn_retour(self) -> QPushButton:
         """Construit le bouton de retour à la liste."""
         _c = theme_manager.colors()
-        btn = QPushButton(
-            qta.icon("fa5s.arrow-left",
-                     color=_c['primary']),
+        self._btn_retour = QPushButton(
+            qta.icon("fa5s.arrow-left", color=_c['primary']),
             "  Retour à la liste"
         )
-        btn.setFixedHeight(34)
-        btn.setCursor(Qt.PointingHandCursor)
-        btn.setStyleSheet(
+        self._btn_retour.setFixedHeight(34)
+        self._btn_retour.setCursor(Qt.PointingHandCursor)
+        self._btn_retour.setStyleSheet(
             f"QPushButton{{background:{_c['success_bg']};"
             f"color:{_c['primary']}; border-radius:8px;"
             f"border:none; font-size:11px; font-weight:600; padding:0 12px;}}"
             f"QPushButton:hover{{background:{_c['primary']};"
             f"color:{_c['text_inverse']};}}"
         )
-        btn.clicked.connect(self.on_retour)
-        return btn
+        self._btn_retour.clicked.connect(self.on_retour)
+        return self._btn_retour
+
+    def apply_theme(self) -> None:
+        """Met à jour les couleurs selon le thème actif."""
+        c = theme_manager.colors()
+        if hasattr(self, '_btn_retour'):
+            self._btn_retour.setIcon(
+                qta.icon("fa5s.arrow-left", color=c['primary'])
+            )
+            self._btn_retour.setStyleSheet(
+                f"QPushButton{{background:{c['success_bg']};"
+                f"color:{c['primary']}; border-radius:8px;"
+                f"border:none; font-size:11px; font-weight:600; padding:0 12px;}}"
+                f"QPushButton:hover{{background:{c['primary']};"
+                f"color:{c['text_inverse']};}}"
+            )
 
     # =========================================================================
     # CHARGEMENT

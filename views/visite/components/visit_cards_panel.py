@@ -108,26 +108,30 @@ class FlowLayout(QLayout):
 # VisitCard — un frame rectangulaire = une visite active
 # =============================================================================
 
-_STATUS_COLORS = {
-    'Attente consultation': ('#FF9800', '#FFF3E0'),
-    'Attente rendez-vous':  ('#FF9800', '#FFF3E0'),
-    'En consultation':      ('#2196F3', '#E3F2FD'),
-    'Examen en cours':      ('#9C27B0', '#F3E5F5'),
-    'Attente examen':       ('#9C27B0', '#EDE7F6'),
-    'Attente chirurgie':    ('#F44336', '#FFEBEE'),
-    'Attente lunette':      ('#00BCD4', '#E0F7FA'),
-    'Attente prescription': ('#009688', '#E0F2F1'),
-    'Attente paiement':     ('#FF5722', '#FBE9E7'),
-    'Accueil':              ('#4CAF50', '#E8F5E9'),
-}
-_DEFAULT_STATUS_COLORS = ('#757575', '#F5F5F5')
+def _status_colors(c: dict) -> dict:
+    """Retourne la map statut → (txt_color, bg_color) avec les couleurs du thème actif."""
+    return {
+        'Attente consultation': (c['warning'],   c['warning_bg']),
+        'Attente rendez-vous':  (c['warning'],   c['warning_bg']),
+        'En consultation':      (c['info'],      c['info_bg']),
+        'Examen en cours':      (c['accent'],    c['accent_light']),
+        'Attente examen':       (c['accent'],    c['accent_light']),
+        'Attente chirurgie':    (c['danger'],    c['danger_bg']),
+        'Attente lunette':      (c['secondary'], c['primary_light']),
+        'Attente prescription': (c['secondary'], c['primary_light']),
+        'Attente paiement':     (c['warning'],   c['warning_bg']),
+        'Accueil':              (c['success'],   c['success_bg']),
+        'Libéré':               (c['success'],   c['success_bg']),
+    }
 
-_TYPE_ICONS = {
-    'Immediat':    ('fa5s.bolt',          '#e74c3c'),
-    'Rendez vous': ('fa5s.calendar-check', '#3498db'),
-    'VIP':         ('fa5s.crown',          '#f39c12'),
-    'Controle':    ('fa5s.redo',           '#1abc9c'),
-}
+def _type_icons(c: dict) -> dict:
+    """Retourne la map type → (icon_name, color) avec les couleurs du thème actif."""
+    return {
+        'Immediat':    ('fa5s.bolt',           c['danger']),
+        'Rendez vous': ('fa5s.calendar-check', c['primary']),
+        'VIP':         ('fa5s.crown',          c['accent']),
+        'Controle':    ('fa5s.redo',           c['success']),
+    }
 
 
 def _format_duree(minutes) -> str:
@@ -154,6 +158,7 @@ class VisitCard(QFrame):
         """
         super().__init__(parent)
         self._data = data
+        self._urgent = str(data.get('urgent', 'Non')).lower() in ('oui', '1', 'true')
         self.setFixedSize(self.CARD_W, self.CARD_H)
         self.setObjectName("VisitCard")
         self._build()
@@ -165,15 +170,18 @@ class VisitCard(QFrame):
     def _build(self):
         d = self._data
         nom      = f"{d.get('nom', '')} {d.get('prenom', '')}".strip()
-        statut   = d.get('statut_patient', 'Accueil')
-        urgent   = str(d.get('urgent', 'Non')).lower() in ('oui', '1', 'true')
-        type_v   = d.get('type_visite', '')
+        self._statut = d.get('statut_patient', 'Accueil')
+        self._type_v = d.get('type_visite', '')
+        urgent   = self._urgent
         duree_totale   = _format_duree(d.get('duree_totale_minutes', d.get('duree_minutes')))
         duree_service  = _format_duree(d.get('duree_service_minutes')) if d.get('duree_service_minutes') is not None else None
         code_v   = d.get('code_visite', '')
 
-        txt_color, bg_color = _STATUS_COLORS.get(statut, _DEFAULT_STATUS_COLORS)
-        icon_name, icon_color = _TYPE_ICONS.get(type_v, ('fa5s.hospital', '#7f8c8d'))
+        c = theme_manager.colors()
+        sc = _status_colors(c)
+        ti = _type_icons(c)
+        txt_color, bg_color = sc.get(self._statut, (c['text_secondary'], c['hover']))
+        icon_name, icon_color = ti.get(self._type_v, ('fa5s.hospital', c['text_muted']))
 
         main = QVBoxLayout(self)
         main.setContentsMargins(10, 8, 10, 8)
@@ -183,10 +191,11 @@ class VisitCard(QFrame):
         row1 = QHBoxLayout()
         row1.setSpacing(6)
 
-        ico_type = QLabel()
-        ico_type.setFixedSize(16, 16)
-        ico_type.setPixmap(qta.icon(icon_name, color=icon_color).pixmap(14, 14))
-        ico_type.setStyleSheet("border: none; background: transparent;")
+        self._ico_type = QLabel()
+        self._ico_type.setFixedSize(16, 16)
+        self._ico_type.setPixmap(qta.icon(icon_name, color=icon_color).pixmap(14, 14))
+        self._ico_type.setStyleSheet("border: none; background: transparent;")
+        ico_type = self._ico_type
 
         lbl_nom = QLabel(nom or "—")
         lbl_nom.setObjectName("CardNom")
@@ -214,18 +223,10 @@ class VisitCard(QFrame):
         # ── Ligne 2 : badge statut ───────────────────────────────────────────
         row2 = QHBoxLayout()
         row2.setContentsMargins(0, 0, 0, 0)
-        badge = QLabel(statut or "—")
-        badge.setAlignment(Qt.AlignCenter)
-        badge.setWordWrap(False)
-        badge.setStyleSheet(f"""
-            background: {bg_color};
-            color: {txt_color};
-            border-radius: 10px;
-            padding: 3px 10px;
-            font-size: 10px;
-            font-weight: 700;
-            border: none;
-        """)
+        self._badge = QLabel(self._statut or "—")
+        self._badge.setAlignment(Qt.AlignCenter)
+        self._badge.setWordWrap(False)
+        badge = self._badge
         row2.addWidget(badge)
         row2.addStretch()
         main.addLayout(row2)
@@ -274,15 +275,42 @@ class VisitCard(QFrame):
 
     def _apply_theme(self):
         c = theme_manager.colors()
+        if self._urgent:
+            card_bg           = c['danger_bg']
+            card_border       = c['danger']
+            card_hover_bg     = c['danger_bg']
+            card_hover_border = c['danger']
+        else:
+            card_bg           = c['bg_card']
+            card_border       = c['border']
+            card_hover_bg     = c['hover']
+            card_hover_border = c['primary']
+
+        # Rafraîchir badge statut
+        if hasattr(self, '_badge') and hasattr(self, '_statut'):
+            sc = _status_colors(c)
+            txt_color, bg_color = sc.get(self._statut, (c['text_secondary'], c['hover']))
+            self._badge.setStyleSheet(f"""
+                background: {bg_color}; color: {txt_color};
+                border-radius: 10px; padding: 3px 10px;
+                font-size: 10px; font-weight: 700; border: none;
+            """)
+
+        # Rafraîchir icône type
+        if hasattr(self, '_ico_type') and hasattr(self, '_type_v'):
+            ti = _type_icons(c)
+            icon_name, icon_color = ti.get(self._type_v, ('fa5s.hospital', c['text_muted']))
+            self._ico_type.setPixmap(qta.icon(icon_name, color=icon_color).pixmap(14, 14))
+
         self.setStyleSheet(f"""
             QFrame#VisitCard {{
-                background: {c['bg_card']};
-                border: 1px solid {c['border']};
+                background: {card_bg};
+                border: 1px solid {card_border};
                 border-radius: 12px;
             }}
             QFrame#VisitCard:hover {{
-                border: 1px solid {c['primary']};
-                background: {c['hover']};
+                border: 1px solid {card_hover_border};
+                background: {card_hover_bg};
             }}
             QLabel#CardNom {{
                 color: {c['text_primary']};

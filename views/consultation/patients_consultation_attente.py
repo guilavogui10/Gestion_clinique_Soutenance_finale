@@ -24,16 +24,18 @@ from views.shared.theme_manager import theme_manager
 
 
 class PatientCard(QFrame):
-    proceder_signal = Signal(object)
     changer_statut_clicked = Signal(object)
 
     CARD_WIDTH = 170
-    CARD_HEIGHT = 228
+    CARD_HEIGHT = 205
 
-    def __init__(self, patient, parent=None):
+    def __init__(self, patient, numero=0, parent=None):
         super().__init__(parent)
         self.patient = patient
+        self._numero = numero
         self._icon_rows = []
+        urgent_raw = patient.get('urgent', 'Non') if isinstance(patient, dict) else getattr(patient, 'urgent', 'Non')
+        self._urgent = str(urgent_raw).lower() in ('oui', '1', 'true')
         self._setup_shadow()
         self._setup_ui()
         self._apply_theme()
@@ -62,14 +64,38 @@ class PatientCard(QFrame):
         root.setSpacing(0)
 
         avatar_row = QHBoxLayout()
+
+        # Badge numéro (coin gauche) — équilibré par un spacer droit de même taille
+        self._lbl_numero = QLabel(str(self._numero) if self._numero > 0 else "")
+        self._lbl_numero.setFixedSize(22, 22)
+        self._lbl_numero.setAlignment(Qt.AlignCenter)
+        avatar_row.addWidget(self._lbl_numero)
+
+        avatar_row.addStretch()
         self._avatar_lbl = QLabel()
         self._avatar_lbl.setFixedSize(30, 30)
         self._avatar_lbl.setAlignment(Qt.AlignCenter)
         self._avatar_lbl.setStyleSheet("border: none; background: transparent;")
-        avatar_row.addStretch()
         avatar_row.addWidget(self._avatar_lbl)
         avatar_row.addStretch()
+
+        _spacer_r = QWidget()
+        _spacer_r.setFixedSize(22, 22)
+        _spacer_r.setStyleSheet("background: transparent; border: none;")
+        avatar_row.addWidget(_spacer_r)
+
         root.addLayout(avatar_row)
+
+        if self._urgent:
+            self._urg_badge = QLabel("⚠ URGENT")
+            self._urg_badge.setAlignment(Qt.AlignCenter)
+            _c = theme_manager.colors()
+            self._urg_badge.setStyleSheet(
+                f"font-size: 8px; font-weight: 800; color: {_c['text_inverse']};"
+                f" background: {_c['danger']}; border-radius: 6px; padding: 2px 6px; border: none;"
+            )
+            root.addWidget(self._urg_badge)
+
         root.addSpacing(3)
 
         nom = self.patient.get("nom", "") if isinstance(self.patient, dict) else getattr(self.patient, "nom", "")
@@ -119,19 +145,13 @@ class PatientCard(QFrame):
         root.addLayout(infos_layout)
         root.addStretch()
 
-        self._btn = QPushButton(" Proceder")
-        self._btn.setFixedHeight(26)
-        self._btn.setCursor(Qt.PointingHandCursor)
-        self._btn.clicked.connect(lambda: self.proceder_signal.emit(self.patient))
-        root.addWidget(self._btn)
-
         statut_patient = (self._get_value("statut_patient") or "").strip()
         if statut_patient == "En consultation":
             btn_changer_label = "Fin consultation"
         else:
             btn_changer_label = "Démarrer consultation"
         self._btn_changer = QPushButton(btn_changer_label)
-        self._btn_changer.setFixedHeight(24)
+        self._btn_changer.setFixedHeight(28)
         self._btn_changer.setCursor(Qt.PointingHandCursor)
         self._btn_changer.clicked.connect(lambda: self.changer_statut_clicked.emit(self.patient))
         root.addWidget(self._btn_changer)
@@ -191,21 +211,40 @@ class PatientCard(QFrame):
     def _apply_theme(self):
         c = theme_manager.colors()
 
+        if self._urgent:
+            card_bg        = c['danger_bg']
+            card_border    = c['danger']
+            card_hover_bg  = c['danger_bg']
+            card_hover_brd = c['danger']
+        else:
+            card_bg        = c['bg_card']
+            card_border    = c['border']
+            card_hover_bg  = c['hover']
+            card_hover_brd = c['primary']
+
         self.setStyleSheet(
             f"""
             PatientCard {{
-                background-color: {c['bg_card']};
-                border: 1.5px solid {c['border']};
+                background-color: {card_bg};
+                border: 1.5px solid {card_border};
                 border-radius: 16px;
             }}
             PatientCard:hover {{
-                border: 1.5px solid {c['primary']};
-                background-color: {c.get('bg_alt', c['bg_card'])};
+                border: 1.5px solid {card_hover_brd};
+                background-color: {card_hover_bg};
             }}
             """
         )
 
         self._avatar_lbl.setPixmap(qta.icon("fa5s.user-circle", color=c["primary"]).pixmap(QSize(30, 30)))
+
+        # Badge URGENT — mis à jour à chaque changement de thème
+        if hasattr(self, '_urg_badge'):
+            self._urg_badge.setStyleSheet(
+                f"font-size: 8px; font-weight: 800; color: {c['text_inverse']};"
+                f" background: {c['danger']}; border-radius: 6px; padding: 2px 6px; border: none;"
+            )
+
         self._lbl_nom.setStyleSheet(
             f"font-size: 9px; font-weight: 700; color: {c['text_primary']}; border: none;"
         )
@@ -231,23 +270,27 @@ class PatientCard(QFrame):
                 f"font-size: 7px; color: {c['text_secondary']}; border: none;"
             )
 
-        self._btn.setStyleSheet(ConsultationStyles.button_primary())
-        self._btn.setIcon(qta.icon("fa5s.stethoscope", color=c.get("text_inverse", "#ffffff")))
+        if self._numero > 0:
+            num_bg = c['danger'] if self._urgent else c['primary']
+            self._lbl_numero.setStyleSheet(
+                f"font-size: 10px; font-weight: 800; color: {c['text_inverse']};"
+                f" background: {num_bg}; border-radius: 11px; border: none;"
+            )
 
         statut_patient = (self._get_value("statut_patient") or "").strip()
         if statut_patient == "En consultation":
-            btn_icon = qta.icon("fa5s.stop-circle", color="#ffffff")
-            btn_bg   = "#EF4444"
-            btn_hover= "#DC2626"
+            btn_icon  = qta.icon("fa5s.stop-circle",  color=c['text_inverse'])
+            btn_bg    = c['danger']
+            btn_hover = c['danger']
         else:
-            btn_icon = qta.icon("fa5s.play-circle", color="#ffffff")
-            btn_bg   = "#2563EB"
-            btn_hover= "#1D4ED8"
+            btn_icon  = qta.icon("fa5s.play-circle",  color=c['text_inverse'])
+            btn_bg    = c['primary']
+            btn_hover = c['primary_hover']
         self._btn_changer.setIcon(btn_icon)
         self._btn_changer.setStyleSheet(f"""
             QPushButton {{
                 background: {btn_bg};
-                color: #ffffff;
+                color: {c['text_inverse']};
                 border: none;
                 border-radius: 8px;
                 font-size: 9px;
@@ -268,6 +311,7 @@ class PatientsAttenteConsultationView(QWidget):
         super().__init__(parent)
         self.ctrl = ctrl
         self.code_session = code_session
+        self._patients = []
         self._setup_ui()
         self._apply_theme()
         theme_manager.theme_changed.connect(self._apply_theme)
@@ -347,6 +391,7 @@ class PatientsAttenteConsultationView(QWidget):
                 item.widget().deleteLater()
 
         patients = self.ctrl.obtenir_patients_attente(self.code_session)
+        self._patients = patients or []
 
         if not patients:
             self._scroll.hide()
@@ -359,16 +404,74 @@ class PatientsAttenteConsultationView(QWidget):
         self._h_badge_count.setText(f"{len(patients)} patient(s)")
 
         for idx, patient in enumerate(patients):
-            card = PatientCard(patient)
-            card.proceder_signal.connect(self._on_proceder)
-            card.changer_statut_clicked.connect(self.changer_statut_signal.emit)
+            card = PatientCard(patient, numero=idx + 1)
+            card.changer_statut_clicked.connect(self._on_changer_statut)
             row = idx // self.NB_COLS
             col = idx % self.NB_COLS
             self._grid.addWidget(card, row, col)
 
+    # ── Helpers urgence ──────────────────────────────────────────────────────
+
+    @staticmethod
+    def _get_field(patient, key, default=''):
+        return patient.get(key, default) if isinstance(patient, dict) else getattr(patient, key, default)
+
+    def _is_urgent(self, patient) -> bool:
+        val = self._get_field(patient, 'urgent', 'Non')
+        return str(val).lower() in ('oui', '1', 'true')
+
+    def _urgents_en_attente(self, patient_courant) -> list:
+        """Retourne les patients urgents autres que le patient sélectionné."""
+        code_courant = self._get_field(patient_courant, 'code_visite', '')
+        result = []
+        for p in self._patients:
+            code = self._get_field(p, 'code_visite', '')
+            if self._is_urgent(p) and code != code_courant:
+                result.append(p)
+        return result
+
+    def _afficher_alerte_urgence(self, urgents: list):
+        from views.shared.message_box import CustomMessageBox
+        noms = []
+        for p in urgents[:3]:
+            nom    = self._get_field(p, 'nom', '')
+            prenom = self._get_field(p, 'prenom', '')
+            noms.append(f"• {nom} {prenom}".strip())
+        liste = "\n".join(noms)
+        if len(urgents) > 3:
+            liste += f"\n• ... et {len(urgents) - 3} autre(s)"
+        msg = (
+            f"Il y a {len(urgents)} patient(s) URGENT(S) en attente :\n\n"
+            f"{liste}\n\n"
+            f"Veuillez traiter les visites urgentes en priorité."
+        )
+        CustomMessageBox(
+            "Patients urgents en attente !",
+            msg,
+            msg_type="warning",
+            parent=self
+        ).exec()
+
+    # ── Actions ──────────────────────────────────────────────────────────────
+
     def _on_proceder(self, patient):
-        code_visite = patient.get("code_visite", "") if isinstance(patient, dict) else getattr(patient, "code_visite", "")
+        if not self._is_urgent(patient):
+            urgents = self._urgents_en_attente(patient)
+            if urgents:
+                self._afficher_alerte_urgence(urgents)
+                return
+        code_visite = self._get_field(patient, 'code_visite', '')
         self.ouvrir_formulaire.emit(code_visite)
+
+    def _on_changer_statut(self, patient):
+        statut = self._get_field(patient, 'statut_patient', '').strip()
+        # Ne bloquer que pour "Démarrer consultation", pas pour "Fin consultation"
+        if statut != "En consultation" and not self._is_urgent(patient):
+            urgents = self._urgents_en_attente(patient)
+            if urgents:
+                self._afficher_alerte_urgence(urgents)
+                return
+        self.changer_statut_signal.emit(patient)
 
     def _apply_theme(self):
         c = theme_manager.colors()
@@ -392,7 +495,7 @@ class PatientsAttenteConsultationView(QWidget):
             font-size: 11px;
             font-weight: 600;
             color: {c['text_muted']};
-            background: {c.get('bg_alt', c['bg_card'])};
+            background: {c['bg_card']};
             border-radius: 10px;
             padding: 2px 10px;
             border: 1px solid {c['border_light']};

@@ -66,7 +66,7 @@ class PatientGraphs(QWidget):
         card = QFrame()
         card.setStyleSheet(f"""
             QFrame {{
-                background: white;
+                background-color: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 12px;
             }}
@@ -105,6 +105,7 @@ class PatientGraphs(QWidget):
     def _create_modern_donut(self, stats, gc):
         """Crée un graphique camembert propre pour le genre"""
         container = QWidget()
+        container.setStyleSheet("background: transparent;")
         layout = QVBoxLayout(container)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(5)
@@ -169,6 +170,7 @@ class PatientGraphs(QWidget):
     def _create_modern_bars(self, stats, gc):
         """Crée un graphique en barres verticales propre pour l'âge"""
         container = QWidget()
+        container.setStyleSheet("background: transparent;")
         layout = QVBoxLayout(container)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(5)

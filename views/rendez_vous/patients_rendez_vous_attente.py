@@ -158,7 +158,7 @@ class PatientCard(QFrame):
             }}
             PatientCard:hover {{
                 border: 1.5px solid {c['primary']};
-                background-color: {c.get('bg_alt', c['bg_card'])};
+                background-color: {c['hover']};
             }}
             """
         )
@@ -187,7 +187,7 @@ class PatientCard(QFrame):
                 f"font-size: 7px; color: {c['text_secondary']}; border: none;"
             )
         self._btn.setStyleSheet(RendezVousStyles.button_primary())
-        self._btn.setIcon(qta.icon("fa5s.calendar-plus", color=c.get("text_inverse", "#ffffff")))
+        self._btn.setIcon(qta.icon("fa5s.calendar-plus", color=c['text_inverse']))
 
 
 class PatientsAttenteRendezVousView(QWidget):

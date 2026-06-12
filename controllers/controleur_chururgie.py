@@ -176,3 +176,26 @@ class ChirurgieControleur:
     def lister_personnel(self) -> list:
         return self.service.lister_personnel()
 
+    def lister_personnel_par_roles(self, roles: list) -> list:
+        return self.service.lister_personnel_par_roles(roles)
+
+    # =========================================================================
+    # EXPORT / IMPORT CHIRURGIES
+    # =========================================================================
+
+    def obtenir_donnees_export(self) -> list:
+        from service_metier.acte_import_export_service import obtenir_donnees_export
+        return obtenir_donnees_export("chirurgie")
+
+    def export_to_excel(self, chemin: str) -> tuple:
+        from service_metier.acte_import_export_service import export_chirurgies_excel
+        return export_chirurgies_excel(chemin)
+
+    def export_to_csv(self, chemin: str) -> tuple:
+        from service_metier.acte_import_export_service import export_chirurgies_csv
+        return export_chirurgies_csv(chemin)
+
+    def import_chirurgies(self, chemin: str, format_fichier: str) -> tuple:
+        from service_metier.acte_import_export_service import import_chirurgies
+        return import_chirurgies(chemin, format_fichier)
+

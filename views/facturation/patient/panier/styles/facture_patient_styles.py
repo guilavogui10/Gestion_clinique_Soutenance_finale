@@ -116,7 +116,7 @@ class FacturePatientStyles:
         c = theme_manager.colors()
         return f"""
             QFrame {{
-                background: {c['bg_main']};
+                background: {c['bg_card']};
                 border-radius: 10px;
                 border: 1px solid {c['border']};
             }}
@@ -140,7 +140,7 @@ class FacturePatientStyles:
             }}
             QFrame:hover {{
                 border: 1px solid {c['border']};
-                background: {c['bg_main']};
+                background: {c['hover']};
             }}
             QLabel {{
                 border: none;

@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 
 from ..styles.facture_patient_styles import FacturePatientStyles
 from views.shared.modal_theme import MC
+from views.shared.theme_manager import theme_manager
 
 
 class FacturePatientInvoiceDialog(QDialog):
@@ -143,7 +144,7 @@ class FacturePatientInvoiceDialog(QDialog):
 
         title = QLabel("Informations patient")
         title.setStyleSheet(
-            FacturePatientStyles.section_title("#0f172a") +
+            FacturePatientStyles.section_title(theme_manager.colors()['text_primary']) +
             " border:none; background:transparent;"
         )
         lay.addWidget(title)
@@ -175,7 +176,7 @@ class FacturePatientInvoiceDialog(QDialog):
 
         title = QLabel("Total à payer")
         title.setStyleSheet(
-            FacturePatientStyles.section_title("#0f172a") +
+            FacturePatientStyles.section_title(theme_manager.colors()['text_primary']) +
             " border:none; background:transparent;"
         )
         lay.addWidget(title)
@@ -196,7 +197,7 @@ class FacturePatientInvoiceDialog(QDialog):
 
         title = QLabel("Services de la facture")
         title.setStyleSheet(
-            FacturePatientStyles.section_title("#0f172a") +
+            FacturePatientStyles.section_title(theme_manager.colors()['text_primary']) +
             " border:none; background:transparent;"
         )
         lay.addWidget(title)
@@ -209,20 +210,23 @@ class FacturePatientInvoiceDialog(QDialog):
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        scroll.setStyleSheet(
+            f"QScrollArea {{ border: none; background: {MC.BG_CARD}; }}"
+            f"QScrollArea > QWidget {{ background: {MC.BG_CARD}; }}"
+        )
         scroll.verticalScrollBar().setStyleSheet(FacturePatientStyles.scrollbar())
         scroll.setFixedHeight(240)
         scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         container = QWidget()
-        container.setStyleSheet("background: transparent;")
+        container.setStyleSheet(f"background: {MC.BG_CARD};")
         list_layout = QVBoxLayout(container)
         list_layout.setContentsMargins(0, 0, 0, 0)
         list_layout.setSpacing(6)
         list_layout.setAlignment(Qt.AlignTop)
 
         row_height = 54
-        row_style = f"QFrame {{ background: {MC.BG_MAIN}; border: none; border-radius: 10px; }}"
+        row_style = f"QFrame {{ background: {MC.BG_CARD}; border: none; border-radius: 10px; }}"
 
         for l in self.lignes:
             designation = getattr(l, "get_designation", lambda: "")()
@@ -291,18 +295,19 @@ class FacturePatientInvoiceDialog(QDialog):
             pass
 
     def _icone_service(self, designation: str):
+        _c = theme_manager.colors()
         d = (designation or "").lower()
         if "consult" in d:
-            return qta.icon("fa5s.stethoscope", color=FacturePatientStyles.BLEU_PRINCIPAL)
+            return qta.icon("fa5s.stethoscope", color=_c['primary'])
         if "examen" in d or "exam" in d:
-            return qta.icon("fa5s.microscope", color=FacturePatientStyles.BLEU_PRINCIPAL)
+            return qta.icon("fa5s.microscope",  color=_c['info'])
         if "chirurg" in d:
-            return qta.icon("fa5s.procedures", color=FacturePatientStyles.BLEU_PRINCIPAL)
+            return qta.icon("fa5s.procedures",  color=_c['warning'])
         if "lunette" in d:
-            return qta.icon("fa5s.glasses", color=FacturePatientStyles.BLEU_PRINCIPAL)
+            return qta.icon("fa5s.glasses",     color=_c['success'])
         if "pharma" in d:
-            return qta.icon("fa5s.pills", color=FacturePatientStyles.BLEU_PRINCIPAL)
-        return qta.icon("fa5s.file-medical", color=FacturePatientStyles.BLEU_PRINCIPAL)
+            return qta.icon("fa5s.pills",       color=_c['accent'])
+        return qta.icon("fa5s.file-medical",    color=_c['primary'])
 
     def _build_paiement_section(self) -> QFrame:
         card = QFrame()
@@ -349,8 +354,8 @@ class FacturePatientInvoiceDialog(QDialog):
         btn_print = QPushButton("Imprimer")
         btn_print.setFixedSize(110, 34)
         btn_print.setStyleSheet(
-            f"background:{MC.BG_MAIN}; border-radius:8px; font-weight:bold; font-size:12px;"
-            f"border:1px solid {MC.BORDER};"
+            f"background:{MC.BG_INPUT}; border-radius:8px; font-weight:bold; font-size:12px;"
+            f"border:1px solid {MC.BORDER}; color:{MC.TEXT_PRIMARY};"
         )
         btn_print.setEnabled(bool(self.pdf_exporter))
         btn_print.clicked.connect(self._export_pdf)
@@ -365,7 +370,7 @@ class FacturePatientInvoiceDialog(QDialog):
         btn_ok = QPushButton("Valider")
         btn_ok.setFixedSize(110, 34)
         btn_ok.setStyleSheet(
-            f"background:{FacturePatientStyles.BLEU_PRINCIPAL}; color:white; "
+            f"background:{FacturePatientStyles.BLEU_PRINCIPAL}; color:{theme_manager.colors()['text_inverse']}; "
             "border-radius:8px; font-weight:bold; font-size:12px;"
         )
         btn_ok.clicked.connect(self._validate)
@@ -415,18 +420,18 @@ class FacturePatientInvoiceDialog(QDialog):
     def _export_pdf(self) -> None:
         if not self.pdf_exporter:
             return
-        code_facture = getattr(self.facture, "get_code_facture", lambda: "facture")()
-        default_name = f"facture_{code_facture}.pdf"
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Enregistrer la facture PDF", default_name, "PDF (*.pdf)"
-        )
-        if not path:
-            return
-        if not path.lower().endswith(".pdf"):
-            path = f"{path}.pdf"
-        ok, msg = self.pdf_exporter(path)
+            
+        import os
+        import tempfile
+        from views.patient.fonctions_avancees.apercu_pdf_dialog import ApercuPDFDialog
         from views.shared.message_box import CustomMessageBox
-        if ok:
-            CustomMessageBox.success(self, "PDF", msg)
+        
+        code_facture = getattr(self.facture, "get_code_facture", lambda: "facture")()
+        fd, path = tempfile.mkstemp(suffix=".pdf", prefix=f"facture_{code_facture}_")
+        os.close(fd)
+        
+        ok, msg = self.pdf_exporter(path)
+        if ok and os.path.exists(path):
+            ApercuPDFDialog(path, f"Aperçu - Facture {code_facture}", self).exec()
         else:
-            CustomMessageBox.error(self, "PDF", msg)
+            CustomMessageBox.error(self, "PDF", f"Erreur de génération du PDF :\n{msg}")

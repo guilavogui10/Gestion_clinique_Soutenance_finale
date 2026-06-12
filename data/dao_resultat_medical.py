@@ -149,6 +149,70 @@ class ResultatMedicalDAO:
         finally:
             self.db.close()
 
+    def modifier_complet(self, resultat: ResultatMedical) -> bool:
+        """Met à jour toutes les propriétés modifiables du résultat."""
+        if not resultat.id_resultat:
+            return False
+        conn = self.db.connect()
+        if not conn:
+            return False
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                """UPDATE resultat_medical
+                   SET type_source = %s, code_acte_medical = %s, code_consultation = %s,
+                       type_fichier = %s, chemin_fichier = %s, empreinte_sha256 = %s, 
+                       hmac_integrite = %s, description = %s, niveau_confidentialite = %s
+                   WHERE id_resultat = %s""",
+                (
+                    resultat.type_source,
+                    resultat.code_acte_medical,
+                    resultat.code_consultation,
+                    resultat.type_fichier,
+                    resultat.chemin_fichier,
+                    resultat.empreinte_sha256,
+                    resultat.hmac_integrite,
+                    resultat.description,
+                    resultat.niveau_confidentialite,
+                    resultat.id_resultat
+                )
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            if "Unknown column" not in str(e):
+                print(f"[ResultatMedicalDAO] Erreur modifier_complet: {e}")
+                conn.rollback()
+                return False
+            # Fallback
+            try:
+                cursor.execute(
+                    """UPDATE resultat_medical
+                       SET type_source = %s, code_acte_medical = %s, code_consultation = %s,
+                           type_fichier = %s, chemin_fichier = %s, 
+                           description = %s, niveau_confidentialite = %s
+                       WHERE id_resultat = %s""",
+                    (
+                        resultat.type_source,
+                        resultat.code_acte_medical,
+                        resultat.code_consultation,
+                        resultat.type_fichier,
+                        resultat.chemin_fichier,
+                        resultat.description,
+                        resultat.niveau_confidentialite,
+                        resultat.id_resultat
+                    )
+                )
+                conn.commit()
+                return cursor.rowcount > 0
+            except Exception as e2:
+                print(f"[ResultatMedicalDAO] Erreur modifier_complet fallback: {e2}")
+                conn.rollback()
+                return False
+        finally:
+            self.db.close()
+
+
     def supprimer(self, id_resultat: int) -> bool:
         """Supprime un résultat par son id (suppression du fichier physique côté service)."""
         conn = self.db.connect()

@@ -77,7 +77,7 @@ class AlerteCard(QFrame):
         c = theme_manager.colors()
         self.setStyleSheet(f"""
             QFrame#AlerteCard {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 8px;
             }}
@@ -108,8 +108,13 @@ class StatistiquesStockV2Widget(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
-        
+        _bg = theme_manager.colors()['bg_card']
+        scroll.setStyleSheet(
+            f"QScrollArea {{ border: none; background: {_bg}; }}"
+            f"QScrollArea > QWidget {{ background: {_bg}; }}"
+        )
+        self._scroll_v2 = scroll
+
         container = QWidget()
         container_layout = QVBoxLayout(container)
         container_layout.setContentsMargins(12, 12, 12, 12)
@@ -201,6 +206,7 @@ class StatistiquesStockV2Widget(QWidget):
         
         # Tableau
         self.table_stock = QTableWidget(0, 4)
+        self.table_stock.setObjectName("table_stock")
         self.table_stock.setHorizontalHeaderLabels([
             "Désignation", "Type", "Quantité totale", "Statut principal"
         ])
@@ -248,10 +254,11 @@ class StatistiquesStockV2Widget(QWidget):
             "Valides (>30j)": stats.get("nb_valides", 0)
         }
         
+        c = theme_manager.colors()
         colors = {
-            "Expiré": "#EF4444",
-            "Bientôt (<30j)": "#F59E0B",
-            "Valides (>30j)": "#10B981"
+            "Expiré": c['danger'],
+            "Bientôt (<30j)": c['warning'],
+            "Valides (>30j)": c['success'],
         }
         
         chart = DonutChart(
@@ -279,10 +286,11 @@ class StatistiquesStockV2Widget(QWidget):
             "Comprimé": stats.get("qte_comprime", 0)
         }
         
+        c = theme_manager.colors()
         colors = {
-            "Liquide": "#3B82F6",
-            "Pommade": "#8B5CF6",
-            "Comprimé": "#10B981"
+            "Liquide": c['info'],
+            "Pommade": c['accent'],
+            "Comprimé": c['success'],
         }
         
         chart = DonutChart(
@@ -310,15 +318,16 @@ class StatistiquesStockV2Widget(QWidget):
                 item.widget().deleteLater()
         
         # Ajouter les nouvelles alertes
+        c = theme_manager.colors()
         alertes = [
-            ("fa5s.exclamation-triangle", "produits en rupture de stock", 
-             stats.get("nb_rupture", 0), "#EF4444"),
-            ("fa5s.clock", "lots à expirer dans 30 jours", 
-             stats.get("nb_bientot_expire", 0), "#F59E0B"),
-            ("fa5s.times-circle", "lots déjà expirés", 
-             stats.get("nb_expires", 0), "#8B5CF6"),
-            ("fa5s.exclamation-circle", "Stock faible", 
-             stats.get("nb_stock_faible", 0), "#EF4444"),
+            ("fa5s.exclamation-triangle", "produits en rupture de stock",
+             stats.get("nb_rupture", 0),      c['danger']),
+            ("fa5s.clock", "lots à expirer dans 30 jours",
+             stats.get("nb_bientot_expire", 0), c['warning']),
+            ("fa5s.times-circle", "lots déjà expirés",
+             stats.get("nb_expires", 0),       c['accent']),
+            ("fa5s.exclamation-circle", "Stock faible",
+             stats.get("nb_stock_faible", 0),  c['danger']),
         ]
         
         for icon, text, count, color in alertes:
@@ -357,15 +366,18 @@ class StatistiquesStockV2Widget(QWidget):
     def apply_theme(self):
         """Applique le thème"""
         c = theme_manager.colors()
-        
+
         self.setStyleSheet(f"""
+            StatistiquesStockV2Widget {{
+                background: {c['bg_main']};
+            }}
             QFrame#ChartFrame, QFrame#AlertesFrame, QFrame#StockDetailFrame {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 12px;
             }}
-            QTableWidget {{
-                background: white;
+            QTableWidget#table_stock {{
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 8px;
                 gridline-color: {c['border_light']};
@@ -379,3 +391,9 @@ class StatistiquesStockV2Widget(QWidget):
                 font-weight: 700;
             }}
         """)
+        if hasattr(self, '_scroll_v2'):
+            _bg = c['bg_card']
+            self._scroll_v2.setStyleSheet(
+                f"QScrollArea {{ border: none; background: {_bg}; }}"
+                f"QScrollArea > QWidget {{ background: {_bg}; }}"
+            )

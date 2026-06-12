@@ -784,7 +784,7 @@ class FacturePatientDAO:
                 """, (code_visite,))
                 consultations = cursor.fetchall()
 
-                # Examens
+                # Examens - Corrigé pour utiliser acte_visite
                 cursor.execute("""
                     SELECT
                         e.libelle_examen,
@@ -793,15 +793,15 @@ class FacturePatientDAO:
                         per.nom   AS medecin_nom,
                         per.prenom AS medecin_prenom
                     FROM examen e
-                    INNER JOIN acte_medical am ON e.code_acte        = am.code_acte
-                    INNER JOIN consultation  c  ON am.code_consultation = c.code
+                    INNER JOIN acte_medical am ON e.code_acte = am.code_acte
+                    INNER JOIN acte_visite av ON am.code_acte = av.code_acte
                     LEFT JOIN personnel per ON e.code_personnel = per.code
-                    WHERE c.code_visite = %s
+                    WHERE av.code_visite = %s AND av.role_visite IN ('execution', 'origine')
                     ORDER BY e.date_examen DESC
                 """, (code_visite,))
                 examens = cursor.fetchall()
 
-                # Chirurgies
+                # Chirurgies - Corrigé pour utiliser acte_visite
                 cursor.execute("""
                     SELECT
                         ch.libelle_chururgie,
@@ -810,15 +810,15 @@ class FacturePatientDAO:
                         per.nom   AS medecin_nom,
                         per.prenom AS medecin_prenom
                     FROM chururgie ch
-                    INNER JOIN acte_medical am ON ch.code_acte        = am.code_acte
-                    INNER JOIN consultation  c  ON am.code_consultation = c.code
+                    INNER JOIN acte_medical am ON ch.code_acte = am.code_acte
+                    INNER JOIN acte_visite av ON am.code_acte = av.code_acte
                     LEFT JOIN personnel per ON ch.code_personnel = per.code
-                    WHERE c.code_visite = %s
+                    WHERE av.code_visite = %s AND av.role_visite IN ('execution', 'origine')
                     ORDER BY ch.date_chururgie DESC
                 """, (code_visite,))
                 chirurgies = cursor.fetchall()
 
-                # Lunettes
+                # Lunettes - Corrigé pour utiliser acte_visite
                 cursor.execute("""
                     SELECT
                         cl.numero_verre,
@@ -827,15 +827,15 @@ class FacturePatientDAO:
                         per.nom   AS medecin_nom,
                         per.prenom AS medecin_prenom
                     FROM commandeslunettes cl
-                    INNER JOIN acte_medical am ON cl.code_acte        = am.code_acte
-                    INNER JOIN consultation  c  ON am.code_consultation = c.code
+                    INNER JOIN acte_medical am ON cl.code_acte = am.code_acte
+                    INNER JOIN acte_visite av ON am.code_acte = av.code_acte
                     LEFT JOIN personnel per ON cl.code_personnel = per.code
-                    WHERE c.code_visite = %s
+                    WHERE av.code_visite = %s AND av.role_visite IN ('execution', 'origine')
                     ORDER BY cl.date_commande DESC
                 """, (code_visite,))
                 lunettes = cursor.fetchall()
 
-                # Prescriptions
+                # Prescriptions - Corrigé pour utiliser acte_visite
                 cursor.execute("""
                     SELECT
                         pp.designation,
@@ -844,10 +844,11 @@ class FacturePatientDAO:
                         per.nom   AS medecin_nom,
                         per.prenom AS medecin_prenom
                     FROM prescription_produit pp
-                    INNER JOIN acte_medical am ON pp.code_acte        = am.code_acte
-                    INNER JOIN consultation  c  ON am.code_consultation = c.code
+                    INNER JOIN acte_medical am ON pp.code_acte = am.code_acte
+                    INNER JOIN acte_visite av ON am.code_acte = av.code_acte
+                    INNER JOIN consultation c ON am.code_consultation = c.code
                     LEFT JOIN personnel per ON c.code_personnel = per.code
-                    WHERE c.code_visite = %s
+                    WHERE av.code_visite = %s AND av.role_visite IN ('execution', 'origine')
                     ORDER BY pp.code_prescription ASC
                 """, (code_visite,))
                 prescriptions = cursor.fetchall()

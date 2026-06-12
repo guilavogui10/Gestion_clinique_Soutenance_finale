@@ -3,12 +3,11 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 from PySide6.QtCore import Qt, QMargins
 from PySide6.QtGui import QFont, QColor
 import qtawesome as qta
-from views.shared.theme_manager import ThemeManager
+from views.shared.theme_manager import theme_manager
 
 class ComptabiliteJournaliereWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.theme_manager = ThemeManager()
         self.current_page = 1
         self.items_per_page = 10
         self.code_session = None
@@ -25,6 +24,8 @@ class ComptabiliteJournaliereWidget(QWidget):
         self.ctrl = StatistiquesFinancieresControleur()
         
         self._init_ui()
+        self.apply_theme()
+        theme_manager.theme_changed.connect(self.apply_theme)
         # Ne pas charger les données de test au démarrage
         
     def _init_ui(self):
@@ -57,13 +58,13 @@ class ComptabiliteJournaliereWidget(QWidget):
         # Stocker les références aux cards pour mise à jour
         self.kpi_cards = []
         
-        # 5 cards seulement
+        _c = theme_manager.colors()
         cards_data = [
-            ("Consultations", "--", "#3B82F6", "fa5s.stethoscope", ""),
-            ("Examens", "--", "#8B5CF6", "fa5s.microscope", ""),
-            ("Chirurgies", "--", "#F97316", "fa5s.cut", ""),
-            ("Commandes lunettes", "--", "#10B981", "fa5s.glasses", ""),
-            ("Prescriptions", "--", "#EC4899", "fa5s.prescription", "")
+            ("Consultations",    "--", _c['primary'], "fa5s.stethoscope",  ""),
+            ("Examens",          "--", _c['info'],    "fa5s.microscope",   ""),
+            ("Chirurgies",       "--", _c['warning'], "fa5s.cut",          ""),
+            ("Commandes lunettes","--", _c['success'], "fa5s.glasses",     ""),
+            ("Prescriptions",    "--", _c['danger'],  "fa5s.prescription", ""),
         ]
         
         for title, nombre, color, icon_name, variation in cards_data:
@@ -84,7 +85,7 @@ class ComptabiliteJournaliereWidget(QWidget):
         
         # Icône
         icon_label = QLabel()
-        icon = qta.icon(icon_name, color='white')
+        icon = qta.icon(icon_name, color=theme_manager.colors()['text_inverse'])
         icon_label.setPixmap(icon.pixmap(22, 22))
         icon_label.setFixedSize(40, 40)
         icon_label.setStyleSheet(f"background-color: {color}; border-radius: 10px;")
@@ -95,25 +96,27 @@ class ComptabiliteJournaliereWidget(QWidget):
         content_layout = QVBoxLayout()
         content_layout.setSpacing(4)
         
+        _c = theme_manager.colors()
         lbl_title = QLabel(title)
-        lbl_title.setStyleSheet("font-size: 11px; color: #6B7280; background: transparent;")
+        lbl_title.setStyleSheet(f"font-size: 11px; color: {_c['text_secondary']}; background: transparent;")
         lbl_title.setWordWrap(False)
+        card.lbl_title = lbl_title
         content_layout.addWidget(lbl_title)
-        
+
         lbl_nombre = QLabel(nombre)
         lbl_nombre.setObjectName("CardNombre")
-        lbl_nombre.setStyleSheet("font-size: 24px; font-weight: bold; background: transparent; color: #1F2937;")
+        lbl_nombre.setStyleSheet(f"font-size: 24px; font-weight: bold; background: transparent; color: {_c['text_primary']};")
         content_layout.addWidget(lbl_nombre)
-        
+
         lbl_variation = QLabel(variation if variation else "")
         lbl_variation.setObjectName("CardVariation")
-        lbl_variation.setStyleSheet("font-size: 10px; color: #10B981; background: transparent;")
+        lbl_variation.setStyleSheet(f"font-size: 10px; color: {_c['success']}; background: transparent;")
         content_layout.addWidget(lbl_variation)
         
         layout.addLayout(content_layout)
         layout.addStretch()
         
-        colors = self.theme_manager.colors()
+        colors = theme_manager.colors()
         card.setStyleSheet(f"""
             QFrame {{
                 background-color: {colors['bg_card']};
@@ -139,47 +142,47 @@ class ComptabiliteJournaliereWidget(QWidget):
         layout.setContentsMargins(16, 10, 16, 10)
         layout.setSpacing(12)
         
+        _c = theme_manager.colors()
         # Titre
         lbl_title = QLabel("Résumé financier de la journée")
-        lbl_title.setStyleSheet("font-size: 14px; font-weight: bold; background: transparent; border: none;")
+        lbl_title.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {_c['text_primary']}; background: transparent; border: none;")
         layout.addWidget(lbl_title)
-        
+
         # Layout horizontal pour les 2 éléments
         h_layout = QHBoxLayout()
         h_layout.setSpacing(30)
-        
+
         # Total des services (gauche)
         v_left = QVBoxLayout()
         v_left.setSpacing(4)
         lbl_total_services = QLabel("Total des services")
-        lbl_total_services.setStyleSheet("font-size: 12px; color: #6B7280; background: transparent; border: none;")
+        lbl_total_services.setStyleSheet(f"font-size: 12px; color: {_c['text_secondary']}; background: transparent; border: none;")
         v_left.addWidget(lbl_total_services)
-        
+
         self.lbl_nb_services = QLabel("--")
-        self.lbl_nb_services.setStyleSheet("font-size: 32px; font-weight: bold; color: #3B82F6; background: transparent; border: none;")
+        self.lbl_nb_services.setStyleSheet(f"font-size: 32px; font-weight: bold; color: {_c['info']}; background: transparent; border: none;")
         v_left.addWidget(self.lbl_nb_services)
         h_layout.addLayout(v_left)
-        
+
         # Montant total du jour (droite)
         v_right = QVBoxLayout()
         v_right.setSpacing(4)
         lbl_montant_label = QLabel("Montant total du jour")
-        lbl_montant_label.setStyleSheet("font-size: 12px; color: #6B7280; background: transparent; border: none;")
+        lbl_montant_label.setStyleSheet(f"font-size: 12px; color: {_c['text_secondary']}; background: transparent; border: none;")
         v_right.addWidget(lbl_montant_label)
-        
+
         self.lbl_montant_jour = QLabel("-- GNF")
-        self.lbl_montant_jour.setStyleSheet("font-size: 32px; font-weight: bold; color: #10B981; background: transparent; border: none;")
+        self.lbl_montant_jour.setStyleSheet(f"font-size: 32px; font-weight: bold; color: {_c['success']}; background: transparent; border: none;")
         v_right.addWidget(self.lbl_montant_jour)
         h_layout.addLayout(v_right)
         
         layout.addLayout(h_layout)
         layout.addStretch()
         
-        colors = self.theme_manager.colors()
         frame.setStyleSheet(f"""
             QFrame {{
-                background-color: {colors['bg_card']};
-                border: 1px solid {colors['border']};
+                background-color: {_c['bg_card']};
+                border: 1px solid {_c['border']};
                 border-radius: 12px;
             }}
             QLabel {{
@@ -187,21 +190,23 @@ class ComptabiliteJournaliereWidget(QWidget):
                 border: none;
             }}
         """)
+        self._frame_resume = frame
         return frame
-    
+
     def _create_donut_revenus(self):
         from PySide6.QtCharts import QChart, QChartView, QPieSeries
-        from PySide6.QtGui import QPainter, QColor
-        
+        from PySide6.QtGui import QPainter, QColor, QBrush
+
+        _c = theme_manager.colors()
         frame = QFrame()
         frame.setMaximumHeight(150)
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(16, 10, 16, 10)
         layout.setSpacing(4)
-        
+
         # Titre
         lbl_title = QLabel("Répartition des revenus par service")
-        lbl_title.setStyleSheet("font-size: 14px; font-weight: bold; background: transparent; border: none;")
+        lbl_title.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {_c['text_primary']}; background: transparent; border: none;")
         layout.addWidget(lbl_title)
         
         # Graphique donut + légende
@@ -225,32 +230,37 @@ class ComptabiliteJournaliereWidget(QWidget):
         
         series.setHoleSize(0.5)
         
-        # Couleurs
-        colors_list = ["#3B82F6", "#8B5CF6", "#F97316", "#10B981", "#EC4899"]
+        colors_list = [_c['primary'], _c['info'], _c['warning'], _c['success'], _c['danger']]
         for i, slice in enumerate(series.slices()):
             slice.setBrush(QColor(colors_list[i]))
-            slice.setBorderColor(QColor("white"))
+            slice.setBorderColor(QColor(_c['bg_card']))
             slice.setBorderWidth(3)
             slice.setLabelVisible(False)
-        
+
         chart = QChart()
         chart.addSeries(series)
         chart.setAnimationOptions(QChart.AnimationOption.NoAnimation)
         chart.legend().setVisible(False)
-        chart.setBackgroundVisible(False)
+        chart.setBackgroundBrush(QBrush(QColor(_c['bg_card'])))
+        chart.setBackgroundVisible(True)
+        chart.setPlotAreaBackgroundVisible(False)
         chart.setMargins(QMargins(0, 0, 0, 0))
-        
+
         # Texte au centre
         total_donut = sum([self._montant_consultations, self._montant_examens,
                           self._montant_chirurgies, self._montant_lunettes,
                           self._montant_prescriptions])
         chart.setTitle(f"{total_donut:,.0f}\nGNF".replace(',', ' '))
         chart.setTitleFont(QFont("Arial", 11, QFont.Weight.Bold))
-        
+        chart.setTitleBrush(QBrush(QColor(_c['text_primary'])))
+
         chart_view = QChartView(chart)
         chart_view.setRenderHint(QPainter.RenderHint.Antialiasing)
         chart_view.setFixedSize(180, 120)
-        chart_view.setStyleSheet("background: transparent; border: none;")
+        chart_view.setStyleSheet(f"background: {_c['bg_card']}; border: none;")
+
+        self._chart_donut = chart
+        self._chart_donut_view = chart_view
         h_layout.addWidget(chart_view)
         
         # Légende
@@ -258,11 +268,11 @@ class ComptabiliteJournaliereWidget(QWidget):
         legend_layout.setSpacing(4)
         
         legend_data = [
-            ("Consultations", self._montant_consultations, "#3B82F6"),
-            ("Examens", self._montant_examens, "#8B5CF6"),
-            ("Chirurgies", self._montant_chirurgies, "#F97316"),
-            ("Commandes", self._montant_lunettes, "#10B981"),
-            ("Prescriptions", self._montant_prescriptions, "#EC4899")
+            ("Consultations", self._montant_consultations, _c['primary']),
+            ("Examens",       self._montant_examens,       _c['info']),
+            ("Chirurgies",    self._montant_chirurgies,    _c['warning']),
+            ("Commandes",     self._montant_lunettes,      _c['success']),
+            ("Prescriptions", self._montant_prescriptions, _c['danger']),
         ]
         
         total_montant = sum([self._montant_consultations, self._montant_examens, 
@@ -280,15 +290,16 @@ class ComptabiliteJournaliereWidget(QWidget):
             item_layout.addWidget(color_box)
             
             # Nom
+            _c2 = theme_manager.colors()
             lbl_name = QLabel(name)
-            lbl_name.setStyleSheet("font-size: 11px; background: transparent; border: none;")
+            lbl_name.setStyleSheet(f"font-size: 11px; color: {_c2['text_primary']}; background: transparent; border: none;")
             lbl_name.setFixedWidth(110)
             item_layout.addWidget(lbl_name)
-            
+
             # Montant et %
             pct = (montant / total_montant * 100) if total_montant > 0 else 0
             lbl_val = QLabel(f"{montant:,.0f} GNF ({pct:.1f}%)".replace(',', ' '))
-            lbl_val.setStyleSheet("font-size: 10px; color: #6B7280; background: transparent; border: none;")
+            lbl_val.setStyleSheet(f"font-size: 10px; color: {_c2['text_secondary']}; background: transparent; border: none;")
             item_layout.addWidget(lbl_val)
             
             item_layout.addStretch()
@@ -299,11 +310,10 @@ class ComptabiliteJournaliereWidget(QWidget):
         
         layout.addLayout(h_layout)
         
-        colors = self.theme_manager.colors()
         frame.setStyleSheet(f"""
             QFrame {{
-                background-color: {colors['bg_card']};
-                border: 1px solid {colors['border']};
+                background-color: {_c['bg_card']};
+                border: 1px solid {_c['border']};
                 border-radius: 12px;
             }}
             QLabel {{
@@ -311,8 +321,9 @@ class ComptabiliteJournaliereWidget(QWidget):
                 border: none;
             }}
         """)
+        self._frame_donut = frame
         return frame
-    
+
     def _create_details_table(self):
         frame = QFrame()
         frame.setMinimumHeight(450)
@@ -321,9 +332,10 @@ class ComptabiliteJournaliereWidget(QWidget):
         layout.setContentsMargins(16, 10, 16, 10)
         layout.setSpacing(4)
         
+        _c = theme_manager.colors()
         # Titre
         lbl_title = QLabel("Détail des activités par service")
-        lbl_title.setStyleSheet("font-size: 12px; font-weight: bold; background: transparent;")
+        lbl_title.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {_c['text_primary']}; background: transparent;")
         layout.addWidget(lbl_title)
         
         # Tableau
@@ -351,7 +363,7 @@ class ComptabiliteJournaliereWidget(QWidget):
         
         # Pas de pagination - afficher tous les services
         
-        colors = self.theme_manager.colors()
+        colors = theme_manager.colors()
         frame.setStyleSheet(f"""
             QFrame {{
                 background-color: {colors['bg_card']};
@@ -367,18 +379,18 @@ class ComptabiliteJournaliereWidget(QWidget):
                 padding: 10px;
                 background: transparent;
                 border: none;
-                color: #1F2937;
+                color: {colors['text_primary']};
             }}
             QTableWidget::item:selected {{
-                background-color: #EFF6FF;
-                color: #1F2937;
+                background-color: {colors['table_selection']};
+                color: {colors['text_primary']};
             }}
             QHeaderView::section {{
-                background-color: #F3F4F6;
-                color: #374151;
+                background-color: {colors['table_header_bg']};
+                color: {colors['text_primary']};
                 padding: 10px;
                 border: none;
-                border-bottom: 2px solid {colors['border']};
+                border-bottom: 2px solid {colors['table_header_border']};
                 font-weight: bold;
                 font-size: 12px;
             }}
@@ -395,25 +407,26 @@ class ComptabiliteJournaliereWidget(QWidget):
             }}
             QPushButton#PageButton[active="true"] {{
                 background: {colors['primary']};
-                color: white;
+                color: {colors['text_inverse']};
                 border: 1px solid {colors['primary']};
             }}
             QPushButton#PaginationButton:hover, QPushButton#PageButton:hover {{
                 background: {colors['primary_light']};
             }}
         """)
-        
+        self._frame_table = frame
         return frame
-        
+
     def charger_donnees_test(self):
         """Charge des données de test (utilisé uniquement pour le développement)"""
         # Données statiques avec icônes
+        _ct = theme_manager.colors()
         self.all_data = [
-            ("Consultations", "fa5s.stethoscope", "#3B82F6", "32", "22 188", "710 000"),
-            ("Examens", "fa5s.microscope", "#8B5CF6", "28", "22 143", "620 000"),
-            ("Chirurgies", "fa5s.cut", "#F97316", "5", "196 000", "980 000"),
-            ("Commandes lunettes", "fa5s.glasses", "#10B981", "18", "23 333", "420 000"),
-            ("Prescriptions", "fa5s.prescription", "#EC4899", "41", "6 098", "250 000"),
+            ("Consultations",    "fa5s.stethoscope",  _ct['primary'], "32", "22 188", "710 000"),
+            ("Examens",          "fa5s.microscope",   _ct['info'],    "28", "22 143", "620 000"),
+            ("Chirurgies",       "fa5s.cut",          _ct['warning'], "5",  "196 000","980 000"),
+            ("Commandes lunettes","fa5s.glasses",     _ct['success'], "18", "23 333", "420 000"),
+            ("Prescriptions",    "fa5s.prescription", _ct['danger'],  "41", "6 098",  "250 000"),
         ]
         
         self.update_table_page()
@@ -421,7 +434,8 @@ class ComptabiliteJournaliereWidget(QWidget):
     def update_table_page(self):
         """Met à jour le tableau avec toutes les données (sans pagination)"""
         self.table.setRowCount(0)
-        
+        _c = theme_manager.colors()
+
         # Afficher toutes les données
         for row, (service, icon_name, color, nb_actes, montant_moy, total) in enumerate(self.all_data):
             self.table.insertRow(row)
@@ -436,7 +450,7 @@ class ComptabiliteJournaliereWidget(QWidget):
             service_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
             
             icon_label = QLabel()
-            icon = qta.icon(icon_name, color='white')
+            icon = qta.icon(icon_name, color=theme_manager.colors()['text_inverse'])
             icon_label.setPixmap(icon.pixmap(12, 12))
             icon_label.setFixedSize(20, 20)
             icon_label.setStyleSheet(f"background-color: {color}; border-radius: 4px; border: none;")
@@ -444,34 +458,34 @@ class ComptabiliteJournaliereWidget(QWidget):
             service_layout.addWidget(icon_label)
             
             lbl_service = QLabel(service)
-            lbl_service.setStyleSheet("background: transparent; border: none; color: #1F2937; font-size: 10px;")
+            lbl_service.setStyleSheet(f"background: transparent; border: none; color: {_c['text_primary']}; font-size: 10px;")
             service_layout.addWidget(lbl_service)
             service_layout.addStretch()
-            
+
             self.table.setCellWidget(row, 0, service_widget)
-            
+
             # Nombre d'actes
             item_nb = QTableWidgetItem(nb_actes)
             item_nb.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            item_nb.setForeground(QColor("#1F2937"))
+            item_nb.setForeground(QColor(_c['text_primary']))
             font_nb = QFont()
             font_nb.setPointSize(9)
             item_nb.setFont(font_nb)
             self.table.setItem(row, 1, item_nb)
-            
+
             # Montant unitaire moyen
             item_moy = QTableWidgetItem(f"{montant_moy} GNF")
             item_moy.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            item_moy.setForeground(QColor("#1F2937"))
+            item_moy.setForeground(QColor(_c['text_primary']))
             font_moy = QFont()
             font_moy.setPointSize(9)
             item_moy.setFont(font_moy)
             self.table.setItem(row, 2, item_moy)
-            
+
             # Total
             item_total = QTableWidgetItem(f"{total} GNF")
             item_total.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            item_total.setForeground(QColor("#1F2937"))
+            item_total.setForeground(QColor(_c['text_primary']))
             font_total = QFont()
             font_total.setPointSize(9)
             item_total.setFont(font_total)
@@ -483,37 +497,127 @@ class ComptabiliteJournaliereWidget(QWidget):
         self.table.setRowHeight(total_row, 38)
         
         item_total_label = QTableWidgetItem("Total général")
-        item_total_label.setForeground(QColor("#1F2937"))
+        item_total_label.setForeground(QColor(_c['text_primary']))
         font_bold = QFont()
         font_bold.setPointSize(9)
         font_bold.setBold(True)
         item_total_label.setFont(font_bold)
         self.table.setItem(total_row, 0, item_total_label)
-        
+
         # Calculer le total des services
         total_services = sum(int(row[3]) for row in self.all_data)
         item_total_nb = QTableWidgetItem(str(total_services))
         item_total_nb.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        item_total_nb.setForeground(QColor("#1F2937"))
+        item_total_nb.setForeground(QColor(_c['text_primary']))
         item_total_nb.setFont(font_bold)
         self.table.setItem(total_row, 1, item_total_nb)
-        
+
         item_total_moy = QTableWidgetItem("—")
         item_total_moy.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        item_total_moy.setForeground(QColor("#6B7280"))
+        item_total_moy.setForeground(QColor(_c['text_secondary']))
         self.table.setItem(total_row, 2, item_total_moy)
-        
+
         # Calculer le montant total
         total_montant = sum(int(row[5].replace(' ', '')) for row in self.all_data)
         item_total_montant = QTableWidgetItem(f"{total_montant:,} GNF".replace(',', ' '))
         item_total_montant.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        item_total_montant.setForeground(QColor("#10B981"))
+        item_total_montant.setForeground(QColor(_c['success']))
         item_total_montant.setFont(font_bold)
         self.table.setItem(total_row, 3, item_total_montant)
             
     def apply_theme(self):
-        colors = self.theme_manager.colors()
-        self.setStyleSheet(f"background-color: {colors['bg_primary']};")
+        c = theme_manager.colors()
+        from PySide6.QtGui import QBrush, QColor
+        self.setStyleSheet(f"""
+            ComptabiliteJournaliereWidget {{
+                background-color: {c['bg_main']};
+            }}
+            QLabel {{
+                background: transparent;
+                color: {c['text_primary']};
+                border: none;
+            }}
+        """)
+
+        # Mettre à jour le QChart donut (ne répond pas aux stylesheets Qt)
+        if hasattr(self, '_chart_donut'):
+            self._chart_donut.setBackgroundBrush(QBrush(QColor(c['bg_card'])))
+            self._chart_donut.setTitleBrush(QBrush(QColor(c['text_primary'])))
+        if hasattr(self, '_chart_donut_view'):
+            self._chart_donut_view.setStyleSheet(f"background: {c['bg_card']}; border: none;")
+        if hasattr(self, '_frame_donut'):
+            self._frame_donut.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {c['bg_card']};
+                    border: 1px solid {c['border']};
+                    border-radius: 12px;
+                }}
+                QLabel {{ background: transparent; border: none; }}
+            """)
+
+        # Frame tableau
+        if hasattr(self, '_frame_table'):
+            self._frame_table.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {c['bg_card']};
+                    border: 1px solid {c['border']};
+                    border-radius: 12px;
+                }}
+                QTableWidget {{
+                    border: none; background-color: transparent;
+                    gridline-color: {c['border']};
+                }}
+                QTableWidget::item {{
+                    padding: 10px; background: transparent; border: none;
+                    color: {c['text_primary']};
+                }}
+                QTableWidget::item:selected {{
+                    background-color: {c['table_selection']}; color: {c['text_primary']};
+                }}
+                QHeaderView::section {{
+                    background-color: {c['table_header_bg']}; color: {c['text_primary']};
+                    padding: 10px; border: none;
+                    border-bottom: 2px solid {c['table_header_border']};
+                    font-weight: bold; font-size: 12px;
+                }}
+                QLabel {{ background: transparent; border: none; }}
+            """)
+
+        # Rafraîchir le tableau si des données sont chargées
+        if hasattr(self, 'all_data') and self.all_data:
+            self.update_table_page()
+        # Résumé financier
+        if hasattr(self, '_frame_resume'):
+            self._frame_resume.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {c['bg_card']};
+                    border: 1px solid {c['border']};
+                    border-radius: 12px;
+                }}
+                QLabel {{ background: transparent; border: none; }}
+            """)
+        if hasattr(self, 'lbl_nb_services'):
+            self.lbl_nb_services.setStyleSheet(f"font-size: 32px; font-weight: bold; color: {c['info']}; background: transparent; border: none;")
+        if hasattr(self, 'lbl_montant_jour'):
+            self.lbl_montant_jour.setStyleSheet(f"font-size: 32px; font-weight: bold; color: {c['success']}; background: transparent; border: none;")
+
+        # Mettre à jour les KPI cards
+        if hasattr(self, 'kpi_cards'):
+            for card in self.kpi_cards:
+                card.setStyleSheet(f"""
+                    QFrame {{
+                        background-color: {c['bg_card']};
+                        border: 1px solid {c['border']};
+                        border-radius: 12px;
+                    }}
+                    QLabel {{ background: transparent; border: none; }}
+                """)
+                if hasattr(card, 'lbl_title'):
+                    card.lbl_title.setStyleSheet(f"font-size: 11px; color: {c['text_secondary']}; background: transparent;")
+                if hasattr(card, 'lbl_nombre'):
+                    card.lbl_nombre.setStyleSheet(f"font-size: 24px; font-weight: bold; background: transparent; color: {c['text_primary']};")
+                if hasattr(card, 'lbl_variation'):
+                    card.lbl_variation.setStyleSheet(f"font-size: 10px; color: {c['success']}; background: transparent;")
     
     def charger_donnees(self, code_session: str):
         """Charge les données réelles depuis la base de données"""
@@ -583,47 +687,28 @@ class ComptabiliteJournaliereWidget(QWidget):
         self._update_donut_revenus(stats)
         
         # Construire les données du tableau à partir des stats journalières
+        _ct = theme_manager.colors()
         self.all_data = [
-            (
-                "Consultations",
-                "fa5s.stethoscope",
-                "#3B82F6",
-                str(stats.get('nb_consultations', 0)),
-                f"{stats.get('montant_unitaire_consultations', 0):,.0f}".replace(',', ' '),
-                f"{stats.get('montant_consultations', 0):,.0f}".replace(',', ' ')
-            ),
-            (
-                "Examens",
-                "fa5s.microscope",
-                "#8B5CF6",
-                str(stats.get('nb_examens', 0)),
-                f"{stats.get('montant_unitaire_examens', 0):,.0f}".replace(',', ' '),
-                f"{stats.get('montant_examens', 0):,.0f}".replace(',', ' ')
-            ),
-            (
-                "Chirurgies",
-                "fa5s.cut",
-                "#F97316",
-                str(stats.get('nb_chirurgies', 0)),
-                f"{stats.get('montant_unitaire_chirurgies', 0):,.0f}".replace(',', ' '),
-                f"{stats.get('montant_chirurgies', 0):,.0f}".replace(',', ' ')
-            ),
-            (
-                "Commandes lunettes",
-                "fa5s.glasses",
-                "#10B981",
-                str(stats.get('nb_lunettes', 0)),
-                f"{stats.get('montant_unitaire_lunettes', 0):,.0f}".replace(',', ' '),
-                f"{stats.get('montant_lunettes', 0):,.0f}".replace(',', ' ')
-            ),
-            (
-                "Prescriptions",
-                "fa5s.prescription",
-                "#EC4899",
-                str(stats.get('nb_prescriptions', 0)),
-                f"{stats.get('montant_unitaire_prescriptions', 0):,.0f}".replace(',', ' '),
-                f"{stats.get('montant_prescriptions', 0):,.0f}".replace(',', ' ')
-            ),
+            ("Consultations",    "fa5s.stethoscope",  _ct['primary'],
+             str(stats.get('nb_consultations', 0)),
+             f"{stats.get('montant_unitaire_consultations', 0):,.0f}".replace(',', ' '),
+             f"{stats.get('montant_consultations', 0):,.0f}".replace(',', ' ')),
+            ("Examens",          "fa5s.microscope",   _ct['info'],
+             str(stats.get('nb_examens', 0)),
+             f"{stats.get('montant_unitaire_examens', 0):,.0f}".replace(',', ' '),
+             f"{stats.get('montant_examens', 0):,.0f}".replace(',', ' ')),
+            ("Chirurgies",       "fa5s.cut",          _ct['warning'],
+             str(stats.get('nb_chirurgies', 0)),
+             f"{stats.get('montant_unitaire_chirurgies', 0):,.0f}".replace(',', ' '),
+             f"{stats.get('montant_chirurgies', 0):,.0f}".replace(',', ' ')),
+            ("Commandes lunettes","fa5s.glasses",     _ct['success'],
+             str(stats.get('nb_lunettes', 0)),
+             f"{stats.get('montant_unitaire_lunettes', 0):,.0f}".replace(',', ' '),
+             f"{stats.get('montant_lunettes', 0):,.0f}".replace(',', ' ')),
+            ("Prescriptions",    "fa5s.prescription", _ct['danger'],
+             str(stats.get('nb_prescriptions', 0)),
+             f"{stats.get('montant_unitaire_prescriptions', 0):,.0f}".replace(',', ' '),
+             f"{stats.get('montant_prescriptions', 0):,.0f}".replace(',', ' ')),
         ]
         
         # Mettre à jour l'affichage

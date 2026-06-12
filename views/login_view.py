@@ -9,6 +9,7 @@ from PySide6.QtGui import (
     QPixmap,
 )
 from PySide6.QtWidgets import (
+    QComboBox,
     QFrame,
     QGraphicsDropShadowEffect,
     QHBoxLayout,
@@ -158,12 +159,14 @@ class WaveRightPanel(QFrame):
 class LoginView(QWidget):
     login_success = Signal(dict)
 
-    def __init__(self):
+    def __init__(self, roles_disponibles=None):
         super().__init__()
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
         # Charger l'image de fond
         self.background_image = QPixmap("assets/images/fond.png")
+        # Les rôles sont fournis par le contrôleur (respect MVC)
+        self._roles_disponibles = roles_disponibles or []
         self._build_ui()
     
     def paintEvent(self, event):
@@ -250,7 +253,7 @@ class LoginView(QWidget):
         vbox.setSpacing(0)
 
         # Titre
-        title = QLabel("Welcome")
+        title = QLabel("Bienvenue")
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet(
             "font-size: 30px; font-weight: 600; color: #2C3E50;"
@@ -259,7 +262,7 @@ class LoginView(QWidget):
         vbox.addWidget(title)
         vbox.addSpacing(6)
 
-        subtitle = QLabel("Log in to your account to continue")
+        subtitle = QLabel("Connectez-vous à votre compte pour continuer")
         subtitle.setAlignment(Qt.AlignCenter)
         subtitle.setStyleSheet(
             "font-size: 12px; color: #95A5A6; border: none; background: transparent;"
@@ -267,10 +270,10 @@ class LoginView(QWidget):
         vbox.addWidget(subtitle)
         vbox.addSpacing(28)
 
-        # Champ e-mail
-        ef = self._build_input_field("fa5s.user", "awesome@user.com")
-        self.input_login = ef["input"]
-        vbox.addWidget(ef["frame"])
+        # Champ de sélection de rôle (ComboBox)
+        rf = self._build_role_selector()
+        self.combo_role = rf["combo"]
+        vbox.addWidget(rf["frame"])
         vbox.addSpacing(14)
 
         # Champ mot de passe
@@ -284,19 +287,35 @@ class LoginView(QWidget):
         # Mot de passe oublié
         forgot_row = QHBoxLayout()
         forgot_row.addStretch()
-        btn_forgot = QPushButton("Forgot your password?")
+        btn_forgot = QPushButton("Mot de passe oublié ?")
         btn_forgot.setCursor(Qt.PointingHandCursor)
         btn_forgot.setStyleSheet(
             "QPushButton { border:none; background:transparent; color:#3D9B9B;"
             "font-size:11px; text-decoration:underline; }"
             "QPushButton:hover { color:#2D8282; }"
         )
+        btn_forgot.clicked.connect(self._on_forgot_password)
         forgot_row.addWidget(btn_forgot)
         vbox.addLayout(forgot_row)
-        vbox.addSpacing(18)
+        vbox.addSpacing(6)
+
+        # Paramètre Session (accès DG)
+        session_row = QHBoxLayout()
+        session_row.addStretch()
+        btn_session = QPushButton("Paramètre Session")
+        btn_session.setCursor(Qt.PointingHandCursor)
+        btn_session.setStyleSheet(
+            "QPushButton { border:none; background:transparent; color:#7F8C8D;"
+            "font-size:11px; text-decoration:underline; }"
+            "QPushButton:hover { color:#3D9B9B; }"
+        )
+        btn_session.clicked.connect(self._on_parametre_session)
+        session_row.addWidget(btn_session)
+        vbox.addLayout(session_row)
+        vbox.addSpacing(14)
 
         # Bouton Log In
-        self.btn_login = QPushButton("Log In")
+        self.btn_login = QPushButton("Se connecter")
         self.btn_login.setCursor(Qt.PointingHandCursor)
         self.btn_login.setFixedHeight(44)
         self.btn_login.setFont(QFont("", 13, QFont.Weight.Medium))
@@ -333,18 +352,19 @@ class LoginView(QWidget):
         # Sign up
         signup_row = QHBoxLayout()
         signup_row.setAlignment(Qt.AlignCenter)
-        lbl = QLabel("Don't have an account?")
+        lbl = QLabel("Pas encore de compte ?")
         lbl.setStyleSheet(
             "font-size:11px; color:#7F8C8D; border:none; background:transparent;"
         )
         signup_row.addWidget(lbl)
-        btn_signup = QPushButton("Sign up!")
+        btn_signup = QPushButton("S'inscrire !")
         btn_signup.setCursor(Qt.PointingHandCursor)
         btn_signup.setStyleSheet(
             "QPushButton { border:none; background:transparent; color:#3D9B9B;"
             "font-size:11px; font-weight:600; }"
             "QPushButton:hover { color:#2D8282; }"
         )
+        btn_signup.clicked.connect(self._on_signup)
         signup_row.addWidget(btn_signup)
         vbox.addLayout(signup_row)
         vbox.addSpacing(14)
@@ -368,6 +388,69 @@ class LoginView(QWidget):
 
         return panel
 
+    # ── Sélecteur de rôle ────────────────────────────────────────────
+    def _build_role_selector(self):
+        """Construit un sélecteur de rôle avec QComboBox."""
+        frame = QFrame()
+        frame.setFixedHeight(48)
+        frame.setStyleSheet(
+            "QFrame { background-color:#F8F9FA; border:1px solid #E9ECEF; border-radius:8px; }"
+        )
+        row = QHBoxLayout(frame)
+        row.setContentsMargins(14, 0, 14, 0)
+        row.setSpacing(10)
+
+        # Icône utilisateur
+        ico = QLabel()
+        ico.setPixmap(qta.icon("fa5s.user-tag", color="#95A5A6").pixmap(17, 17))
+        ico.setStyleSheet("border:none; background:transparent;")
+        row.addWidget(ico)
+
+        # ComboBox pour sélectionner le rôle
+        combo = QComboBox()
+        combo.setFrame(False)
+        combo.setStyleSheet("""
+            QComboBox {
+                border: none;
+                background: transparent;
+                color: #2C3E50;
+                font-size: 13px;
+                padding: 2px;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 6px solid #95A5A6;
+                margin-right: 5px;
+            }
+            QComboBox:hover::down-arrow {
+                border-top-color: #3ECFCF;
+            }
+            QComboBox QAbstractItemView {
+                border: 1px solid #E9ECEF;
+                background-color: white;
+                selection-background-color: #3ECFCF;
+                selection-color: white;
+                padding: 5px;
+            }
+        """)
+        
+        # Ajouter une option par défaut
+        combo.addItem("-- Sélectionnez votre rôle --", "")
+        
+        # Ajouter les rôles disponibles
+        for role in self._roles_disponibles:
+            combo.addItem(role, role)
+        
+        row.addWidget(combo, 1)
+
+        return {"frame": frame, "combo": combo}
+    
     # ── Champ de saisie ──────────────────────────────────────────────
     def _build_input_field(self, icon_name: str, placeholder: str, is_password=False):
         frame = QFrame()
@@ -417,9 +500,67 @@ class LoginView(QWidget):
             self.btn_show_pass.setIcon(qta.icon("fa5s.eye", color="#95A5A6"))
 
     def handle_login(self):
-        login = self.input_login.text().strip()
-        pwd   = self.input_password.text()
-        self.login_success.emit({"login": login, "pwd": pwd})
+        # Récupérer le rôle sélectionné
+        role_selectionne = self.combo_role.currentData()
+        
+        if not role_selectionne:
+            from views.shared.message_box import CustomMessageBox
+            CustomMessageBox(
+                "Erreur de connexion",
+                "Veuillez sélectionner un rôle avant de vous connecter.",
+                False,
+                self
+            ).exec()
+            return
+        
+        pwd = self.input_password.text()
+        
+        if not pwd:
+            from views.shared.message_box import CustomMessageBox
+            CustomMessageBox(
+                "Erreur de connexion",
+                "Veuillez saisir votre mot de passe.",
+                False,
+                self
+            ).exec()
+            return
+        
+        self.login_success.emit({"login": role_selectionne, "pwd": pwd})
+    
+    def _on_forgot_password(self):
+        from views.forgot_password_dialog import ForgotPasswordDialog
+        dialog = ForgotPasswordDialog(self)
+        dialog.exec()
+
+    def _on_parametre_session(self):
+        from views.settings.dialog_autorisation_session import DialogAutorisationSession
+        from core import session_manager
+        dialog = DialogAutorisationSession(self)
+        dialog.session_confirmee.connect(session_manager.set_session_override)
+        dialog.exec()
+
+    def _on_signup(self):
+        from controllers.controleur_personnel import ControllerPersonnel
+        from views.shared.message_box import CustomMessageBox
+        
+        try:
+            ctrl = ControllerPersonnel()
+            total = ctrl.nombre_total()
+        except Exception as e:
+            print(f"Erreur vérification base de données: {e}")
+            total = 0
+            
+        if total > 0:
+            CustomMessageBox(
+                "Action non autorisée", 
+                "Des comptes existent déjà dans le système.\n\nLes nouveaux comptes utilisateurs doivent être créés par un Administrateur depuis l'interface 'Personnel'.", 
+                False, 
+                self
+            ).exec()
+        else:
+            from views.first_setup_dialog import FirstSetupDialog
+            dialog = FirstSetupDialog(self)
+            dialog.exec()
     
     def _quit_application(self):
         """Ferme l'application après confirmation et arrête les services."""

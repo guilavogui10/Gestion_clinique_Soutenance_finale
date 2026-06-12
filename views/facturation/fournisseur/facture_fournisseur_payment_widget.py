@@ -186,7 +186,7 @@ class FactureFournisseurPaymentWidget(QWidget):
         self.btn_annuler.setCursor(Qt.PointingHandCursor)
         self.btn_annuler.clicked.connect(self._annuler)
         
-        self.btn_valider = QPushButton(qta.icon("fa5s.lock", color="#ffffff"), "  Valider le paiement")
+        self.btn_valider = QPushButton(qta.icon("fa5s.lock", color=theme_manager.colors()['text_inverse']), "  Valider le paiement")
         self.btn_valider.setFixedHeight(44)
         self.btn_valider.setObjectName("BtnValider")
         self.btn_valider.setCursor(Qt.PointingHandCursor)
@@ -283,7 +283,7 @@ class FactureFournisseurPaymentWidget(QWidget):
         c = theme_manager.colors()
         
         self.setStyleSheet(f"""
-            QWidget {{
+            FactureFournisseurPaymentWidget {{
                 background: {c['bg_main']};
                 color: {c['text_primary']};
             }}
@@ -335,7 +335,7 @@ class FactureFournisseurPaymentWidget(QWidget):
             
             QPushButton#BtnValider {{
                 background: {c['primary']};
-                color: white;
+                color: {c['text_inverse']};
                 border: none;
                 border-radius: 10px;
                 font-size: 14px;

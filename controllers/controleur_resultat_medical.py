@@ -148,6 +148,44 @@ class ResultatMedicalControleur:
             niveau_confidentialite = niveau_confidentialite,
         )
 
+    def modifier_resultat_complet(self,
+                                  id_resultat: str,
+                                  type_source: str,
+                                  type_fichier: str,
+                                  chemin_local: str = None,
+                                  code_acte_medical: str = None,
+                                  code_consultation: str = None,
+                                  description: str = None,
+                                  niveau_confidentialite: str = "moyen"
+                                  ) -> tuple:
+        ok, msg = self.valider_type_source(type_source)
+        if not ok:
+            return False, msg
+
+        ok, msg = self.valider_type_fichier(type_fichier)
+        if not ok:
+            return False, msg
+
+        if chemin_local and chemin_local.strip():
+            ok, msg = self.valider_chemin_fichier(chemin_local)
+            if not ok:
+                return False, msg
+
+        ok, msg = self.valider_source_reference(code_acte_medical, code_consultation)
+        if not ok:
+            return False, msg
+
+        return self.service.modifier_resultat_complet(
+            id_resultat=id_resultat,
+            type_source=type_source,
+            type_fichier=type_fichier,
+            chemin_local=chemin_local,
+            code_acte_medical=code_acte_medical,
+            code_consultation=code_consultation,
+            description=description,
+            niveau_confidentialite=niveau_confidentialite,
+        )
+
     def supprimer_resultat(self, id_resultat: str) -> tuple:
         """Supprime le fichier sur MinIO et la ligne en base de données."""
         if not id_resultat or not id_resultat.strip():

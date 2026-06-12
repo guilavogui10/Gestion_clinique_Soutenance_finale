@@ -631,6 +631,67 @@ class RendezVousService:
     def lister_personnel(self) -> list:
         return self.dao.lister_personnel()
 
+    def lister_personnel_par_roles(self, roles: list) -> list:
+        from data.dao_user import UserDAO
+        return UserDAO().lister_personnel_par_roles(roles)
+
+    def rdv_du_jour_sans_acte(self, code_session: str) -> list:
+        return self.dao.rdv_du_jour_sans_acte(code_session)
+
+    def traiter_rdv_arrive(self, code_rdv: str, action: str, nouvelle_date=None) -> tuple:
+        """
+        Traite un RDV de première visite (sans acte) selon l'action choisie par le médecin.
+        action:
+          'consultation' → passe la visite en 'Attente consultation', clôture le RDV
+          'annuler'      → supprime le RDV ET la visite associée
+          'reporter'     → repousse le RDV à nouvelle_date, statut revient à 'attente'
+        """
+        rdv = self.dao.obtenir_par_code(code_rdv)
+        if not rdv:
+            return False, "Rendez-vous introuvable"
+
+        code_visite = rdv.code_visite
+
+        if action == 'consultation':
+            ok = self.dao.changer_statut_rendez_vous(code_rdv, 'traite')
+            if not ok:
+                return False, "Impossible de mettre à jour le statut du RDV"
+            from data.dao_visite import Visitedao
+            visite_dao = Visitedao()
+            conn = visite_dao.db_manager.connect()
+            if conn:
+                try:
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            "UPDATE visite SET statut_patient = 'Attente consultation' WHERE code_visite = %s",
+                            (code_visite,)
+                        )
+                        conn.commit()
+                finally:
+                    conn.close()
+            return True, "Patient envoyé en attente de consultation"
+
+        elif action == 'annuler':
+            ok, msg = self.supprimer_rendez_vous(code_rdv)
+            if not ok:
+                return False, msg
+            from data.dao_visite import Visitedao
+            Visitedao().deleteVisite(code_visite)
+            return True, "Rendez-vous annulé et visite supprimée"
+
+        elif action == 'reporter':
+            if not nouvelle_date:
+                return False, "Nouvelle date requise pour reporter"
+            from data.dao_visite import Visitedao
+            rdv.date_rendez_vous = nouvelle_date
+            rdv.statut_rendez_vous = 'attente'
+            ok = self.dao.modifier(rdv)
+            if ok:
+                return True, "Rendez-vous reporté avec succès"
+            return False, "Impossible de reporter le rendez-vous"
+
+        return False, f"Action inconnue : {action}"
+
     def lister_actes_en_attente_rdv(self, code_session: str) -> list:
         """Retourne les actes médicaux avec choix_patient='plus_tard' pour cette session."""
         try:

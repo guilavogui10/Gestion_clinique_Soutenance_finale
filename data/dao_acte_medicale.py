@@ -1,4 +1,4 @@
-﻿import sys
+import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -75,12 +75,17 @@ class ActeMedicalDAO:
             return False
         try:
             cursor = conn.cursor(DictCursor)
+            
+            # Vérifier que la consultation existe (Intégrité de la clé étrangère)
+            cursor.execute("SELECT 1 FROM consultation WHERE code = %s", (acte.code_consultation,))
+            if not cursor.fetchone():
+                raise ValueError(f"Erreur d'intégrité : La consultation '{acte.code_consultation}' est introuvable.")
+                
             acte.id_acte = self._generer_code_acte(cursor)
             
             # Vérifier que le code généré est valide
             if not acte.id_acte or not isinstance(acte.id_acte, str) or acte.id_acte.strip() == "":
-                print("[ActeMedicalDAO] Erreur: code_acte généré invalide")
-                return False
+                raise ValueError("Erreur interne : Génération du code acte échouée.")
             
             cursor.execute("""
                 INSERT INTO acte_medical (
@@ -96,10 +101,14 @@ class ActeMedicalDAO:
             ))
             conn.commit()
             return True
-        except Exception as e:
-            print(f"[ActeMedicalDAO] Erreur ajouter: {e}")
+        except ValueError as ve:
+            print(f"[ActeMedicalDAO] Erreur de validation ajouter: {ve}")
             conn.rollback()
-            return False
+            raise ve
+        except Exception as e:
+            print(f"[ActeMedicalDAO] Erreur système ajouter: {e}")
+            conn.rollback()
+            raise Exception(f"Erreur lors de la création de l'acte en base de données: {str(e)}")
         finally:
             self.db.close()
 
@@ -218,6 +227,24 @@ class ActeMedicalDAO:
         finally:
             self.db.close()
 
+    def lister_tous(self, limit: int = 1000) -> list:
+        """Retourne tous les actes, limité pour la performance globale."""
+        conn = self.db.connect()
+        if not conn:
+            return []
+        try:
+            cursor = conn.cursor(DictCursor)
+            cursor.execute(
+                "SELECT * FROM acte_medical ORDER BY code_acte DESC LIMIT %s",
+                (limit,)
+            )
+            return [self._row_to_object(r) for r in cursor.fetchall()]
+        except Exception as e:
+            print(f"[ActeMedicalDAO] Erreur lister_tous: {e}")
+            return []
+        finally:
+            self.db.close()
+
     def lister_actes_en_attente_rdv_par_session(self, code_session: str) -> list:
         """
         Retourne les actes avec choix_patient='plus_tard' pour une session donnée.
@@ -251,12 +278,12 @@ class ActeMedicalDAO:
     # =========================================================================
 
     def _changer_statut(self, code_acte: str, nouveau_statut: str,
-                        champs_extras: dict = None) -> bool:
+                        champs_extras: dict = None, ext_conn=None) -> bool:
         """
         Noyau du workflow : verifie la transition puis applique.
         champs_extras : colonnes supplementaires a mettre a jour simultanement.
         """
-        conn = self.db.connect()
+        conn = ext_conn if ext_conn else self.db.connect()
         if not conn:
             return False
         try:
@@ -294,27 +321,31 @@ class ActeMedicalDAO:
                 f"UPDATE acte_medical SET {', '.join(set_clauses)} WHERE code_acte=%s",
                 params
             )
-            conn.commit()
+            
+            if not ext_conn:
+                conn.commit()
             return cursor.rowcount > 0
         except Exception as e:
             print(f"[ActeMedicalDAO] Erreur _changer_statut: {e}")
-            conn.rollback()
+            if not ext_conn:
+                conn.rollback()
             return False
         finally:
-            self.db.close()
+            if not ext_conn:
+                self.db.close()
 
     def planifier(self, code_acte: str) -> bool:
         """Cas plus_tard : passe l acte en statut planifie."""
         return self._changer_statut(code_acte, StatutActe.PLANIFIE)
 
-    def passer_en_cours(self, code_acte: str) -> bool:
+    def passer_en_cours(self, code_acte: str, ext_conn=None) -> bool:
         """Debute l execution de l acte (en_attente ou planifie -> en_cours)."""
-        return self._changer_statut(code_acte, StatutActe.EN_COURS)
+        return self._changer_statut(code_acte, StatutActe.EN_COURS, ext_conn=ext_conn)
 
-    def terminer(self, code_acte: str, raison: str = None) -> bool:
+    def terminer(self, code_acte: str, raison: str = None, ext_conn=None) -> bool:
         """Cloture un acte en cours. Enregistre un commentaire optionnel."""
         extras = {"raison_refus": raison} if raison else None
-        return self._changer_statut(code_acte, StatutActe.TERMINE, extras)
+        return self._changer_statut(code_acte, StatutActe.TERMINE, extras, ext_conn=ext_conn)
 
     def refuser(self, code_acte: str, raison: str,
                 mode_realisation: str = None) -> bool:
@@ -400,6 +431,31 @@ class ActeMedicalDAO:
     def link_acte_parent(self, code_acte_child: str, code_acte_parent: str) -> bool:
         """Stub — colonne id_acte_parent absente de la table réelle."""
         return True
+
+    def _inserer_import(self, cursor, code_consultation: str, type_acte: str,
+                        decision_medicale: str) -> str:
+        """
+        INSERT acte_medical en mode import (statut=termine, choix=maintenant).
+        Reçoit un curseur externe — pas de gestion de connexion ni de commit.
+        Lève ValueError si la consultation est introuvable.
+        Retourne le code_acte généré.
+        """
+        cursor.execute(
+            "SELECT code_visite FROM consultation WHERE code = %s LIMIT 1",
+            (code_consultation,)
+        )
+        if not cursor.fetchone():
+            raise ValueError(f"Consultation '{code_consultation}' introuvable")
+        code_acte = self._generer_code_acte(cursor)
+        cursor.execute("""
+            INSERT INTO acte_medical (
+                code_acte, code_consultation, type_acte, decision_medicale,
+                choix_patient, mode_realisation, statut_acte, raison_refus
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (code_acte, code_consultation, type_acte,
+              decision_medicale or type_acte,
+              'maintenant', 'interne', 'termine', ''))
+        return code_acte
 
     # =========================================================================
     # METHODES PRIVEES

@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..styles.facture_styles import FactureStyles
+from views.shared.theme_manager import theme_manager
 
 
 # =============================================================================
@@ -56,8 +57,12 @@ def _scroll_wrap(inner_widget):
     """Enveloppe un widget dans un QScrollArea."""
     scroll = QScrollArea()
     scroll.setWidgetResizable(True)
+    _bg = theme_manager.colors()['bg_card']
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-    scroll.setStyleSheet("QScrollArea{border:none; background:transparent;}")
+    scroll.setStyleSheet(
+        f"QScrollArea{{border:none; background:{_bg};}}"
+        f"QScrollArea > QWidget{{background:{_bg};}}"
+    )
     scroll.verticalScrollBar().setStyleSheet(FactureStyles.scrollbar())
     scroll.setWidget(inner_widget)
     return scroll
@@ -134,7 +139,7 @@ class CarteAlerte(QFrame):
         # Titre
         titre = QLabel(self.data.get('libelle', 'Produit'))
         titre.setStyleSheet(
-            f"color:#1F2937; font-size:12px; font-weight:700; background:transparent;"
+            f"color:{theme_manager.colors()['text_primary']}; font-size:12px; font-weight:700; background:transparent;"
         )
         titre.setWordWrap(True)
         info_layout.addWidget(titre)
@@ -247,11 +252,16 @@ class BarreOnglets(QFrame):
     
     def _on_click(self, btn):
         self._mettre_a_jour_styles()
-    
-    def _mettre_a_jour_styles(self):
+
+    def _mettre_a_jour_styles(self) -> None:
+        """Met à jour les styles du fond et de tous les boutons."""
+        c = theme_manager.colors()
+        self.setStyleSheet(
+            f"QFrame{{background:{c['bg_card']}; border:none;"
+            f"border-bottom:1px solid {c['border_light']};}}"
+        )
         for key, btn in self._boutons.items():
-            actif = btn.isChecked()
-            btn.setStyleSheet(self._style_btn(actif))
+            btn.setStyleSheet(self._style_btn(btn.isChecked()))
     
     def _style_btn(self, actif: bool) -> str:
         if actif:
@@ -269,7 +279,7 @@ class BarreOnglets(QFrame):
             f"font-size:11px; font-weight:400; padding:0 10px;"
             f"}}"
             f"QPushButton:hover{{"
-            f"color:{FactureStyles.VERT_PRINCIPAL}; background:#f8fafb;"
+            f"color:{FactureStyles.VERT_PRINCIPAL}; background:{theme_manager.colors()['hover']};"
             f"}}"
         )
     
@@ -318,7 +328,7 @@ class PanneauAlertesStock(FondArrondi):
     LARGEUR = 420
     
     def __init__(self, parent: QWidget, ctrl):
-        super().__init__(rayon=20, couleur_fond=FactureStyles.GRIS_FOND, parent=parent)
+        super().__init__(rayon=20, couleur_fond=FactureStyles.BLANC, parent=parent)
         self.ctrl = ctrl
         self._ouvert = False
         self._code_session = None
@@ -326,7 +336,10 @@ class PanneauAlertesStock(FondArrondi):
         self._repositionner()
         self._setup_ui()
         self._setup_ombre()
-        
+
+        self.apply_theme()
+        theme_manager.theme_changed.connect(self.apply_theme)
+
         self.move(parent.width(), self.y())
         self.hide()
     
@@ -341,7 +354,7 @@ class PanneauAlertesStock(FondArrondi):
         header.setFixedHeight(62)
         header.setStyleSheet(
             f"background:qlineargradient(x1:0,y1:0,x2:1,y2:0,"
-            f"stop:0 {FactureStyles.ROUGE_SOFT},stop:1 #c0392b);"
+            f"stop:0 {FactureStyles.ROUGE_SOFT},stop:1 {theme_manager.colors()['danger']});"
             f"border-top-left-radius:20px; border-top-right-radius:20px;"
         )
         h_lay = QHBoxLayout(header)
@@ -558,6 +571,20 @@ class PanneauAlertesStock(FondArrondi):
         """Bascule l'état du panneau."""
         self.fermer() if self._ouvert else self.ouvrir()
     
+    def apply_theme(self) -> None:
+        """Met à jour les couleurs selon le thème actif."""
+        c = theme_manager.colors()
+        # Fond arrondi peint via QPainter
+        self._couleur_fond = QColor(c['bg_card'])
+        self.update()
+        # Barre d'onglets
+        if hasattr(self, '_barre'):
+            self._barre.setStyleSheet(
+                f"QFrame{{background:{c['bg_card']}; border:none;"
+                f"border-bottom:1px solid {c['border_light']};}}"
+            )
+            self._barre._mettre_a_jour_styles()
+
     def resizeEvent(self, event):
         """Gère le redimensionnement."""
         super().resizeEvent(event)

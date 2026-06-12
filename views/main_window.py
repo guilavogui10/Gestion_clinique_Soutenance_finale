@@ -30,8 +30,11 @@ class MainWindow(QMainWindow):
         self.stack = QStackedWidget()
         self.setCentralWidget(self.stack)
 
-        # Charger le login au début
-        self.login_page = LoginView()
+        # Charger les rôles disponibles via le contrôleur (respect MVC)
+        roles_disponibles = self.ctrl.obtenir_roles_disponibles()
+        
+        # Créer la page de login avec les rôles
+        self.login_page = LoginView(roles_disponibles=roles_disponibles)
         self.stack.addWidget(self.login_page)
         self.login_page.login_success.connect(self.tenter_connexion)
         
@@ -41,10 +44,10 @@ class MainWindow(QMainWindow):
 
 
     def tenter_connexion(self, _credentials=None):
-        login = self.login_page.input_login.text().strip()
-        mdp   = self.login_page.input_password.text()
+        role_selectionne = self.login_page.combo_role.currentData()
+        mdp = self.login_page.input_password.text()
 
-        res = self.ctrl.gerer_authentification(login, mdp)
+        res = self.ctrl.gerer_authentification(role_selectionne, mdp)
         if res["status"] == "success":
             self.afficher_dashboard(res["user_info"])
         elif res["status"] == "otp_required":
@@ -153,7 +156,7 @@ class MainWindow(QMainWindow):
             del self.dashboard
         
         # Réinitialiser les champs de connexion
-        self.login_page.input_login.clear()
+        self.login_page.combo_role.setCurrentIndex(0)
         self.login_page.input_password.clear()
         
         # Retourner à la page de connexion
@@ -167,3 +170,9 @@ class MainWindow(QMainWindow):
             "Déconnexion réussie",
             "Vous avez été déconnecté avec succès."
         )
+    
+    def naviguer_vers_facturation(self, code_facture_four: str = None):
+        """Permet de naviguer vers le module facturation depuis n'importe où dans l'application.
+        Si code_facture_four est fourni, charge la facture pour paiement."""
+        if hasattr(self, 'dashboard'):
+            self.dashboard.naviguer_vers_facturation(code_facture_four)

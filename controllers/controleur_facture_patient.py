@@ -154,4 +154,16 @@ class FacturePatientControleur:
         """Genere le PDF de facture patient avec le detail des services."""
         return self.service.generer_facture_pdf(code_facture, chemin_fichier)
 
+    # =========================================================================
+    # RAPPORTS PDF LISTE FACTURES
+    # =========================================================================
+
+    def generer_rapport_pdf_par_date(self, code_session: str) -> str:
+        """Genere un PDF rapport de toutes les factures groupees par date."""
+        return self.service.generer_rapport_pdf_par_date(code_session)
+
+    def generer_rapport_pdf_date_precise(self, code_session: str, date_cible) -> str:
+        """Genere un PDF rapport des factures pour une date precise."""
+        return self.service.generer_rapport_pdf_date_precise(code_session, date_cible)
+
 

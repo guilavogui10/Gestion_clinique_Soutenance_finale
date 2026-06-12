@@ -107,6 +107,21 @@ class Visitedao:
         finally:
             conn.close()
     
+    def deleteVisite(self, code_visite: str) -> tuple:
+        conn = self.db_manager.connect()
+        if not conn:
+            return False, "Erreur de connexion"
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("DELETE FROM visite WHERE code_visite = %s", (code_visite,))
+                conn.commit()
+                return True, "Visite supprimée"
+        except pymysql.MySQLError as e:
+            conn.rollback()
+            return False, f"Erreur suppression visite : {e}"
+        finally:
+            conn.close()
+
     def reedAllvisite(self):
         """
         Récupère toutes les visites de la base de données
@@ -717,6 +732,54 @@ class Visitedao:
                 return False, 0, None
         finally:
             conn.close()
+
+    def verifier_alertes_batch(self, codes_visites: list, limite_alerte=20):
+        """
+        Vérifie en une seule requête (batch) si plusieurs patients dépassent 
+        le temps d'attente acceptable.
+        
+        Args:
+            codes_visites (list): Liste des codes visite
+            limite_alerte (int): Temps limite en minutes (défaut: 20)
+            
+        Returns:
+            list: Liste des alertes actives [{'code_visite': ..., 'temps_attente': ..., 'statut': ...}]
+        """
+        if not codes_visites:
+            return []
+            
+        conn = self.db_manager.connect()
+        if not conn:
+            return []
+        
+        try:
+            with conn.cursor(DictCursor) as cursor:
+                format_strings = ','.join(['%s'] * len(codes_visites))
+                sql = f"""
+                    SELECT code_visite, statut_patient, TIMESTAMPDIFF(MINUTE, date_visite, NOW()) as temps_attente
+                    FROM visite 
+                    WHERE code_visite IN ({format_strings})
+                """
+                cursor.execute(sql, tuple(codes_visites))
+                rows = cursor.fetchall()
+                
+                alertes = []
+                for row in rows:
+                    attente = row['temps_attente']
+                    statut = row['statut_patient']
+                    
+                    if statut and "attente" in statut.lower() and attente > limite_alerte:
+                        alertes.append({
+                            'code_visite': row['code_visite'],
+                            'temps_attente': attente,
+                            'statut': statut
+                        })
+                return alertes
+        except Exception as e:
+            print(f"Erreur verifier_alertes_batch: {e}")
+            return []
+        finally:
+            conn.close()
     
     def get_analyse_performance_soiree(self, code_session: str):
         """
@@ -1178,3 +1241,73 @@ class Visitedao:
             return {'duree_attente_min': None, 'duree_consultation_min': None}
         finally:
             conn.close()
+
+    def lister_sessions(self, limite: int = 50) -> list:
+        """Retourne les codes de session depuis la table annee."""
+        conn = self.db_manager.connect()
+        if not conn:
+            return []
+        try:
+            with conn.cursor(DictCursor) as cursor:
+                cursor.execute(
+                    "SELECT code_session FROM annee ORDER BY code_session DESC LIMIT %s",
+                    (limite,)
+                )
+                return cursor.fetchall() or []
+        except Exception as e:
+            print(f"[VisiteDAO] Erreur lister_sessions: {e}")
+            return []
+        finally:
+            conn.close()
+
+    def lister_sessions_completes(self, limite: int = 50) -> list:
+        """Retourne code_session, nom_session, date_debut, date_fin, statut depuis annee."""
+        conn = self.db_manager.connect()
+        if not conn:
+            return []
+        try:
+            with conn.cursor(DictCursor) as cursor:
+                cursor.execute(
+                    "SELECT code_session, nom_session, date_debut, date_fin, statut "
+                    "FROM annee ORDER BY code_session DESC LIMIT %s",
+                    (limite,)
+                )
+                return cursor.fetchall() or []
+        except Exception as e:
+            print(f"[VisiteDAO] Erreur lister_sessions_completes: {e}")
+            return []
+        finally:
+            conn.close()
+
+    def get_session_from_visite(self, code_visite: str) -> str:
+        """Retourne le code_session d'une visite par son code."""
+        visite = self.reeVisite_ByCode_visite(code_visite)
+        return visite.get_code_session() if visite else None
+
+    def get_plage_session(self, code_session: str) -> dict | None:
+        """Retourne nom_session, date_debut et date_fin pour une session donnée."""
+        conn = self.db_manager.connect()
+        if not conn:
+            return None
+        try:
+            with conn.cursor(DictCursor) as cursor:
+                cursor.execute(
+                    "SELECT nom_session, date_debut, date_fin FROM annee WHERE code_session = %s LIMIT 1",
+                    (code_session,)
+                )
+                return cursor.fetchone()
+        except Exception as e:
+            print(f"[Visitedao] Erreur get_plage_session: {e}")
+            return None
+        finally:
+            conn.close()
+
+    def _update_statut_visite_import(self, cursor, code_visite: str, statut: str) -> None:
+        """
+        UPDATE visite.statut_patient en mode import — reçoit curseur externe.
+        Pas de gestion de connexion ni de commit.
+        """
+        cursor.execute(
+            "UPDATE visite SET statut_patient = %s WHERE code_visite = %s",
+            (statut, code_visite)
+        )

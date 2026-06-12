@@ -49,7 +49,7 @@ class HistoriqueCommandeLunetteView(QWidget):
         top_bar.setSpacing(10)
 
         ico = QLabel()
-        ico.setPixmap(qta.icon("fa5s.glasses", color="#2563eb").pixmap(20, 20))
+        ico.setPixmap(qta.icon("fa5s.glasses", color=theme_manager.colors()['primary']).pixmap(20, 20))
         title = QLabel("Historique des commandes de lunettes")
         title.setObjectName("HistTitre")
         top_bar.addWidget(ico)
@@ -221,7 +221,7 @@ class HistoriqueCommandeLunetteView(QWidget):
         date_row.setSpacing(6)
 
         ico_cal = QLabel()
-        ico_cal.setPixmap(qta.icon("fa5s.calendar-alt", color=c.get("primary", "#2563eb")).pixmap(13, 13))
+        ico_cal.setPixmap(qta.icon("fa5s.calendar-alt", color=c['primary']).pixmap(13, 13))
         date_lbl = QLabel(date_str)
         date_lbl.setObjectName("HistTimelineDate")
         date_row.addWidget(ico_cal)
@@ -238,7 +238,7 @@ class HistoriqueCommandeLunetteView(QWidget):
         dr_row = QHBoxLayout()
         dr_row.setSpacing(6)
         ico_dr = QLabel()
-        ico_dr.setPixmap(qta.icon("fa5s.user-md", color=c.get("text_secondary", "#666")).pixmap(12, 12))
+        ico_dr.setPixmap(qta.icon("fa5s.user-md", color=c['text_secondary']).pixmap(12, 12))
         dr_lbl = QLabel(dr_name)
         dr_lbl.setObjectName("HistTimelineDr")
         dr_row.addWidget(ico_dr)
@@ -249,7 +249,7 @@ class HistoriqueCommandeLunetteView(QWidget):
         verre_row = QHBoxLayout()
         verre_row.setSpacing(6)
         ico_verre = QLabel()
-        ico_verre.setPixmap(qta.icon("fa5s.glasses", color=c.get("text_muted", "#999")).pixmap(11, 11))
+        ico_verre.setPixmap(qta.icon("fa5s.glasses", color=c['text_muted']).pixmap(11, 11))
         verre_lbl = QLabel(f"Verre : {verre}" if verre and verre != "-" else "—")
         verre_lbl.setObjectName("HistTimelineLib")
         verre_lbl.setWordWrap(True)
@@ -310,12 +310,12 @@ class HistoriqueCommandeLunetteView(QWidget):
         wl.setAlignment(Qt.AlignCenter)
 
         ico = QLabel()
-        ico.setPixmap(qta.icon(icon_name, color=c.get("border", "#ddd")).pixmap(56, 56))
+        ico.setPixmap(qta.icon(icon_name, color=c['border']).pixmap(56, 56))
         ico.setAlignment(Qt.AlignCenter)
 
         msg = QLabel(message)
         msg.setAlignment(Qt.AlignCenter)
-        msg.setStyleSheet(f"color: {c.get('text_muted', '#aaa')}; font-size: 14px;")
+        msg.setStyleSheet(f"color: {c['text_muted']}; font-size: 14px;")
         msg.setWordWrap(True)
 
         wl.addStretch()
@@ -489,7 +489,7 @@ class HistoriqueCommandeLunetteView(QWidget):
 
         title_row = QHBoxLayout()
         title_ico = QLabel()
-        title_ico.setPixmap(qta.icon("fa5s.info-circle", color=c.get("primary", "#2563eb")).pixmap(14, 14))
+        title_ico.setPixmap(qta.icon("fa5s.info-circle", color=c['primary']).pixmap(14, 14))
         title_lbl = QLabel("Informations de la commande")
         title_lbl.setObjectName("HistCardSectionTitle")
         title_row.addWidget(title_ico)
@@ -521,7 +521,7 @@ class HistoriqueCommandeLunetteView(QWidget):
             top = QHBoxLayout()
             top.setSpacing(6)
             ico = QLabel()
-            ico.setPixmap(qta.icon(icon_name, color=c.get("primary", "#2563eb")).pixmap(12, 12))
+            ico.setPixmap(qta.icon(icon_name, color=c['primary']).pixmap(12, 12))
             lbl = QLabel(label)
             lbl.setObjectName("HistInfoLabel")
             top.addWidget(ico)
@@ -558,7 +558,7 @@ class HistoriqueCommandeLunetteView(QWidget):
         l.setContentsMargins(0, 0, 0, 0)
         l.setSpacing(5)
         ico = QLabel()
-        ico.setPixmap(qta.icon(icon_name, color=color or c.get("text_secondary", "#666")).pixmap(12, 12))
+        ico.setPixmap(qta.icon(icon_name, color=color or c['text_secondary']).pixmap(12, 12))
         txt = QLabel(str(text))
         txt.setObjectName("HistIconText")
         l.addWidget(ico)
@@ -573,7 +573,7 @@ class HistoriqueCommandeLunetteView(QWidget):
         c = theme_manager.colors()
         self.setStyleSheet(f"""
             QWidget {{
-                background: white;
+                background: {c['bg_main']};
                 font-family: 'Segoe UI', sans-serif;
             }}
             QLabel#HistTitre {{
@@ -601,13 +601,13 @@ class HistoriqueCommandeLunetteView(QWidget):
             }}
             QFrame#HistHSep {{ color: {c['border']}; }}
             QFrame#HistLeftPanel {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 14px;
             }}
-            QWidget#HistTimelineBg {{ background: transparent; }}
+            QWidget#HistTimelineBg {{ background: {c['bg_main']}; }}
             QFrame#HistTimelineCard {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border_light']};
                 border-radius: 10px;
             }}
@@ -636,22 +636,22 @@ class HistoriqueCommandeLunetteView(QWidget):
                 font-size: 10px; font-weight: 700;
                 padding: 2px 8px;
             }}
-            QFrame#HistRightPanel {{ background: white; }}
-            QWidget#HistDetailBg  {{ background: white; }}
+            QFrame#HistRightPanel {{ background: {c['bg_main']}; }}
+            QWidget#HistDetailBg  {{ background: {c['bg_main']}; }}
             QFrame#HistDetailCard {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 12px;
             }}
             QLabel#HistAvatar {{
                 background: {c['primary']};
-                color: white;
+                color: {c['text_inverse']};
                 border-radius: 28px;
                 font-size: 20px; font-weight: 700;
             }}
             QLabel#HistPersonnelAvatar {{
                 background: {c['success']};
-                color: white;
+                color: {c['text_inverse']};
                 border-radius: 28px;
                 font-size: 20px; font-weight: 700;
             }}
@@ -662,7 +662,7 @@ class HistoriqueCommandeLunetteView(QWidget):
                 font-size: 12px; color: {c['text_secondary']};
             }}
             QFrame#HistInfoItem {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border_light']};
                 border-radius: 8px;
             }}
@@ -677,7 +677,7 @@ class HistoriqueCommandeLunetteView(QWidget):
             }}
             QFrame#HistCardSep {{ color: {c['border_light']}; }}
             QScrollBar:vertical {{
-                background: transparent; width: 6px; margin: 0;
+                background: {c['bg_main']}; width: 6px; margin: 0;
             }}
             QScrollBar::handle:vertical {{
                 background: {c['border']}; border-radius: 3px; min-height: 20px;

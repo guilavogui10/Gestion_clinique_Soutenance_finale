@@ -21,8 +21,7 @@ class PrescriptionFormOptimized:
     dans une seule carte, sans scroll.
     """
 
-    def __init__(self, bleu_principal: str):
-        self.bleu_principal = bleu_principal
+    def __init__(self):
 
         # Widgets exposés
         self.combo_acte = None
@@ -36,6 +35,16 @@ class PrescriptionFormOptimized:
         # Labels carte patient
         self.lbl_patient_nom = None
         self.lbl_patient_code = None
+
+        # Refs pour apply_theme
+        self._form_card = None
+        self._form_sep = None
+        self._icon_box = None
+        self._icon_ic = None
+        self._title_lbl = None
+        self._sub_lbl = None
+        self._patient_band = None
+        self._patient_band_ic = None
 
     def create(self, parent_layout):
         """Crée le formulaire optimisé sans scroll."""
@@ -56,11 +65,12 @@ class PrescriptionFormOptimized:
         card.setObjectName("formCard")
         card.setStyleSheet(f"""
             QFrame#formCard {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1.5px solid {c['border_light']};
                 border-radius: 14px;
             }}
         """)
+        self._form_card = card
         card_layout = QVBoxLayout(card)
         card_layout.setContentsMargins(20, 16, 20, 16)  # Marges réduites
         card_layout.setSpacing(12)  # Espacement réduit entre les lignes
@@ -92,6 +102,7 @@ class PrescriptionFormOptimized:
         sep.setFrameShape(QFrame.HLine)
         sep.setFixedHeight(1)
         sep.setStyleSheet(f"background: {c['border_light']}; border: none;")
+        self._form_sep = sep
         card_layout.addWidget(sep)
 
         # Ligne 2 : Produit | Désignation
@@ -121,14 +132,14 @@ class PrescriptionFormOptimized:
         row3.setSpacing(16)
 
         vb_qte, wr_qte = self._make_field("fa5s.sort-numeric-up", "Quantité prescrite *")
-        self.input_quantite = ModernQuantitySpinner(self.bleu_principal)
+        self.input_quantite = ModernQuantitySpinner()
         self.input_quantite.setMinimum(1)
         self.input_quantite.setMaximum(9999)
         self.input_quantite.setFixedHeight(42)
         vb_qte.addWidget(self.input_quantite)
 
         vb_prix, wr_prix = self._make_field("fa5s.dollar-sign", "Prix appliqué *")
-        self.input_prix = ModernPriceInput(self.bleu_principal)
+        self.input_prix = ModernPriceInput()
         self.input_prix.setPlaceholderText("0")
         self.input_prix.setEnabled(False)
         self.input_prix.setFixedHeight(42)
@@ -202,16 +213,18 @@ class PrescriptionFormOptimized:
         icon_box.setFixedSize(46, 46)
         icon_box.setStyleSheet(f"""
             QFrame {{
-                background: {self.bleu_principal};
+                background: {c['primary']};
                 border-radius: 12px;
             }}
         """)
+        self._icon_box = icon_box
         ib_lay = QVBoxLayout(icon_box)
         ib_lay.setContentsMargins(0, 0, 0, 0)
         ib_lay.setAlignment(Qt.AlignCenter)
         ic = QLabel()
-        ic.setPixmap(qta.icon("fa5s.clipboard-list", color="white").pixmap(22, 22))
+        ic.setPixmap(qta.icon("fa5s.clipboard-list", color=c['text_inverse']).pixmap(22, 22))
         ic.setStyleSheet("border: none; background: transparent;")
+        self._icon_ic = ic
         ib_lay.addWidget(ic)
 
         # Texte
@@ -222,11 +235,13 @@ class PrescriptionFormOptimized:
             font-size: 15px; font-weight: bold;
             color: {c['text_primary']}; border: none; background: transparent;
         """)
+        self._title_lbl = title
         sub = QLabel("Sélectionnez un acte puis renseignez le produit")
         sub.setStyleSheet(f"""
             font-size: 11px; color: {c['text_muted']};
             border: none; background: transparent;
         """)
+        self._sub_lbl = sub
         col.addWidget(title)
         col.addWidget(sub)
 
@@ -246,14 +261,15 @@ class PrescriptionFormOptimized:
 
     def _create_combo(self, placeholder: str, icon_name: str) -> QComboBox:
         """Combobox stylisé."""
+        c = theme_manager.colors()
         combo = QComboBox()
         combo.setFixedHeight(42)
         combo.addItem(
-            qta.icon(icon_name, color=self.bleu_principal),
+            qta.icon(icon_name, color=c['primary']),
             f"  — {placeholder} —",
             None
         )
-        combo.setStyleSheet(PrescriptionStyles.combo_produit(self.bleu_principal))
+        combo.setStyleSheet(PrescriptionStyles.combo_produit())
         return combo
 
     def _create_patient_card(self, layout):
@@ -264,18 +280,20 @@ class PrescriptionFormOptimized:
         card.setFixedHeight(46)
         card.setStyleSheet(f"""
             QFrame#patientBand {{
-                background: {c['bg_main']};
+                background: {c['bg_input']};
                 border: 1px solid {c['border_light']};
                 border-radius: 8px;
             }}
         """)
+        self._patient_band = card
         row = QHBoxLayout(card)
         row.setContentsMargins(12, 0, 12, 0)
         row.setSpacing(10)
 
         ic = QLabel()
-        ic.setPixmap(qta.icon("fa5s.user-injured", color=self.bleu_principal).pixmap(15, 15))
+        ic.setPixmap(qta.icon("fa5s.user-injured", color=c['primary']).pixmap(15, 15))
         ic.setStyleSheet("border: none; background: transparent;")
+        self._patient_band_ic = ic
 
         self.lbl_patient_nom = QLabel("— Sélectionnez un acte médical —")
         self.lbl_patient_nom.setStyleSheet(f"""
@@ -301,15 +319,15 @@ class PrescriptionFormOptimized:
         """Bouton Ajouter au Panier pleine largeur."""
         c = theme_manager.colors()
         self.btn_ajouter = QPushButton(
-            qta.icon("fa5s.plus", color="white"),
+            qta.icon("fa5s.plus", color=c['text_inverse']),
             "  Ajouter au panier"
         )
         self.btn_ajouter.setFixedHeight(46)
         self.btn_ajouter.setCursor(Qt.PointingHandCursor)
         self.btn_ajouter.setStyleSheet(f"""
             QPushButton {{
-                background: {self.bleu_principal};
-                color: white;
+                background: {c['primary']};
+                color: {c['text_inverse']};
                 border: none;
                 border-radius: 10px;
                 font-size: 13px;
@@ -359,6 +377,79 @@ class PrescriptionFormOptimized:
         note_layout.addWidget(text_lbl, 1)
 
         layout.addWidget(note_frame)
+
+    # ─────────────────────────────────────────────────────────────
+    # Thème dynamique
+    # ─────────────────────────────────────────────────────────────
+
+    def apply_theme(self):
+        """Met à jour tous les styles avec le thème courant."""
+        if not self._form_card:
+            return
+        c = theme_manager.colors()
+
+        self._form_card.setStyleSheet(f"""
+            QFrame#formCard {{
+                background: {c['bg_card']};
+                border: 1.5px solid {c['border_light']};
+                border-radius: 14px;
+            }}
+        """)
+        if self._form_sep:
+            self._form_sep.setStyleSheet(f"background: {c['border_light']}; border: none;")
+        if self._icon_box:
+            self._icon_box.setStyleSheet(f"QFrame {{ background: {c['primary']}; border-radius: 12px; }}")
+        if self._icon_ic:
+            self._icon_ic.setPixmap(qta.icon("fa5s.clipboard-list", color=c['text_inverse']).pixmap(22, 22))
+        if self._title_lbl:
+            self._title_lbl.setStyleSheet(
+                f"font-size: 15px; font-weight: bold; color: {c['text_primary']}; border: none; background: transparent;"
+            )
+        if self._sub_lbl:
+            self._sub_lbl.setStyleSheet(
+                f"font-size: 11px; color: {c['text_muted']}; border: none; background: transparent;"
+            )
+        if self._patient_band:
+            self._patient_band.setStyleSheet(f"""
+                QFrame#patientBand {{
+                    background: {c['bg_input']};
+                    border: 1px solid {c['border_light']};
+                    border-radius: 8px;
+                }}
+            """)
+        if self._patient_band_ic:
+            self._patient_band_ic.setPixmap(qta.icon("fa5s.user-injured", color=c['primary']).pixmap(15, 15))
+        if self.lbl_patient_nom:
+            self.lbl_patient_nom.setStyleSheet(
+                f"font-size: 12px; font-weight: bold; color: {c['text_primary']}; border: none; background: transparent;"
+            )
+        if self.lbl_patient_code:
+            self.lbl_patient_code.setStyleSheet(
+                f"font-size: 10px; color: {c['text_muted']}; border: none; background: transparent;"
+            )
+        if self.btn_ajouter:
+            self.btn_ajouter.setIcon(qta.icon("fa5s.plus", color=c['text_inverse']))
+            self.btn_ajouter.setStyleSheet(f"""
+                QPushButton {{
+                    background: {c['primary']};
+                    color: {c['text_inverse']};
+                    border: none;
+                    border-radius: 10px;
+                    font-size: 13px;
+                    font-weight: bold;
+                    padding: 0 20px;
+                }}
+                QPushButton:hover {{ background: {c['primary_hover']}; }}
+                QPushButton:disabled {{ background: {c['border']}; color: {c['text_muted']}; }}
+            """)
+        if self.combo_acte:
+            self.combo_acte.setStyleSheet(PrescriptionStyles.combo_produit())
+        if self.combo_produit:
+            self.combo_produit.setStyleSheet(PrescriptionStyles.combo_produit())
+        if self.edit_code_session:
+            self.edit_code_session.setStyleSheet(PrescriptionStyles.input_readonly())
+        if self.input_designation:
+            self.input_designation.setStyleSheet(PrescriptionStyles.input_readonly())
 
     # API publique
     def charger_patient(self, nom: str, prenom: str, code_acte: str) -> None:

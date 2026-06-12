@@ -187,7 +187,7 @@ class ExamensTable(QWidget):
         self.container.setStyleSheet(
             f"""
             QFrame#ExamensTableCard {{
-                background: white;
+                background: {c['bg_card']};
                 border: none;
             }}
             QLineEdit#SearchInput {{
@@ -235,7 +235,7 @@ class ExamensTable(QWidget):
                 background: {c['primary_hover']};
             }}
             QTableWidget#ExamenTable {{
-                background: white;
+                background: {c['bg_table']};
                 border: none;
                 gridline-color: {c['table_gridline']};
                 color: {c['text_primary']};
@@ -273,6 +273,8 @@ class ExamensTable(QWidget):
         self.btn_prev.setIcon(qta.icon("fa5s.chevron-left", color=c["text_secondary"]))
         self.btn_next.setIcon(qta.icon("fa5s.chevron-right", color=c["text_secondary"]))
         self._refresh_pagination_buttons()
+        if self.filtered_examens:
+            self.update_table()
 
     def load_examens(self, examens, code_session: str):
         self.code_session = code_session
@@ -503,13 +505,13 @@ class ExamensTable(QWidget):
         c = theme_manager.colors()
         statut = (statut or "").lower()
         if "payée" in statut or statut == "payee":
-            color, bg = c.get("success", "#27ae60"), c.get("success_bg", "#27ae6020")
+            color, bg = c['success'], c['success_bg']
             label_text = "Payée"
         elif "attente" in statut:
-            color, bg = c.get("warning", "#f39c12"), c.get("warning_bg", "#f39c1220")
+            color, bg = c['warning'], c['warning_bg']
             label_text = "Attente"
         else:
-            color, bg = c.get("text_muted", "#888"), c.get("bg_main", "#f5f5f5")
+            color, bg = c['text_muted'], c['bg_input']
             label_text = statut.capitalize() or "-"
 
         widget = QWidget()
@@ -596,7 +598,7 @@ class ExamensTable(QWidget):
         menu = QMenu(self)
         menu.setStyleSheet(f"""
             QMenu {{
-                background: white;
+                background: {c['bg_card']};
                 border: 1px solid {c['border']};
                 border-radius: 8px;
                 padding: 6px 0;
