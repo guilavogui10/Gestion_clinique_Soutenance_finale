@@ -227,17 +227,28 @@ class ActeMedicalDAO:
         finally:
             self.db.close()
 
-    def lister_tous(self, limit: int = 1000) -> list:
-        """Retourne tous les actes, limité pour la performance globale."""
+    def lister_tous(self, limit: int = 1000, code_session: str = None) -> list:
+        """Retourne tous les actes, filtré par session si fournie."""
         conn = self.db.connect()
         if not conn:
             return []
         try:
             cursor = conn.cursor(DictCursor)
-            cursor.execute(
-                "SELECT * FROM acte_medical ORDER BY code_acte DESC LIMIT %s",
-                (limit,)
-            )
+            if code_session:
+                cursor.execute(
+                    """
+                    SELECT a.* FROM acte_medical a
+                    JOIN consultation c ON c.code = a.code_consultation
+                    WHERE c.code_session = %s
+                    ORDER BY a.code_acte DESC LIMIT %s
+                    """,
+                    (code_session, limit)
+                )
+            else:
+                cursor.execute(
+                    "SELECT * FROM acte_medical ORDER BY code_acte DESC LIMIT %s",
+                    (limit,)
+                )
             return [self._row_to_object(r) for r in cursor.fetchall()]
         except Exception as e:
             print(f"[ActeMedicalDAO] Erreur lister_tous: {e}")

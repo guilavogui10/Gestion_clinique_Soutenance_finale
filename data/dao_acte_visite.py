@@ -497,9 +497,7 @@ class ActeVisiteDAO:
     def get_suivi_actifs(self) -> list:
         """
         Retourne tous les patients actifs (non libérés) avec leur progression complète.
-        Inclut AUSSI les consultations (patients en attente/en consultation sans actes médicaux).
-        Joint: visite → patients + acte_visite → acte_medical.
-        Retourne des dicts bruts — un row par (visite, acte). Grouper par code_visite côté UI.
+        Inclut v.code_session pour permettre le filtrage côté vue.
         """
         conn = self.db.connect()
         if not conn:
@@ -512,6 +510,7 @@ class ActeVisiteDAO:
                     p.nom,
                     p.prenom,
                     v.code_visite,
+                    v.code_session,
                     v.date_visite,
                     v.statut_patient,
                     v.urgent,

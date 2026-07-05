@@ -1,12 +1,19 @@
 import pymysql
 import pymysql.cursors # Pour utiliser DictCursor
-import pymysql
-#from pymysqlpool.pool import Pool # Importe la classe Pool
 import traceback
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+_DB_HOST = os.getenv("DB_HOST", "localhost")
+_DB_USER = os.getenv("DB_USER", "root")
+_DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+_DB_PORT = int(os.getenv("DB_PORT", "3306"))
+_DB_NAME = os.getenv("DB_NAME", "soutenance")
 
 class DBConnection:
-    def __init__(self, host="localhost", user="root", password="", database="soutenance", port=3306):
+    def __init__(self, host=_DB_HOST, user=_DB_USER, password=_DB_PASSWORD, database=_DB_NAME, port=_DB_PORT):
         self.host = host
         self.user = user
         self.password = password

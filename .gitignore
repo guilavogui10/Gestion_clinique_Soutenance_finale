@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Environnements virtuels
+venv/
+env/
+ENV/
+
+# Configuration sensibles
+.env
+*.env
+!.env.example
+
+# Données MinIO et sauvegardes
+minio_data/
+sauvegardes_incrementielles/
+
+# Logs
+*.log
+vault.log
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

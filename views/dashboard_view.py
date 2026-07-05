@@ -556,6 +556,7 @@ class DashboardView(QWidget):
 
         return btn
 
+
     # ═══════════════════════════════════════════════════════════════
     # NAVIGATION
     # ═══════════════════════════════════════════════════════════════
@@ -1000,9 +1001,9 @@ class DashboardView(QWidget):
 
     def show_actes(self):
         def _charger(p):
-            if hasattr(p, "load_data"):
-                p.load_data()
-                p._update_file_attente()
+            actif, code_session = self.visite_ctrl.verifier_session_active()
+            if hasattr(p, 'charger_donnees'):
+                p.charger_donnees(code_session if actif else None)
         self._naviguer("actes", self._factory_actes, "Actes médicaux", _charger)
 
     def show_resultats(self):

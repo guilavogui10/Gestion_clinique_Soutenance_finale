@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QTabWidget, QFrame, QPushButton, QLabel,
     QLineEdit, QComboBox, QTextEdit, QGridLayout, QSizePolicy,
 )
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt, QSize, QTimer
 from PySide6.QtGui import QIcon
 
 from views.shared.theme_manager import theme_manager
@@ -51,7 +51,6 @@ class VueActeMedical(QWidget):
 
         self.init_ui()
         self.connect_signals()
-        self.load_data()
 
         theme_manager.theme_changed.connect(self.apply_theme)
         self.apply_theme()
@@ -421,6 +420,13 @@ class VueActeMedical(QWidget):
     # CHARGEMENT DES DONNÉES
     # =========================================================================
 
+    def charger_donnees(self, code_session: str = None):
+        """Point d'entrée appelé par le dashboard avec la session active."""
+        self._code_session = code_session
+        self._last_actes_hash = None
+        self._last_file_hash  = None
+        self.load_data()
+
     def _actualiser_tout(self):
         """Force un rechargement complet (bouton Actualiser)."""
         self._last_actes_hash = None
@@ -429,9 +435,10 @@ class VueActeMedical(QWidget):
 
     def load_data(self):
         """Charge tous les actes et met à jour les composants."""
+        code_session = getattr(self, '_code_session', None)
         try:
-            actes_obj = self.ctrl.lister_tous() if hasattr(self.ctrl, "lister_tous") \
-                        else self._lister_tous()
+            actes_obj = self.ctrl.lister_tous(code_session=code_session) \
+                        if hasattr(self.ctrl, "lister_tous") else self._lister_tous()
             actes = [_acte_to_dict(a) for a in actes_obj]
         except Exception as e:
             self.logger.warning("Impossible de charger les actes : %s", e)
@@ -504,8 +511,14 @@ class VueActeMedical(QWidget):
 
         # Charger les données AVANT de vider l'UI
         raw = []
+        code_session = getattr(self, '_code_session', None)
         try:
-            raw = self.ctrl.get_suivi_file_attente() or []
+            tous = self.ctrl.get_suivi_file_attente() or []
+            # Filtrer en Python sur v.code_session retourné dans chaque ligne
+            if code_session:
+                raw = [r for r in tous if r.get('code_session') == code_session]
+            else:
+                raw = tous
         except Exception as e:
             self.logger.warning("Erreur suivi file attente: %s", e)
 
@@ -1354,7 +1367,6 @@ class VueActeMedical(QWidget):
                 dashboard.workspace_stack.setCurrentIndex(5)
                 
                 # Attendre que la page soit chargée
-                from PySide6.QtCore import QTimer
                 QTimer.singleShot(100, lambda: self._pre_remplir_formulaire_examen(dashboard, code_acte))
             else:
                 CustomMessageBox.warning(self, "Erreur", "Page examen non trouvée")

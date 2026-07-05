@@ -95,9 +95,9 @@ class ActeMedicalControleur:
         """Retourne tous les actes d'un statut donné."""
         return self.service_acte.lister_par_statut(statut)
 
-    def lister_tous(self, limit: int = 1000) -> list:
-        """Retourne tous les actes (limités pour la performance)."""
-        return self.service_acte.lister_tous(limit)
+    def lister_tous(self, limit: int = 1000, code_session: str = None) -> list:
+        """Retourne tous les actes, filtré par session si fournie."""
+        return self.service_acte.lister_tous(limit, code_session)
 
     # =========================================================================
     # SECTION 3 — WORKFLOW / TRANSITIONS D'ÉTATS (ActeMedicalService)

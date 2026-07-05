@@ -437,8 +437,8 @@ class ActeMedicalService:
     def lister_par_statut(self, statut: str) -> list:
         return self.dao.lister_par_statut(statut)
 
-    def lister_tous(self, limit: int = 1000) -> list:
-        return self.dao.lister_tous(limit)
+    def lister_tous(self, limit: int = 1000, code_session: str = None) -> list:
+        return self.dao.lister_tous(limit, code_session)
 
     # =========================================================================
     # SECTION 4 — WORKFLOW / TRANSITIONS D'ÉTATS
